@@ -1,0 +1,18 @@
+{
+  "name": "旅遊小本本",
+  "short_name": "旅遊小本本",
+  "description": "可在手機與電腦同步編輯的旅遊規劃本。",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#F5F3EC",
+  "theme_color": "#C85C32",
+  "lang": "zh-Hant",
+  "icons": [
+    {
+      "src": "assets/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

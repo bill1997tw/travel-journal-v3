@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#C85C32">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>悠遊小本本 Voyage Book | 您的專屬旅行規劃與分帳管家</title>
+  <meta name="description" content="悠遊小本本是一個為自助旅行與重機愛好者設計的精美企劃工具，包含詳細日程、景點與餐廳備案庫、行李打包清單、多人費用代墊分帳以及回憶日記。">
+  <link rel="stylesheet" href="index.css">
+  <link rel="stylesheet" href="cloud-sync.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/app-icon.svg">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="glass">
+      <div class="logo" id="logo-btn" style="display:flex; align-items:center; gap:0.25rem;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+        </svg>
+        <span id="logo-text">悠遊小本本</span>
+        <button id="edit-logo-btn" title="修改標題" style="background:none; border:none; color:var(--text-secondary); opacity:0.5; cursor:pointer; padding:4px; display:inline-flex; align-items:center; transition:opacity 0.2s; flex-shrink:0;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+        </button>
+      </div>
+      <nav>
+        <div class="nav-link active" data-view="dashboard">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+          <span>儀表板</span>
+        </div>
+        <div class="nav-link" data-view="trips">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+          <span>我的旅程</span>
+        </div>
+        <div class="nav-link" data-view="budget">
+          <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+          <span>預算分析</span>
+        </div>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle" id="theme-toggle-btn" title="切換主題">
+          <!-- Light Mode Icon (Sun) -->
+          <svg class="sun-icon" viewBox="0 0 24 24" style="display:none;"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+          <!-- Dark Mode Icon (Moon) -->
+          <svg class="moon-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </button>
+        <button class="btn btn-primary" id="global-add-trip-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:2px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          新建旅程
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main>
+      
+      <!-- ================= 1. 儀表板視圖 ================= -->
+      <section id="view-dashboard" class="view-section active">
+        <div class="dashboard-header">
+          <div class="greeting-container" style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.5rem;">
+            <h1 id="greeting-title" style="margin:0;">早安，旅人！</h1>
+            <button id="edit-greeting-btn" title="修改招呼語" style="background:none; border:none; color:var(--text-secondary); opacity:0.6; cursor:pointer; padding:6px; display:inline-flex; align-items:center; transition:opacity 0.2s; border-radius:50%; background-color:rgba(0,0,0,0.03);">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+            </button>
+          </div>
+          <p id="greeting-subtitle" style="margin:0;">開啟您的精緻旅行規劃，今天想去哪裡冒險？</p>
+        </div>
+
+        <!-- 數據統計條 -->
+        <div class="stats-bar">
+          <div class="stat-card glass">
+            <div class="stat-val" id="stats-trips">0</div>
+            <div class="stat-label">規劃旅程</div>
+          </div>
+          <div class="stat-card glass">
+            <div class="stat-val" id="stats-countries">0</div>
+            <div class="stat-label">足跡國家</div>
+          </div>
+          <div class="stat-card glass">
+            <div class="stat-val" id="stats-total-spent">$0</div>
+            <div class="stat-label">預估開支 (TWD)</div>
+          </div>
+          <div class="stat-card glass">
+            <div class="stat-val" id="stats-days">0</div>
+            <div class="stat-label">旅行天數</div>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <!-- 輪播回憶區 -->
+          <div class="carousel-container glass">
+            <div class="carousel-title">
+              <span>近期旅程回憶</span>
+              <div class="carousel-controls">
+                <button class="carousel-nav-btn" id="carousel-prev" title="上一張">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </button>
+                <button class="carousel-nav-btn" id="carousel-next" title="下一張">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </button>
+              </div>
+            </div>
+            <div class="carousel-track-wrapper">
+              <div class="carousel-track" id="dashboard-carousel-track">
+                <!-- 動態注入最近手記卡片 -->
+              </div>
+            </div>
+          </div>
+
+          <!-- 快速記錄 -->
+          <div class="quick-widget glass">
+            <div class="quick-widget-title">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              <span>靈感速記</span>
+            </div>
+            <p style="font-size:0.88rem; color:var(--text-secondary);">隨手記下旅行點子、購物清單或備用景點！</p>
+            <textarea class="quick-widget-input" id="quick-note-text" placeholder="輸入您的旅行點子..." style="min-height:90px; resize:none;"></textarea>
+            <button class="btn btn-secondary" id="quick-note-save-btn" style="width:100%;">儲存速記</button>
+            <div id="quick-notes-list" style="margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.5rem; max-height: 120px; overflow-y: auto;">
+              <!-- 快速筆記列表 -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 2. 我的旅程列表視圖 ================= -->
+      <section id="view-trips" class="view-section">
+        <div class="filter-bar">
+          <div class="search-input-wrapper">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" class="search-input" id="search-trips-bar" placeholder="搜尋旅程名稱、目的地、天數...">
+          </div>
+          <button class="btn btn-primary" id="trips-add-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            規劃新旅程
+          </button>
+        </div>
+
+        <!-- 旅程網格清單 -->
+        <div class="trips-grid" id="trips-list">
+          <!-- 動態載入旅程卡片 -->
+        </div>
+      </section>
+
+      <!-- ================= 3. 旅程企劃室 (Trip Workspace) ================= -->
+      <section id="view-workspace" class="view-section">
+        <div class="workspace-back-bar">
+          <button class="btn btn-secondary" id="workspace-back-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            返回我的旅程
+          </button>
+        </div>
+
+        <!-- 旅程封面與資訊看板 -->
+        <div class="workspace-header-cover" id="ws-cover-bg">
+          <div class="ws-header-overlay">
+            <div class="ws-header-left">
+              <h1 id="ws-trip-title">名古屋・伊勢六天五夜重機美食極致之旅</h1>
+              <p id="ws-trip-meta">📅 日期: 07/15 - 07/20 (6天5夜) | 👤 旅伴: 2位男性 | 🏍️ 重機租借: Rental 819 伊勢店</p>
+            </div>
+            <div class="ws-header-right" id="ws-trip-stats-badges">
+              <!-- 行李限重等徽章 -->
+              <span class="ws-badge">✈️ 來回 20KG 托運行李</span>
+              <span class="ws-badge">💳 務必加租 ETC 卡</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 工作區雙欄排版 -->
+        <div class="workspace-layout">
+          <!-- 左側導覽樹樹 -->
+          <aside class="workspace-sidebar glass">
+            <div class="ws-sidebar-title">📋 旅遊小本本目錄</div>
+            <div class="ws-menu-group">
+              <button class="ws-menu-item active" data-ws-tab="itinerary">
+                <span>📅 詳細行程與備案</span>
+              </button>
+              <button class="ws-menu-item" data-ws-tab="checklists">
+                <span>🧳 行李與待辦清單</span>
+              </button>
+              <button class="ws-menu-item" data-ws-tab="budget">
+                <span>💰 費用預算與記帳</span>
+              </button>
+              <button class="ws-menu-item" data-ws-tab="diary">
+                <span>📖 故事回憶與日記</span>
+              </button>
+              <button class="ws-menu-item" data-ws-tab="vouchers">
+                <span>🎫 票券憑證與備忘</span>
+              </button>
+            </div>
+            <div class="ws-sidebar-footer">
+              <button class="btn btn-secondary" id="ws-edit-trip-btn" style="width:100%; font-size:0.85rem; padding:0.5rem;">
+                ⚙️ 編輯旅程基本設定
+              </button>
+            </div>
+          </aside>
+
+          <!-- 右側工作面板 -->
+          <div class="workspace-main glass" id="ws-main-panel">
+            
+            <!-- A. 詳細行程與備案 -->
+            <div class="ws-tab-panel active" id="ws-panel-itinerary">
+              <div class="panel-section-header">
+                <h2>📅 每日詳細行程規劃</h2>
+                <div style="display:flex; gap:0.5rem;">
+                  <button class="btn btn-secondary" id="iti-import-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">🔌 智慧匯入</button>
+                  <button class="btn btn-primary" id="ws-add-schedule-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">➕ 新增日程項目</button>
+                  <button class="btn btn-secondary" id="ws-clear-itinerary-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem; color:var(--danger); border-color:rgba(169, 74, 66, 0.2);">🗑️ 清空行程</button>
+                </div>
+              </div>
+
+              <!-- 天數滑動選擇列 -->
+              <div class="days-selector-bar" id="ws-days-selector">
+                <!-- 動態注入 Day 1, Day 2... -->
+              </div>
+
+              <div class="itinerary-grid-container">
+                <!-- 行程時間軸 -->
+                <div class="timeline-column">
+                  <div class="iti-day-info-card" id="ws-day-info-card" style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
+                    <div style="flex:1;">
+                      <h3 id="ws-day-theme">DAY 1: 抵達名古屋 & 前往伊勢神宮</h3>
+                      <p id="ws-day-desc">交通方式: JR 快速三重號 & 重機 | 住宿: 文山賓館</p>
+                    </div>
+                    <button class="btn btn-secondary" id="ws-edit-day-summary-btn" style="padding:0.4rem 0.75rem; font-size:0.8rem; flex-shrink:0;" title="編輯今日摘要">
+                      ✏️ 編輯
+                    </button>
+                  </div>
+                  <div class="ws-timeline-list" id="ws-schedule-timeline">
+                    <!-- 動態載入日程項目 -->
+                  </div>
+                </div>
+
+                <!-- 備案景點與餐廳推薦 -->
+                <div class="alternatives-column">
+                  <div class="alt-header-tabs">
+                    <button class="alt-tab active" data-alt-tab="sights">📍 景點備案庫</button>
+                    <button class="alt-tab" data-alt-tab="restaurants">🍜 餐廳備案庫</button>
+                  </div>
+                  
+                  <div class="alt-content-panel active" id="alt-panel-sights">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                      <span style="font-size:0.85rem; color:var(--text-secondary);">適合隨天氣與心情隨時加點的景點備份</span>
+                      <button class="btn btn-secondary" id="ws-add-alt-sight-btn" style="font-size:0.75rem; padding:0.35rem 0.65rem;">➕ 新增備案</button>
+                    </div>
+                    <div class="alt-cards-grid" id="ws-alt-sights-list">
+                      <!-- 動態注入景點卡片 -->
+                    </div>
+                  </div>
+
+                  <div class="alt-content-panel" id="alt-panel-restaurants">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                      <span style="font-size:0.85rem; color:var(--text-secondary);">特色餐廳與甜點名店備案</span>
+                      <button class="btn btn-secondary" id="ws-add-alt-restaurant-btn" style="font-size:0.75rem; padding:0.35rem 0.65rem;">➕ 新增備案</button>
+                    </div>
+                    <div class="alt-cards-grid" id="ws-alt-restaurants-list">
+                      <!-- 動態注入餐廳卡片 -->
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- B. 行李與待辦清單 -->
+            <div class="ws-tab-panel" id="ws-panel-checklists">
+              <div class="checklist-workspace-layout">
+                <!-- 1. 行前行李清單 -->
+                <div class="checklist-section-box">
+                  <div class="checklist-section-header">
+                    <h3>🧳 行前行李裝備清單</h3>
+                    <span class="checklist-progress-text" id="luggage-progress-txt">0/0 (0%)</span>
+                  </div>
+                  <!-- 進度條 -->
+                  <div class="packing-progress-bar">
+                    <div class="packing-progress-fill" id="luggage-progress-bar" style="width:0%;"></div>
+                  </div>
+                  <div class="packing-grid" id="ws-luggage-grid">
+                    <!-- 行李分類卡片 (證件、電子、盥洗衣物、藥品、生活用品) -->
+                  </div>
+                </div>
+
+                <!-- 2. 待辦清單與願望清單 -->
+                <div class="checklist-side-column">
+                  <!-- 待辦事項 -->
+                  <div class="checklist-section-box">
+                    <div class="checklist-section-header">
+                      <h3>待辦清單 (Todo List)</h3>
+                      <span class="checklist-progress-text" id="todo-progress-txt">0/0</span>
+                    </div>
+                    <div class="checklist-simple-list" id="ws-todo-list">
+                      <!-- 動態注入待辦 -->
+                    </div>
+                    <div class="packing-quick-add">
+                      <input type="text" id="todo-new-name" placeholder="新增待辦事項...">
+                      <input type="text" id="todo-new-date" placeholder="備註/日期" style="max-width:110px;">
+                      <button class="btn btn-primary" id="todo-add-btn" style="padding:0.45rem 1rem;">新增</button>
+                    </div>
+                  </div>
+
+                  <!-- 願望清單 -->
+                  <div class="checklist-section-box">
+                    <div class="checklist-section-header">
+                      <h3>願望清單 (Wishlist)</h3>
+                      <span class="checklist-progress-text" id="wish-progress-txt">0/0</span>
+                    </div>
+                    <div class="checklist-simple-list" id="ws-wish-list">
+                      <!-- 動態注入願望 -->
+                    </div>
+                    <div class="packing-quick-add">
+                      <input type="text" id="wish-new-name" placeholder="想買的特產、紀念品...">
+                      <input type="number" id="wish-new-price" placeholder="價格" style="max-width:80px;">
+                      <button class="btn btn-primary" id="wish-add-btn" style="padding:0.45rem 1rem;">新增</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- C. 費用預算與記帳 -->
+            <div class="ws-tab-panel" id="ws-panel-budget">
+              <!-- 消費與債務結算看版 -->
+              <div class="ledger-summary-grid">
+                <div class="ledger-card-summary glass" style="background:linear-gradient(135deg, rgba(0,0,0,0.01) 0%, rgba(0,0,0,0.03) 100%);">
+                  <div style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.25rem;">此行程總開支累計</div>
+                  <div style="font-size:1.85rem; font-weight:700; font-family:'Outfit'; color:var(--accent-color);" id="ws-ledger-grand-total">NT$ 0</div>
+                  <div style="font-size:0.78rem; color:var(--text-secondary); margin-top:0.35rem;" id="ws-ledger-payer-summary">
+                    由我支付：NT$ 0 | 朋友代墊：NT$ 0
+                  </div>
+                </div>
+                
+                <div class="ledger-card-summary glass" style="border-color:var(--border-color);">
+                  <div style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.15rem;">同行旅伴債務清算 (N人平分)</div>
+                  <div id="ws-ledger-settlement-render">
+                    <!-- 自動清算結果 -->
+                  </div>
+                </div>
+              </div>
+
+              <!-- 費用明細表 -->
+              <div class="panel-section-header" style="margin-top:2rem;">
+                <h2>📊 旅程費用明細表 (預算試算)</h2>
+                <button class="btn btn-primary" id="ws-add-expense-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">➕ 新增支出</button>
+              </div>
+              <div style="overflow-x: auto; margin-top:0.5rem;" class="table-container">
+                <table class="excel-table" id="ws-expense-table">
+                  <thead>
+                    <tr>
+                      <th>花費項目</th>
+                      <th>日程</th>
+                      <th>分類</th>
+                      <th style="text-align:right;">價格</th>
+                      <th style="text-align:center;">每人/數量</th>
+                      <th style="text-align:right;">小計</th>
+                      <th>備註 / 地圖連結</th>
+                      <th style="text-align:center; width:80px;">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="ws-expense-tbody">
+                    <!-- 動態注入記帳明細 -->
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="ledger-row-split-grid" style="margin-top:2.5rem; display:grid; grid-template-columns:1.5fr 1fr; gap:1.5rem;">
+                <!-- 同行友人代墊款項 -->
+                <div class="glass" style="padding:1.5rem;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                    <h3 style="font-size:1.1rem; font-weight:700;">🤝 同行友人代墊款項</h3>
+                    <button class="btn btn-secondary" id="ws-add-advance-btn" style="font-size:0.75rem; padding:0.35rem 0.65rem;">➕ 記錄代墊</button>
+                  </div>
+                  <div style="overflow-x: auto;" class="table-container">
+                    <table class="excel-table" id="ws-advance-table">
+                      <thead>
+                        <tr>
+                          <th>代墊人</th>
+                          <th>代墊日期</th>
+                          <th>代墊項目</th>
+                          <th style="text-align:right;">代墊金額</th>
+                          <th style="text-align:center;">此行人數</th>
+                          <th style="text-align:right;">每人分擔</th>
+                          <th>備註</th>
+                          <th style="text-align:center; width:60px;">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody id="ws-advance-tbody">
+                        <!-- 動態注入友人代墊 -->
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <!-- 還款方式 -->
+                <div class="glass" style="padding:1.5rem;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                    <h3 style="font-size:1.1rem; font-weight:700;">🏦 收收款與還款方式資訊</h3>
+                    <button class="btn btn-secondary" id="ws-add-repay-btn" style="font-size:0.75rem; padding:0.35rem 0.65rem;">➕ 新增帳戶</button>
+                  </div>
+                  <div style="overflow-x: auto;" class="table-container">
+                    <table class="excel-table" id="ws-repay-table">
+                      <thead>
+                        <tr>
+                          <th>名字</th>
+                          <th>收款方法</th>
+                          <th>收款帳號 / 說明</th>
+                          <th style="text-align:center; width:60px;">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody id="ws-repay-tbody">
+                        <!-- 動態注入收款管道 -->
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- D. 故事回憶與日記 -->
+            <div class="ws-tab-panel" id="ws-panel-diary">
+              <div class="panel-section-header">
+                <h2>📖 旅途故事與日記手記</h2>
+                <button class="btn btn-secondary" id="ws-diary-import-cost-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">💰 導入此行程總費用</button>
+              </div>
+
+              <div class="diary-editor-container" style="margin-top:1rem; display:grid; grid-template-columns:1fr 1.5fr; gap:2rem;">
+                <!-- 左側：圖片與屬性 -->
+                <div style="display:flex; flex-direction:column; gap:1.25rem;">
+                  <!-- 當前日記封面 -->
+                  <div style="position:relative; width:100%; height:220px; border-radius:12px; overflow:hidden; border:1px solid var(--border-color);">
+                    <img id="ws-diary-preview-img" src="" alt="封面預覽" style="width:100%; height:100%; object-fit:cover; display:none;">
+                    <div id="ws-diary-upload-placeholder" style="width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--badge-bg); cursor:pointer;">
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                      <span style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.5rem;">上傳/變更日記照片</span>
+                    </div>
+                    <input type="file" id="ws-diary-image-file" accept="image/*" style="display:none;">
+                    <input type="hidden" id="ws-diary-image-base64">
+                  </div>
+
+                  <!-- 評分星級 -->
+                  <div class="form-group">
+                    <label>推薦指數 / 旅途評分</label>
+                    <div class="rating-input" id="ws-diary-rating-stars">
+                      <span class="ws-star" data-ws-rating="1">★</span>
+                      <span class="ws-star" data-ws-rating="2">★</span>
+                      <span class="ws-star" data-ws-rating="3">★</span>
+                      <span class="ws-star" data-ws-rating="4">★</span>
+                      <span class="ws-star" data-ws-rating="5">★</span>
+                    </div>
+                    <input type="hidden" id="ws-diary-rating-val" value="5">
+                  </div>
+
+                  <!-- 旅途天氣 -->
+                  <div class="form-group">
+                    <label for="ws-diary-weather">旅行氣候</label>
+                    <select class="form-select" id="ws-diary-weather">
+                      <option value="晴天">☀️ 晴天</option>
+                      <option value="陰天">☁️ 陰天</option>
+                      <option value="雨天">🌧️ 雨天</option>
+                      <option value="雪天">❄️ 雪天</option>
+                      <option value="風天">💨 颳風</option>
+                    </select>
+                  </div>
+
+                  <!-- 旅行伴侶 -->
+                  <div class="form-group">
+                    <label for="ws-diary-companion">旅行同伴</label>
+                    <input type="text" class="form-input" id="ws-diary-companion" placeholder="例如：2位朋友、獨自騎行">
+                  </div>
+
+                  <!-- 開銷總計 -->
+                  <div class="form-group">
+                    <label for="ws-diary-cost">手記預算花費 (TWD)</label>
+                    <input type="number" class="form-input" id="ws-diary-cost" placeholder="手動輸入或一鍵導入">
+                  </div>
+                </div>
+
+                <!-- 右側：主內容寫作 -->
+                <div style="display:flex; flex-direction:column; gap:1rem;">
+                  <div class="form-group" style="flex:1; display:flex; flex-direction:column;">
+                    <label for="ws-diary-text">寫下您的旅行日記 *</label>
+                    <textarea class="form-textarea" id="ws-diary-text" placeholder="記錄這趟旅途精彩的冒險、發生的趣事，以及品嚐到的極致美食..." style="flex:1; min-height:360px;" required></textarea>
+                  </div>
+                  <button class="btn btn-primary" id="ws-diary-save-btn" style="align-self:flex-end; padding:0.65rem 2rem;">儲存日記與回憶</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- E. 票券憑證與備忘 -->
+            <div class="ws-tab-panel" id="ws-panel-vouchers">
+              <div class="panel-section-header">
+                <h2>🎫 票券憑證與旅途備忘錄</h2>
+                <button class="btn btn-primary" id="ws-add-voucher-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">➕ 新增憑證與備忘</button>
+              </div>
+              <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.25rem;">
+                您可以在此存放機票、車票、飯店訂單截圖，或行程成立的 PDF 憑證，方便出門在外隨時查閱。
+              </p>
+              <div class="vouchers-grid" id="ws-vouchers-grid" style="margin-top:1.5rem;">
+                <!-- 動態注入憑證卡片 -->
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 4. 預算消費分析視圖 ================= -->
+      <section id="view-budget" class="view-section">
+        <div class="dashboard-header">
+          <h1>旅程消費數據分析</h1>
+          <p>整合所有手記與記帳本，了解您的開銷佔比與行程支出排行榜。</p>
+        </div>
+
+        <div class="budget-grid">
+          <!-- 圓餅圖：分類佔比 -->
+          <div class="chart-card glass">
+            <div class="chart-title">所有行程主要消費佔比</div>
+            <div class="chart-container-svg">
+              <svg width="240" height="240" viewBox="0 0 240 240" id="pie-chart-svg">
+                <!-- 動態繪製 SVG 扇區 -->
+              </svg>
+            </div>
+            <div class="chart-legend" id="pie-chart-legend">
+              <!-- 動態注入圖例 -->
+            </div>
+          </div>
+
+          <!-- 長條圖：單次行程花費 -->
+          <div class="chart-card glass">
+            <div class="chart-title">各趟行程花費比較表 (TWD)</div>
+            <div class="chart-container-svg" style="width: 100%; height: 240px; display: flex; align-items: flex-end; gap: 1rem; padding: 0 1rem;" id="bar-chart-container">
+              <!-- 動態長條圖 -->
+            </div>
+            <div style="width: 100%; display: flex; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 0.5rem; font-size: 0.75rem; color: var(--text-secondary); margin-top: 1rem;" id="bar-chart-labels">
+              <!-- 長條圖標籤 -->
+            </div>
+          </div>
+        </div>
+
+        <!-- 詳細預算列表 -->
+        <div class="glass" style="margin-top: 2rem; padding: 2rem;">
+          <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem;">各行程預算總覽明細</h2>
+          <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.95rem;">
+              <thead>
+                <tr style="border-bottom: 2px solid var(--border-color); color: var(--text-secondary); font-weight: 600;">
+                  <th style="padding: 1rem;">旅程名稱</th>
+                  <th style="padding: 1rem;">目的地</th>
+                  <th style="padding: 1rem;">出發日期</th>
+                  <th style="padding: 1rem;">主類別</th>
+                  <th style="padding: 1rem; text-align: right;">總花費 (TWD)</th>
+                </tr>
+              </thead>
+              <tbody id="budget-table-body">
+                <!-- 動態注入表格明細 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="glass">
+      <p>© 2026 悠遊小本本 Voyage Book. 專為旅人設計的精緻策劃小本本。</p>
+    </footer>
+  </div>
+
+
+  <!-- ================= MODALS & POPUPS ================= -->
+
+  <!-- 1. 新增/編輯旅程基本資訊 Modal -->
+  <div class="modal-overlay" id="trip-editor-modal">
+    <div class="modal-content glass">
+      <button class="modal-close" id="trip-modal-close" title="關閉">✕</button>
+      <h2 class="modal-title" id="trip-modal-title">規劃新的冒險旅程</h2>
+      <form id="trip-form">
+        <input type="hidden" id="trip-form-id">
+        <div class="form-grid">
+          <div class="form-group form-group-full">
+            <label for="t-title">旅程主題名稱 *</label>
+            <input type="text" class="form-input" id="t-title" placeholder="例如：阿里山三天兩夜鐵道之旅" required>
+          </div>
+          <div class="form-group">
+            <label for="t-location">具體地點 *</label>
+            <input type="text" class="form-input" id="t-location" placeholder="例如：台灣，嘉義" required>
+          </div>
+          <div class="form-group">
+            <label for="t-date">出發日期 *</label>
+            <input type="date" class="form-input" id="t-date" required>
+          </div>
+          <div class="form-group">
+            <label for="t-duration">旅行天數 *</label>
+            <input type="number" class="form-input" id="t-duration" min="1" placeholder="例如：2" required>
+          </div>
+          <div class="form-group">
+            <label for="t-travelers">隨行人數/成員 *</label>
+            <input type="text" class="form-input" id="t-travelers" placeholder="例如：5 人、2 位男性" required>
+          </div>
+          <div class="form-group">
+            <label for="t-luggage">行李限制規定</label>
+            <input type="text" class="form-input" id="t-luggage" placeholder="例如：來回各 20KG 托運行李">
+          </div>
+          <div class="form-group">
+            <label for="t-rental">租車/重機店資訊</label>
+            <input type="text" class="form-input" id="t-rental" placeholder="例如：Rental 819 伊勢店、租借大復古檔車">
+          </div>
+          <div class="form-group">
+            <label for="t-continent">世界區域 *</label>
+            <select class="form-select" id="t-continent" required>
+              <option value="Asia">亞洲 (Asia)</option>
+              <option value="Europe">歐洲 (Europe)</option>
+              <option value="NorthAmerica">北美洲 (North America)</option>
+              <option value="SouthAmerica">南美洲 (South America)</option>
+              <option value="Africa">非洲 (Africa)</option>
+              <option value="Oceania">大洋洲 (Oceania)</option>
+            </select>
+          </div>
+          <div class="form-group form-group-full">
+            <label>上傳旅程封面照片</label>
+            <div class="image-upload-zone" id="t-upload-zone">
+              <span id="t-upload-text">點擊或拖曳封面相片至此...</span>
+              <img class="image-upload-preview" id="t-upload-preview" alt="封面預覽">
+              <input type="file" id="t-image-file" accept="image/*" style="display:none;">
+              <input type="hidden" id="t-image-base64">
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:1rem; border-top:1px solid var(--border-color); padding-top:1.5rem; margin-top:1rem;">
+          <button type="button" class="btn btn-secondary" id="trip-modal-cancel">取消</button>
+          <button type="submit" class="btn btn-primary">儲存旅程</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. 新增/編輯行程詳細項目 Modal -->
+  <div class="modal-overlay" id="schedule-modal">
+    <div class="modal-content glass" style="max-width: 500px;">
+      <button class="modal-close" id="sche-modal-close" title="關閉">✕</button>
+      <h2 class="modal-title" id="sche-modal-title">新增日程行程項目</h2>
+      <form id="sche-form">
+        <input type="hidden" id="sche-id">
+        <input type="hidden" id="sche-day-num">
+        <div class="form-grid" style="grid-template-columns: 1fr;">
+          <div class="form-group">
+            <label for="s-time">行程時間範疇 *</label>
+            <input type="text" class="form-input" id="s-time" placeholder="例如：09:00 - 11:30、12:00" required>
+          </div>
+          <div class="form-group">
+            <label for="s-title">日程活動標題 *</label>
+            <input type="text" class="form-input" id="s-title" placeholder="例如：牽車/參拜伊勢神宮" required>
+          </div>
+          <div class="form-group">
+            <label for="s-type">行程活動類別 *</label>
+            <select class="form-select" id="s-type" required>
+              <option value="sight">📷 觀光景點</option>
+              <option value="food">🍜 美食餐廳</option>
+              <option value="hotel">🏨 飯店住宿</option>
+              <option value="bike">🏍️ 租車/重機/自駕</option>
+              <option value="train">🚆 鐵路/大眾運輸</option>
+              <option value="flight">✈️ 機場/航班</option>
+              <option value="other">📍 其他活動</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="s-content">詳細內容說明 *</label>
+            <textarea class="form-textarea" id="s-content" placeholder="請填寫此日程項目的細節、車程提示或預約備註..." style="min-height:80px;" required></textarea>
+          </div>
+          <div class="form-group">
+            <label for="s-maps-url">Google Maps 連結 (輸入後自動填充地址、評分與營業時間)</label>
+            <input type="url" class="form-input" id="s-maps-url" placeholder="https://maps.app.goo.gl/...">
+          </div>
+          <div class="form-group">
+            <label for="s-address">商家地址 (方便手機快速複製導航)</label>
+            <input type="text" class="form-input" id="s-address" placeholder="例如：嘉義縣阿里山鄉中正村56號">
+          </div>
+          <div class="form-group">
+            <label for="s-rating">商家星級與評分</label>
+            <input type="text" class="form-input" id="s-rating" placeholder="例如：⭐️ 4.6 (1,240 則評論)">
+          </div>
+          <div class="form-group">
+            <label for="s-hours">商家營業時間</label>
+            <input type="text" class="form-input" id="s-hours" placeholder="例如：08:00 - 17:00 / 24小時">
+          </div>
+          <div class="form-group" style="display:flex; align-items:center; gap:0.5rem; flex-direction:row;">
+            <input type="checkbox" id="s-highlight" style="width:18px; height:18px; cursor:pointer;">
+            <label for="s-highlight" style="margin:0; cursor:pointer; font-weight:600;">星級高亮提醒（加強顯示）</label>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:1rem; border-top:1px solid var(--border-color); padding-top:1.5rem; margin-top:1rem;">
+          <button type="button" class="btn btn-secondary" id="sche-modal-cancel">取消</button>
+          <button type="submit" class="btn btn-primary">確認儲存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. 新增/編輯景點或餐廳備案 Modal -->
+  <div class="modal-overlay" id="alternative-modal">
+    <div class="modal-content glass" style="max-width: 520px;">
+      <button class="modal-close" id="alt-modal-close" title="關閉">✕</button>
+      <h2 class="modal-title" id="alt-modal-title">新增備案項目</h2>
+      <form id="alt-form">
+        <input type="hidden" id="alt-id">
+        <input type="hidden" id="alt-type-group"> <!-- sights 或 restaurants -->
+        <div class="form-grid" style="grid-template-columns: 1fr;">
+          <div class="form-group">
+            <label for="a-name">備案景點/餐廳名稱 *</label>
+            <input type="text" class="form-input" id="a-name" placeholder="例如：茶田35號、二延平步道" required>
+          </div>
+          <div class="form-group">
+            <label for="a-subtype">分類標籤 *</label>
+            <input type="text" class="form-input" id="a-subtype" placeholder="例如：下午茶甜點、景觀步道/賞日出" required>
+          </div>
+          <div class="form-group">
+            <label for="a-mapsurl">Google Maps 連結 (輸入後自動填充地址、評分與營業時間)</label>
+            <input type="url" class="form-input" id="a-mapsurl" placeholder="https://maps.app.goo.gl/... (可為空)">
+          </div>
+          <div class="form-group">
+            <label for="a-address">商家地址 (方便手機快速複製導航)</label>
+            <input type="text" class="form-input" id="a-address" placeholder="例如：嘉義縣番路鄉公田村... (可為空)">
+          </div>
+          <div class="form-group">
+            <label for="a-rating">商家星級與評分</label>
+            <input type="text" class="form-input" id="a-rating" placeholder="例如：⭐️ 4.5 (230 則評論)">
+          </div>
+          <div class="form-group">
+            <label for="a-hours">商家營業時間</label>
+            <input type="text" class="form-input" id="a-hours" placeholder="例如：08:00 - 17:00 / 24小時">
+          </div>
+          <div class="form-group">
+            <label for="a-price">價格門票預估</label>
+            <input type="text" class="form-input" id="a-price" placeholder="例如：Klook門票200元、人均$200-$400">
+          </div>
+          <div class="form-group">
+            <label for="a-notes">詳細內容說明 / 推薦原因</label>
+            <textarea class="form-textarea" id="a-notes" placeholder="請填寫此備案項目的特點、推薦的招牌菜或最佳拍照位置..." style="min-height:70px;"></textarea>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:1rem; border-top:1px solid var(--border-color); padding-top:1.5rem; margin-top:1rem;">
+          <button type="button" class="btn btn-secondary" id="alt-modal-cancel">取消</button>
+          <button type="submit" class="btn btn-primary">儲存備案</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. 新增/編輯費用支出帳目 Modal -->
+  <div class="modal-overlay" id="expense-modal">
+    <div class="modal-content glass" style="max-width: 500px;">
+      <button class="modal-close" id="expense-modal-close" title="關閉">✕</button>
+      <h2 class="modal-title" id="expense-modal-title">新增消費支出明細</h2>
+      <form id="expense-form">
+        <input type="hidden" id="exp-id">
+        <div class="form-grid" style="grid-template-columns: 1fr;">
+          <div class="form-group">
+            <label for="exp-name">消費項目名稱 *</label>
+            <input type="text" class="form-input" id="exp-name" placeholder="例如：文山賓館五人房、鐵路車票" required>
+          </div>
+          <div class="form-group">
+            <label for="exp-day">所屬日程天數 (Day) *</label>
+            <select class="form-select" id="exp-day" required>
+              <option value="1">DAY 1</option>
+              <option value="2">DAY 2</option>
+              <option value="3">DAY 3</option>
+              <option value="4">DAY 4</option>
+              <option value="5">DAY 5</option>
+              <option value="6">DAY 6</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="exp-category">預算主要分類 *</label>
+            <select class="form-select" id="exp-category" required>
+              <option value="住宿">🏨 住宿</option>
+              <option value="交通">✈️ 交通</option>
+              <option value="餐飲">🍜 餐飲</option>
+              <option value="景點">🎫 景點</option>
+              <option value="購物">🛍️ 購物</option>
+              <option value="雜支">🌀 雜支/其他</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="exp-price">價格/單價 *</label>
+            <input type="number" class="form-input" id="exp-price" min="0" placeholder="整筆總額，例如：5400" required>
+          </div>
+          <div class="form-group">
+            <label for="exp-qty">個人分攤係數 (全額請填人數，如5人平分其中1人填 1) *</label>
+            <input type="number" class="form-input" id="exp-qty" min="1" value="1" required>
+          </div>
+          <div class="form-group">
+            <label for="exp-notes">消費明細備忘 (可附帶 Google 地圖網址)</label>
+            <input type="text" class="form-input" id="exp-notes" placeholder="備註或輸入地圖連結 https://maps...">
+          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:1rem; border-top:1px solid var(--border-color); padding-top:1.5rem; margin-top:1.5rem;">
+          <button type="button" class="btn btn-secondary" id="expense-modal-cancel">取消</button>
+          <button type="submit" class="btn btn-primary">確認記帳</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 5. 新增/編輯旅伴代墊款項 Modal -->
+  <div class="modal-overlay" id="advance-modal">
+    <div class="modal-content glass" style="max-width: 500px;">
+      <button class="modal-close" id="adv-modal-close" title="關閉">✕</button>
+      <h2 class="modal-title" id="adv-modal-title">記錄代墊花費項目</h2>
+      <form id="adv-form">
+        <input type="hidden" id="adv-id">
+        <div class="form-grid" style="grid-template-columns: 1fr;">
+          <div class="form-group">
+            <label for="adv-payer">是哪位友人代墊的？ *</label>
+            <input type="text" class="form-input" id="adv-payer" placeholder="例如：翔翔、我、郁魚" required>
+          </div>
+          <div class="form-group">
+            <label for="adv-date">代墊款項日期</label>
+            <input type="text" class="form-input" id="adv-date" placeholder="例如：9月28日、10/26">
+          </div>
+          <div class="form-group">
+            <label for="adv-item">代墊的消費項目 *</label>
+            <input type="text" class="form-input" id="adv-item" placeholder="例如：文山賓館住宿、祝山火車票" required>
+          </div>
+          <div class="form-group">
+            <label for="adv-amount">代墊的總金額 *</label>
+            <input type="number" class="form-input" id="adv-amount" min="0" placeholder="這筆項目的總花費，例如：5400" required>
+          </div>
+          <div class="form-group">
+            <label for="adv-travelers">此行平分的人數 *</label>
+            <input type="number" class="form-input" id="adv-travelers" min="1" value="5" required>
+          </div>
+          <div class="form-group">
+            <label for="adv-notes">備註 / 應還款對象</label>
+            <input type="text" class="form-input" id="adv-notes" placeholder="備註，如『文山賓館住宿(fish訂)』">
+          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:1rem; border-top:1px solid var(--border-color); padding-top:1.5rem; margin-top:1rem;">
+          <button type="button" class="btn btn-secondary" id="adv-modal-cancel">取消</button>
+          <button type="submit" class="btn btn-primary">儲存代墊</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 6. 新增還款管道與銀行帳號 Modal -->
+  <div class="modal-overlay" id="repay-modal">
+    <div class="modal-content glass" style="max-width: 480px;">
+      <button class="modal-close" id="repay-modal-close" title="關閉">✕</button>
+      <h2 class="modal-title" id="repay-modal-title">設定收款管道與帳戶</h2>
+      <form id="repay-form">
+        <input type="hidden" id="repay-id">
+        <div class="form-grid" style="grid-template-columns: 1fr;">
+          <div class="form-group">
+            <label for="rp-name">旅伴名字 *</label>
+            <input type="text" class="form-input" id="rp-name" placeholder="例如：翔翔、我" required>
+          </div>
+          <div class="form-group">
+            <label for="rp-method">收款方法/管道 *</label>
+            <input type="text" class="form-input" id="rp-method" placeholder="例如：現金支付、Line Pay、銀行轉帳" required>
+          </div>
+          <div class="form-group">
+            <label for="rp-account">收款詳細帳號與資訊說明</label>
+            <input type="text" class="form-input" id="rp-account" placeholder="填寫轉帳銀行代碼及帳號，或 Line Pay 連結">
+          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:1rem; border-top:1px solid var(--border-color); padding-top:1.5rem; margin-top:1rem;">
+          <button type="button" class="btn btn-secondary" id="repay-modal-cancel">取消</button>
+          <button type="submit" class="btn btn-primary">儲存設定</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 7. 智慧行程導入 Modal (貼 JSON 的地方) -->
+  <div class="modal-overlay" id="itinerary-importer-modal">
+    <div class="modal-content glass" style="max-width: 600px; width: 90vw;">
+      <button class="modal-close" id="importer-modal-close" title="關閉">✕</button>
+      <h2 class="modal-title">智慧行程匯入 (Voyage JSON)</h2>
+      <div class="importer-tips-box" style="margin-bottom:1rem; padding:0.75rem; border-radius:8px; border-left:4px solid var(--accent-color); background:var(--badge-bg); font-size:0.85rem;">
+        <strong>💡 匯入格式指南</strong><br>
+        您可以將 Gemini 助理生成的完整旅程 JSON 格式貼入下方輸入框。系統會自動解析並適配成詳細日程與備案景點餐廳卡片。
+      </div>
+      <div class="form-group">
+        <label for="importer-json-textarea">貼上 JSON 字串：</label>
+        <textarea class="form-textarea" id="importer-json-textarea" placeholder="在此貼上 Gemini 產出的行程 JSON..." style="min-height: 250px; font-family: monospace; font-size: 0.82rem;"></textarea>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:1rem; border-top:1px solid var(--border-color); padding-top:1.5rem; margin-top:1rem;">
+        <button type="button" class="btn btn-secondary" id="importer-modal-cancel">取消</button>
+        <button type="button" class="btn btn-primary" id="importer-modal-submit">解析並載入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. 行程備案「加入日程」小 Form Modal -->
+  <div class="modal-overlay" id="add-to-schedule-modal">
+    <div class="modal-content glass" style="max-width: 400px;">
+      <button class="modal-close" id="add-to-sche-close" title="關閉">✕</button>
+      <h2 class="modal-title">將備案加入日程時間軸</h2>
+      <form id="add-to-sche-form">
+        <input type="hidden" id="add-to-sche-name">
+        <input type="hidden" id="add-to-sche-notes">
+        <input type="hidden" id="add-to-sche-type">
+        <div class="form-grid" style="grid-template-columns: 1fr;">
+          <div class="form-group">
+            <label for="ats-day">選擇加入的天數 *</label>
+            <select class="form-select" id="ats-day" required>
+              <!-- 動態天數 -->
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="ats-time">日程時間標記 *</label>
+            <input type="text" class="form-input" id="ats-time" placeholder="例如：12:00 - 13:30、下午吃甜點" required>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:1rem; border-top:1px solid var(--border-color); padding-top:1.5rem; margin-top:1rem;">
+          <button type="button" class="btn btn-secondary" id="ats-modal-cancel">取消</button>
+          <button type="submit" class="btn btn-primary">確定加入</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 9. 編輯單日行程摘要 Modal -->
+  <div class="modal-overlay" id="day-summary-modal">
+    <div class="modal-content glass" style="max-width: 480px;">
+      <button class="modal-close" id="day-summary-modal-close" title="關閉">✕</button>
+      <h2 class="modal-title">編輯單日行程摘要</h2>
+      <form id="day-summary-form">
+        <div class="form-grid" style="grid-template-columns: 1fr;">
+          <div class="form-group">
+            <label for="ds-theme">單日主題/主題景點 *</label>
+            <input type="text" class="form-input" id="ds-theme" placeholder="例如：抵達名古屋 ➡️ 帥氣牽車與神宮參拜" required>
+          </div>
+          <div class="form-group">
+            <label for="ds-desc">交通與住宿備註</label>
+            <input type="text" class="form-input" id="ds-desc" placeholder="例如：交通: 機場名鐵 + JR快速三重號 | 住宿: 站前溫泉飯店">
+          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:1rem; border-top:1px solid var(--border-color); padding-top:1.5rem; margin-top:1rem;">
+          <button type="button" class="btn btn-secondary" id="ds-modal-cancel">取消</button>
+          <button type="submit" class="btn btn-primary">確認儲存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 10. 新增/編輯憑證與備忘 Modal -->
+  <div class="modal-overlay" id="voucher-modal">
+    <div class="modal-content glass" style="max-width: 500px;">
+      <button class="modal-close" id="voucher-modal-close" title="關閉">✕</button>
+      <h2 class="modal-title" id="voucher-modal-title">新增票券憑證與備忘</h2>
+      <form id="voucher-form">
+        <input type="hidden" id="v-id">
+        <div class="form-grid" style="grid-template-columns: 1fr;">
+          <div class="form-group">
+            <label for="v-title">憑證名稱/項目名稱 *</label>
+            <input type="text" class="form-input" id="v-title" placeholder="例如：機票電子機票訂單、飯店預訂確認信" required>
+          </div>
+          <div class="form-grid" style="grid-template-columns: 1.2fr 1fr; gap: 1rem; margin-bottom: 0;">
+            <div class="form-group">
+              <label for="v-category">類別 *</label>
+              <select class="form-select" id="v-category" required>
+                <option value="機票">✈️ 機票憑證</option>
+                <option value="住宿">🏨 住宿預訂</option>
+                <option value="租車/車票">🏍️ 租車 / 交通車票</option>
+                <option value="景點門票">🎟️ 景點活動門票</option>
+                <option value="其他備忘">📝 其他備忘錄</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="v-date">相關日期</label>
+              <input type="date" class="form-input" id="v-date">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="v-notes">備忘備註 (確認碼/座位/注意事項)</label>
+            <textarea class="form-textarea" id="v-notes" placeholder="可輸入預訂確認碼、座位號碼、或需要注意的時間等..." style="min-height: 80px;"></textarea>
+          </div>
+          <div class="form-group">
+            <label>上傳憑證檔案 (圖片或 PDF) *</label>
+            <div class="file-upload-zone" id="v-upload-zone">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-secondary); opacity: 0.8; margin-bottom: 0.5rem;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+              <p style="font-size:0.85rem; font-weight:600; color:var(--text-primary);">拖曳檔案至此或點擊選擇檔案</p>
+              <span style="font-size:0.75rem; color:var(--text-secondary); margin-top: 0.2rem;">支援 JPG、PNG 圖片或 PDF (建議小於 1.5MB)</span>
+              <input type="file" id="v-file-input" accept="image/*,application/pdf" style="display:none;">
+            </div>
+            
+            <!-- 上傳完成後的預覽區 -->
+            <div id="v-file-preview-container" class="file-preview-container" style="display:none; margin-top:1rem;">
+              <!-- 動態注入預覽 -->
+            </div>
+            <input type="hidden" id="v-file-data">
+            <input type="hidden" id="v-file-name">
+            <input type="hidden" id="v-file-type">
+          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:1rem; border-top:1px solid var(--border-color); padding-top:1.5rem; margin-top:1rem;">
+          <button type="button" class="btn btn-secondary" id="voucher-modal-cancel">取消</button>
+          <button type="submit" class="btn btn-primary" id="voucher-modal-submit">儲存憑證</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 11. 全域圖片 Lightbox Modal -->
+  <div class="modal-overlay" id="lightbox-modal" style="background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);">
+    <div style="position: absolute; top: 1rem; right: 1.5rem; z-index: 10001;">
+      <button id="lightbox-close" style="background:none; border:none; color:white; font-size:2rem; cursor:pointer; padding:0.5rem;" title="關閉">✕</button>
+    </div>
+    <div style="max-width: 90vw; max-height: 90vh; display: flex; align-items: center; justify-content: center; height: 100%; width: 100%;">
+      <img id="lightbox-img" src="" alt="大圖檢視" style="max-width:100%; max-height:90vh; object-fit:contain; border-radius:8px; box-shadow:0 10px 40px rgba(0,0,0,0.5);">
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="cloud-sync.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

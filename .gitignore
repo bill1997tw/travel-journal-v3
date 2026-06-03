@@ -1,0 +1,3 @@
+local-server.out.log
+local-server.err.log
+.vercel/
