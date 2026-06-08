@@ -1,4 +1,4 @@
-const CACHE_NAME = "voyage-book-shell-v1";
+const CACHE_NAME = "voyage-book-shell-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -13,6 +13,14 @@ const APP_SHELL = [
   "./assets/paris_cafe.png",
   "./assets/swiss_alps.png"
 ];
+
+const NETWORK_FIRST_EXTENSIONS = new Set([
+  ".html",
+  ".css",
+  ".js",
+  ".json",
+  ".webmanifest"
+]);
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -36,6 +44,33 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+
+  const requestUrl = new URL(event.request.url);
+  const pathname = requestUrl.pathname || "";
+  const extensionMatch = pathname.match(/\.[a-z0-9]+$/i);
+  const extension = extensionMatch ? extensionMatch[0].toLowerCase() : "";
+  const isNavigationRequest = event.request.mode === "navigate";
+  const shouldUseNetworkFirst = isNavigationRequest || NETWORK_FIRST_EXTENSIONS.has(extension);
+
+  if (shouldUseNetworkFirst) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          const cachedResponse = await caches.match(event.request);
+          return cachedResponse || caches.match("./index.html");
+        })
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
