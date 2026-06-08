@@ -2204,8 +2204,8 @@ footer {
   }
 
   body.mobile-workspace-mode .workspace-header-cover {
-    height: min(39vh, 320px);
-    min-height: 220px;
+    height: min(28vh, 220px);
+    min-height: 168px;
     margin-bottom: 0;
     border-radius: 0 0 28px 28px;
     border-left: none;
@@ -2214,18 +2214,18 @@ footer {
   }
 
   body.mobile-workspace-mode .ws-header-overlay {
-    padding: 1rem 1rem 1.25rem;
+    padding: 0.8rem 1rem 1rem;
     align-items: flex-end;
   }
 
   body.mobile-workspace-mode .ws-header-left h1 {
-    font-size: 1.55rem;
+    font-size: 1.32rem;
     line-height: 1.12;
   }
 
   body.mobile-workspace-mode .ws-header-left p {
-    font-size: 0.82rem;
-    line-height: 1.45;
+    font-size: 0.76rem;
+    line-height: 1.35;
   }
 
   body.mobile-workspace-mode .workspace-layout {
