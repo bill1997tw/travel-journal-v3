@@ -240,6 +240,62 @@ let activeItineraryDay = 1; // 當前行程選定天數
 let activeAlternativeTab = "sights"; // 備案庫當前子籤 (sights, restaurants)
 
 // --- 初始化應用 ---
+let currentPrimaryView = "dashboard";
+
+const MOBILE_BREAKPOINT = 768;
+const LAST_MOBILE_TRIP_KEY = "voyage_last_mobile_trip_id";
+
+function isMobileViewport() {
+  return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
+}
+
+function setActiveNav(viewName) {
+  document.querySelectorAll("nav .nav-link").forEach(link => {
+    if (link.getAttribute("data-view") === viewName) {
+      link.classList.add("active");
+    } else {
+      link.classList.remove("active");
+    }
+  });
+}
+
+function syncAppShellState(viewName) {
+  document.body.dataset.currentView = viewName;
+  document.body.classList.toggle("mobile-workspace-mode", viewName === "workspace" && isMobileViewport());
+}
+
+function rememberLastMobileTrip(tripId) {
+  if (!tripId) return;
+  localStorage.setItem(LAST_MOBILE_TRIP_KEY, tripId);
+}
+
+function getLastMobileTrip() {
+  return localStorage.getItem(LAST_MOBILE_TRIP_KEY);
+}
+
+function applyInitialView() {
+  if (isMobileViewport()) {
+    const rememberedTripId = getLastMobileTrip();
+    if (rememberedTripId && trips.some(trip => trip.id === rememberedTripId)) {
+      enterWorkspace(rememberedTripId);
+      window.scrollTo(0, 0);
+      return;
+    }
+
+    switchView("trips");
+    window.scrollTo(0, 0);
+    return;
+  }
+
+  switchView("dashboard");
+  window.scrollTo(0, 0);
+}
+
+function refreshResponsiveShell() {
+  const activeView = activeTripId ? "workspace" : currentPrimaryView;
+  syncAppShellState(activeView);
+}
+
 async function bootApp() {
   if (window.voyageCloud?.hydrateBeforeAppStart) {
     await window.voyageCloud.hydrateBeforeAppStart();
@@ -248,6 +304,8 @@ async function bootApp() {
   setupEventListeners();
   setupTheme();
   renderAll();
+  refreshResponsiveShell();
+  applyInitialView();
   document.dispatchEvent(new CustomEvent("voyage:app-ready"));
 }
 
@@ -320,6 +378,7 @@ function setupEventListeners() {
 
   // 主題切換
   document.getElementById("theme-toggle-btn").addEventListener("click", toggleTheme);
+  window.addEventListener("resize", refreshResponsiveShell);
 
   // 客製化標題 Logo 與招呼語編輯
   document.getElementById("edit-logo-btn").addEventListener("click", (e) => {
@@ -531,13 +590,8 @@ function setupEventListeners() {
 
 // --- SPA 視圖控制 ---
 function switchView(viewName) {
-  document.querySelectorAll("nav .nav-link").forEach(link => {
-    if (link.getAttribute("data-view") === viewName) {
-      link.classList.add("active");
-    } else {
-      link.classList.remove("active");
-    }
-  });
+  currentPrimaryView = viewName;
+  setActiveNav(viewName);
 
   document.querySelectorAll(".view-section").forEach(sec => {
     sec.classList.remove("active");
@@ -549,6 +603,8 @@ function switchView(viewName) {
   }
 
   activeTripId = null; // 退出 workspace
+
+  refreshResponsiveShell();
 
   if (viewName === "trips") {
     renderTripsList();
@@ -848,6 +904,8 @@ window.enterWorkspace = function(tripId) {
   if (!trip) return;
 
   activeTripId = tripId;
+  setActiveNav("trips");
+  rememberLastMobileTrip(tripId);
   activeWorkspaceTab = "itinerary";
   activeItineraryDay = 1;
   activeAlternativeTab = "sights";
@@ -882,6 +940,15 @@ window.enterWorkspace = function(tripId) {
 };
 
 // 切換 Workspace 主要分頁
+const baseEnterWorkspace = window.enterWorkspace;
+window.enterWorkspace = function(tripId) {
+  baseEnterWorkspace(tripId);
+  if (!activeTripId) return;
+
+  refreshResponsiveShell();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
+
 function switchWorkspaceTab(tabId) {
   activeWorkspaceTab = tabId;
 

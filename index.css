@@ -2046,7 +2046,239 @@ footer {
 
 @media (max-width: 768px) {
   main {
-    padding: 1rem;
+    max-width: none;
+    padding: 0.9rem 1rem calc(6.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  body:not(.mobile-workspace-mode) header {
+    padding: calc(0.65rem + env(safe-area-inset-top, 0px)) 1rem 0.85rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.7rem;
+    border-radius: 0 0 22px 22px;
+  }
+
+  body:not(.mobile-workspace-mode) .logo {
+    gap: 0.45rem;
+    font-size: 1.1rem;
+    min-width: 0;
+  }
+
+  body:not(.mobile-workspace-mode) .logo svg {
+    width: 1.45rem;
+    height: 1.45rem;
+  }
+
+  body:not(.mobile-workspace-mode) #logo-text {
+    max-width: 11ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body:not(.mobile-workspace-mode) #edit-logo-btn,
+  body:not(.mobile-workspace-mode) #global-add-trip-btn {
+    display: none;
+  }
+
+  body:not(.mobile-workspace-mode) .header-actions {
+    margin-left: 0;
+    gap: 0.45rem;
+  }
+
+  body:not(.mobile-workspace-mode) header nav {
+    position: fixed;
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    width: auto;
+    order: initial;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+    padding: 0.35rem;
+    background: var(--nav-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 22px;
+    box-shadow: 0 14px 40px rgba(45, 38, 33, 0.16);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    overflow: visible;
+    z-index: 220;
+  }
+
+  body:not(.mobile-workspace-mode) .nav-link {
+    min-width: 0;
+    min-height: 3.7rem;
+    padding: 0.5rem 0.35rem 0.7rem;
+    border-radius: 16px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.2rem;
+    font-size: 0.74rem;
+    text-align: center;
+  }
+
+  body:not(.mobile-workspace-mode) .nav-link svg {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+
+  body:not(.mobile-workspace-mode) .nav-link span {
+    line-height: 1.15;
+  }
+
+  body:not(.mobile-workspace-mode) .nav-link.active::after {
+    left: 22%;
+    right: 22%;
+    bottom: 0.18rem;
+  }
+
+  body[data-current-view="trips"]:not(.mobile-workspace-mode) main {
+    padding-top: 0.75rem;
+  }
+
+  body[data-current-view="trips"]:not(.mobile-workspace-mode) .filter-bar {
+    display: block;
+    margin-bottom: 1rem;
+  }
+
+  body[data-current-view="trips"]:not(.mobile-workspace-mode) #trips-add-btn {
+    position: fixed;
+    right: 1rem;
+    bottom: calc(5.6rem + env(safe-area-inset-bottom, 0px));
+    width: 3.7rem;
+    height: 3.7rem;
+    padding: 0;
+    border-radius: 999px;
+    z-index: 210;
+    box-shadow: 0 18px 36px rgba(200, 92, 50, 0.26);
+  }
+
+  body[data-current-view="trips"]:not(.mobile-workspace-mode) #trips-add-btn svg {
+    margin: 0;
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  body[data-current-view="trips"]:not(.mobile-workspace-mode) #trips-add-btn > svg,
+  body[data-current-view="trips"]:not(.mobile-workspace-mode) #trips-add-btn > span,
+  body[data-current-view="trips"]:not(.mobile-workspace-mode) #trips-add-btn {
+    font-size: 0;
+  }
+
+  body[data-current-view="trips"]:not(.mobile-workspace-mode) .trips-grid {
+    gap: 1rem;
+  }
+
+  body.mobile-workspace-mode header {
+    display: none;
+  }
+
+  body.mobile-workspace-mode main {
+    padding: 0 0 calc(1.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.mobile-workspace-mode #view-workspace {
+    margin: 0;
+  }
+
+  body.mobile-workspace-mode .workspace-back-bar {
+    position: sticky;
+    top: 0;
+    z-index: 160;
+    margin: 0;
+    padding: calc(0.85rem + env(safe-area-inset-top, 0px)) 1rem 0;
+  }
+
+  body.mobile-workspace-mode .workspace-back-bar .btn {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+  }
+
+  body.mobile-workspace-mode .workspace-header-cover {
+    height: min(39vh, 320px);
+    min-height: 220px;
+    margin-bottom: 0;
+    border-radius: 0 0 28px 28px;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+  }
+
+  body.mobile-workspace-mode .ws-header-overlay {
+    padding: 1rem 1rem 1.25rem;
+    align-items: flex-end;
+  }
+
+  body.mobile-workspace-mode .ws-header-left h1 {
+    font-size: 1.55rem;
+    line-height: 1.12;
+  }
+
+  body.mobile-workspace-mode .ws-header-left p {
+    font-size: 0.82rem;
+    line-height: 1.45;
+  }
+
+  body.mobile-workspace-mode .workspace-layout {
+    gap: 0;
+  }
+
+  body.mobile-workspace-mode .workspace-sidebar {
+    position: sticky;
+    top: calc(3.8rem + env(safe-area-inset-top, 0px));
+    z-index: 150;
+    margin: 0;
+    padding: 0.9rem 1rem 0.65rem;
+    background: linear-gradient(180deg, rgba(245, 243, 236, 0.96) 0%, rgba(245, 243, 236, 0.78) 100%);
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  [data-theme="dark"] body.mobile-workspace-mode .workspace-sidebar {
+    background: linear-gradient(180deg, rgba(9, 13, 22, 0.96) 0%, rgba(9, 13, 22, 0.78) 100%);
+  }
+
+  body.mobile-workspace-mode .ws-sidebar-title,
+  body.mobile-workspace-mode .ws-sidebar-footer {
+    display: none;
+  }
+
+  body.mobile-workspace-mode .ws-menu-group {
+    display: grid;
+    grid-template-columns: repeat(5, max-content);
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-bottom: 0.2rem;
+    scrollbar-width: none;
+  }
+
+  body.mobile-workspace-mode .ws-menu-group::-webkit-scrollbar {
+    display: none;
+  }
+
+  body.mobile-workspace-mode .ws-menu-item {
+    min-width: 6rem;
+    justify-content: center;
+    padding: 0.72rem 0.9rem;
+    font-size: 0.83rem;
+    border-radius: 14px;
+    white-space: nowrap;
+  }
+
+  body.mobile-workspace-mode .workspace-main {
+    min-height: auto;
+    padding: 1rem 1rem 1.6rem;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
   }
   
   .ws-timeline-list {
