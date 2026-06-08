@@ -2587,6 +2587,7 @@ function renderWorkspaceVouchers() {
         <span>${v.date}</span>
       </div>` : ''}
       ${v.notes ? `<div class="voucher-notes">${escapeHTML(v.notes)}</div>` : ''}
+      ${normalizeExternalUrl(v.link || v.bookingUrl || "") ? `<div class="voucher-link-row"><span>🔗</span><a class="voucher-link-btn" href="${escapeHTML(normalizeExternalUrl(v.link || v.bookingUrl || ""))}" target="_blank" rel="noopener noreferrer">查看訂單 / 連結</a></div>` : ''}
       ${filePreviewHtml}
       <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:auto; padding-top:0.5rem; border-top:1px solid var(--border-color);">
         <button class="btn btn-secondary" style="font-size:0.75rem; padding:0.35rem 0.65rem;" onclick="openVoucherModal(${v.id})">✏️ 編輯</button>
@@ -2637,6 +2638,7 @@ window.openVoucherModal = function(id = null) {
         document.getElementById("v-category").value = v.category;
         document.getElementById("v-date").value = v.date || "";
         document.getElementById("v-notes").value = v.notes || "";
+        document.getElementById("v-link").value = v.link || v.bookingUrl || "";
         
         if (v.fileData) {
           document.getElementById("v-file-data").value = v.fileData;
@@ -2784,6 +2786,8 @@ function handleVoucherSubmit(e) {
   const category = document.getElementById("v-category").value;
   const date = document.getElementById("v-date").value;
   const notes = document.getElementById("v-notes").value.trim();
+  const rawLink = document.getElementById("v-link").value.trim();
+  const link = normalizeExternalUrl(rawLink);
   const fileData = document.getElementById("v-file-data").value;
   const fileName = document.getElementById("v-file-name").value;
   const fileType = document.getElementById("v-file-type").value;
@@ -2793,6 +2797,11 @@ function handleVoucherSubmit(e) {
     return;
   }
   
+  if (rawLink && !link) {
+    showToast("請輸入正確的訂單連結或網址！", "error");
+    return;
+  }
+
   if (!trip.vouchers) trip.vouchers = [];
   
   if (idVal) {
@@ -2807,6 +2816,7 @@ function handleVoucherSubmit(e) {
         category,
         date,
         notes,
+        link,
         fileData: fileData || original.fileData,
         fileName: fileName || original.fileName,
         fileType: fileType || original.fileType,
@@ -2822,6 +2832,7 @@ function handleVoucherSubmit(e) {
       category,
       date,
       notes,
+      link,
       fileData,
       fileName,
       fileType,
@@ -3245,6 +3256,25 @@ function escapeHTML(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function normalizeExternalUrl(value) {
+  if (!value) return "";
+
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  const withProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+  try {
+    const parsed = new URL(withProtocol);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return "";
+    }
+    return parsed.toString();
+  } catch (error) {
+    return "";
+  }
 }
 
 // 複製地址到剪貼簿，提供給時間軸上的地址卡片點擊使用

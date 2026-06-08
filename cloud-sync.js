@@ -20,6 +20,7 @@
   let isApplyingRemoteState = false;
   let syncTimer = null;
   let installPromptEvent = null;
+  let mobilePanelOpen = false;
   let ui = null;
 
   function getConfig() {
@@ -93,10 +94,36 @@
     if (tone === "live") ui.status.classList.add("cloud-status-live");
     if (tone === "warn") ui.status.classList.add("cloud-status-warn");
     if (tone === "error") ui.status.classList.add("cloud-status-error");
+    if (ui.toggleDot) {
+      ui.toggleDot.classList.remove("cloud-status-live", "cloud-status-warn", "cloud-status-error");
+      if (tone === "live") ui.toggleDot.classList.add("cloud-status-live");
+      if (tone === "warn") ui.toggleDot.classList.add("cloud-status-warn");
+      if (tone === "error") ui.toggleDot.classList.add("cloud-status-error");
+    }
   }
 
   function showToast(message, type) {
     window.voyageApp?.showToast?.(message, type);
+  }
+
+  function isCompactSyncUi() {
+    return window.matchMedia("(max-width: 768px)").matches;
+  }
+
+  function setMobilePanelOpen(nextOpen) {
+    mobilePanelOpen = Boolean(nextOpen);
+    if (!ui?.shell) return;
+
+    ui.shell.classList.toggle("is-expanded", mobilePanelOpen);
+    if (ui.toggleBtn) {
+      ui.toggleBtn.setAttribute("aria-expanded", mobilePanelOpen ? "true" : "false");
+    }
+  }
+
+  function closeMobilePanel() {
+    if (isCompactSyncUi()) {
+      setMobilePanelOpen(false);
+    }
   }
 
   function updateUi() {
@@ -277,6 +304,8 @@
   }
 
   async function handleAuthButtonClick() {
+    closeMobilePanel();
+
     if (!hasCloudConfig()) {
       showToast("請先在 supabase-config.js 填入 Supabase URL 與 publishable key。", "info");
       return;
@@ -324,6 +353,8 @@
   }
 
   async function handleInstallClick() {
+    closeMobilePanel();
+
     if (!installPromptEvent) return;
     installPromptEvent.prompt();
     await installPromptEvent.userChoice;
@@ -401,6 +432,97 @@
     updateUi();
   }
 
+  function mountResponsiveUi() {
+    if (ui || !document.querySelector(".header-actions")) return;
+
+    const headerActions = document.querySelector(".header-actions");
+    const shell = document.createElement("div");
+    shell.className = "cloud-sync-shell";
+    shell.innerHTML = `
+      <button type="button" class="cloud-sync-toggle btn-icon" id="cloud-sync-toggle" aria-expanded="false" aria-label="Cloud sync">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M7 18a4 4 0 1 1 .8-7.92A5.5 5.5 0 0 1 18.5 11a3.5 3.5 0 1 1 .5 7H7Z"></path>
+        </svg>
+        <span class="cloud-sync-dot cloud-status-warn" id="cloud-sync-dot"></span>
+      </button>
+      <div class="cloud-sync-panel" id="cloud-sync-panel">
+        <div class="cloud-sync-copy">
+          <span class="cloud-sync-title">雲端同步</span>
+          <span class="cloud-sync-status" id="cloud-sync-status">準備中...</span>
+        </div>
+        <div class="cloud-sync-actions">
+          <button type="button" class="btn btn-secondary cloud-sync-btn" id="cloud-auth-btn">登入同步</button>
+          <button type="button" class="btn btn-secondary cloud-sync-btn" id="cloud-sync-now-btn" hidden>立即同步</button>
+          <button type="button" class="btn btn-secondary cloud-sync-btn" id="cloud-install-btn" hidden>安裝 App</button>
+        </div>
+      </div>
+    `;
+    headerActions.insertBefore(shell, headerActions.firstChild);
+
+    const overlay = document.createElement("div");
+    overlay.className = "cloud-auth-overlay";
+    overlay.innerHTML = `
+      <div class="cloud-auth-modal glass">
+        <h3>登入你的旅遊本</h3>
+        <p>輸入 Email 後，我們會寄一封登入連結給你。登入後，資料就能在手機與電腦之間同步。</p>
+        <form class="cloud-auth-form" id="cloud-auth-form">
+          <input type="email" class="cloud-auth-input" id="cloud-auth-email" placeholder="you@example.com" autocomplete="email" required>
+          <div class="cloud-auth-footer">
+            <button type="button" class="btn btn-secondary" id="cloud-auth-cancel">取消</button>
+            <button type="submit" class="btn btn-primary">寄送登入連結</button>
+          </div>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    ui = {
+      shell,
+      panel: shell.querySelector("#cloud-sync-panel"),
+      toggleBtn: shell.querySelector("#cloud-sync-toggle"),
+      toggleDot: shell.querySelector("#cloud-sync-dot"),
+      authBtn: shell.querySelector("#cloud-auth-btn"),
+      syncBtn: shell.querySelector("#cloud-sync-now-btn"),
+      installBtn: shell.querySelector("#cloud-install-btn"),
+      status: shell.querySelector("#cloud-sync-status"),
+      authOverlay: overlay,
+      emailForm: overlay.querySelector("#cloud-auth-form"),
+      emailInput: overlay.querySelector("#cloud-auth-email"),
+      cancelBtn: overlay.querySelector("#cloud-auth-cancel")
+    };
+
+    ui.toggleBtn.addEventListener("click", () => {
+      if (!isCompactSyncUi()) return;
+      setMobilePanelOpen(!mobilePanelOpen);
+    });
+    ui.authBtn.addEventListener("click", handleAuthButtonClick);
+    ui.syncBtn.addEventListener("click", () => {
+      closeMobilePanel();
+      pushState();
+    });
+    ui.installBtn.addEventListener("click", handleInstallClick);
+    ui.emailForm.addEventListener("submit", handleEmailLogin);
+    ui.cancelBtn.addEventListener("click", closeAuthModal);
+    ui.authOverlay.addEventListener("click", (event) => {
+      if (event.target === ui.authOverlay) {
+        closeAuthModal();
+      }
+    });
+    document.addEventListener("click", (event) => {
+      if (!isCompactSyncUi() || !mobilePanelOpen) return;
+      if (!ui.shell.contains(event.target)) {
+        setMobilePanelOpen(false);
+      }
+    });
+    window.addEventListener("resize", () => {
+      if (!isCompactSyncUi()) {
+        setMobilePanelOpen(false);
+      }
+    });
+
+    updateUi();
+  }
+
   async function hydrateBeforeAppStart() {
     patchLocalStorage();
     if (!localStorage.getItem(LOCAL_EDIT_AT_KEY)) {
@@ -446,7 +568,7 @@
   });
 
   document.addEventListener("voyage:app-ready", () => {
-    mountUi();
+    mountResponsiveUi();
     updateUi();
   });
 

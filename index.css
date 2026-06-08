@@ -1516,6 +1516,25 @@ main {
   word-break: break-all;
 }
 
+.voucher-link-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.voucher-link-btn {
+  color: var(--accent-color);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.voucher-link-btn:hover {
+  text-decoration: underline;
+}
+
 .voucher-preview-box {
   width: 100%;
   height: 160px;
@@ -2102,4 +2121,3 @@ footer {
   border-bottom: 3px dashed var(--accent-color);
   margin-bottom: 1rem;
 }
-
