@@ -385,6 +385,34 @@ function buildScheduleTimeValue() {
   return timeValue;
 }
 
+function extractPackingCategoriesFromList(packingList = []) {
+  const categories = [];
+  packingList.forEach(item => {
+    const category = (item?.category || "日常雜物 🎒").trim();
+    if (category && !categories.includes(category)) {
+      categories.push(category);
+    }
+  });
+  return categories;
+}
+
+function ensurePackingCategoryState(trip) {
+  if (!trip) return [];
+  if (!Array.isArray(trip.packingList)) {
+    trip.packingList = [...DEFAULT_PACKING_TEMPLATE];
+  }
+
+  const savedCategories = Array.isArray(trip.packingCategories)
+    ? trip.packingCategories
+      .map(category => (typeof category === "string" ? category.trim() : ""))
+      .filter(Boolean)
+    : [];
+  const derivedCategories = extractPackingCategoriesFromList(trip.packingList);
+
+  trip.packingCategories = [...new Set([...savedCategories, ...derivedCategories])];
+  return trip.packingCategories;
+}
+
 async function bootApp() {
   if (window.voyageCloud?.hydrateBeforeAppStart) {
     await window.voyageCloud.hydrateBeforeAppStart();
@@ -432,9 +460,12 @@ function initData() {
       if (!t.diary) {
         t.diary = { content: "", rating: 5, weather: "晴天", companion: "", image: "", cost: 0 };
       }
+      ensurePackingCategoryState(t);
     });
+    localStorage.setItem("voyage_trips", JSON.stringify(trips));
   } else {
     trips = [...DEFAULT_TRIPS];
+    trips.forEach(t => ensurePackingCategoryState(t));
     localStorage.setItem("voyage_trips", JSON.stringify(trips));
   }
 
@@ -584,6 +615,17 @@ function setupEventListeners() {
   // 行前清單 checklist 增刪與代辦
   document.getElementById("todo-add-btn").addEventListener("click", handleTodoAdd);
   document.getElementById("wish-add-btn").addEventListener("click", handleWishAdd);
+  const luggageCategoryBtn = document.getElementById("luggage-add-category-btn");
+  const luggageCategoryInput = document.getElementById("luggage-new-category");
+  if (luggageCategoryBtn && luggageCategoryInput) {
+    luggageCategoryBtn.addEventListener("click", handleLuggageCategoryAdd);
+    luggageCategoryInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleLuggageCategoryAdd();
+      }
+    });
+  }
 
   // 費用與記帳
   document.getElementById("ws-add-expense-btn").addEventListener("click", () => openExpenseModal());
@@ -1906,6 +1948,7 @@ function renderWorkspaceChecklists() {
 
   // 1. 行前行李清單
   const luggageList = trip.packingList || [];
+  const categoryOrder = ensurePackingCategoryState(trip);
   const totalLug = luggageList.length;
   const checkedLug = luggageList.filter(item => item.checked).length;
   const lugPct = totalLug > 0 ? (checkedLug / totalLug) * 100 : 0;
@@ -1915,16 +1958,21 @@ function renderWorkspaceChecklists() {
 
   // 按類別分組
   const groups = {};
+  categoryOrder.forEach(category => {
+    groups[category] = [];
+  });
   luggageList.forEach(item => {
-    const cat = item.category || "日常雜物 🎒";
+    const cat = (item.category || "日常雜物 🎒").trim();
     if (!groups[cat]) groups[cat] = [];
     groups[cat].push(item);
   });
+  const categoriesToRender = Object.keys(groups);
 
   const luggageGrid = document.getElementById("ws-luggage-grid");
   luggageGrid.innerHTML = "";
 
-  Object.entries(groups).forEach(([category, items]) => {
+  categoriesToRender.forEach(category => {
+    const items = groups[category] || [];
     const card = document.createElement("div");
     let catClass = "cat-daily";
     if (category.includes("證件")) catClass = "cat-docs";
@@ -1934,9 +1982,10 @@ function renderWorkspaceChecklists() {
     card.className = `packing-category-card ${catClass}`;
 
     let itemsHtml = "";
-    items.forEach(item => {
-      const isCh = item.checked ? "checked" : "";
-      itemsHtml += `
+    if (items.length > 0) {
+      items.forEach(item => {
+        const isCh = item.checked ? "checked" : "";
+        itemsHtml += `
         <div class="packing-item-row ${isCh}" onclick="toggleLuggageItem(${item.id})">
           <div class="packing-item-left">
             <input type="checkbox" class="packing-checkbox" ${item.checked ? 'checked' : ''} onclick="event.stopPropagation(); toggleLuggageItem(${item.id})">
@@ -1945,36 +1994,46 @@ function renderWorkspaceChecklists() {
           <button class="packing-delete-btn" onclick="event.stopPropagation(); deleteLuggageItem(${item.id})">✕</button>
         </div>
       `;
-    });
+      });
+    } else {
+      itemsHtml = `<div class="packing-empty-state">這個分類目前還沒有品項。</div>`;
+    }
 
     const categorySafeId = category.replace(/[^\w\u4e00-\u9fa5]/g, "");
 
     card.innerHTML = `
       <div class="packing-category-title">
-        <span>${category}</span>
-        <span style="font-size:0.75rem; font-weight:normal; opacity:0.8;">(${items.filter(i=>i.checked).length}/${items.length})</span>
+        <div class="packing-category-title-main">
+          <span>${escapeHTML(category)}</span>
+        </div>
+        <div class="packing-category-actions">
+          <span style="font-size:0.75rem; font-weight:normal; opacity:0.8;">(${items.filter(i => i.checked).length}/${items.length})</span>
+          <button type="button" class="packing-category-delete-btn" aria-label="刪除分類">✕</button>
+        </div>
       </div>
       <div class="packing-items-list">
         ${itemsHtml}
       </div>
       <div class="packing-quick-add">
         <input type="text" class="packing-quick-input" id="lug-input-${categorySafeId}" placeholder="新增品項...">
-        <button class="btn btn-secondary" style="padding:0.35rem 0.75rem; border-radius:8px; font-size:0.75rem;" onclick="addLuggageItem('${escapeHTML(category)}')">新增</button>
+        <button type="button" class="btn btn-secondary packing-quick-add-btn" style="padding:0.35rem 0.75rem; border-radius:8px; font-size:0.75rem;">新增</button>
       </div>
     `;
 
-    // 綁定輸入框 Enter 事件
-    card.querySelector("input").addEventListener("keydown", (e) => {
+    const quickInput = card.querySelector(".packing-quick-input");
+    quickInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         addLuggageItem(category);
       }
     });
+    card.querySelector(".packing-quick-add-btn").addEventListener("click", () => addLuggageItem(category));
+    card.querySelector(".packing-category-delete-btn").addEventListener("click", () => deleteLuggageCategory(category));
 
     luggageGrid.appendChild(card);
   });
 
   // 如果清單為空，給個提示
-  if (totalLug === 0) {
+  if (categoriesToRender.length === 0 && totalLug === 0) {
     luggageGrid.innerHTML = `<p style="padding:2rem; text-align:center; color:var(--text-secondary); grid-column:1/-1;">您的行李箱空空如也，請在下方或手動新增物品！</p>`;
   }
 
@@ -2053,6 +2112,50 @@ window.deleteLuggageItem = function(id) {
   }
 };
 
+function handleLuggageCategoryAdd() {
+  const input = document.getElementById("luggage-new-category");
+  const category = input?.value.trim();
+  if (!category) {
+    showToast("請先輸入想新增的大分類名稱。", "error");
+    return;
+  }
+
+  const trip = trips.find(t => t.id === activeTripId);
+  if (!trip) return;
+
+  const categories = ensurePackingCategoryState(trip);
+  if (categories.includes(category)) {
+    input.value = "";
+    showToast("這個分類已經存在了。", "info");
+    return;
+  }
+
+  trip.packingCategories.push(category);
+  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  input.value = "";
+  renderWorkspaceChecklists();
+  showToast(`已新增「${category}」分類。`, "success");
+}
+
+window.deleteLuggageCategory = function(category) {
+  const trip = trips.find(t => t.id === activeTripId);
+  if (!trip) return;
+
+  ensurePackingCategoryState(trip);
+  const itemsInCategory = (trip.packingList || []).filter(item => (item.category || "日常雜物 🎒").trim() === category);
+  const confirmMessage = itemsInCategory.length > 0
+    ? `刪除「${category}」會一起移除 ${itemsInCategory.length} 個品項，確定要繼續嗎？`
+    : `確定要刪除「${category}」這個分類嗎？`;
+
+  if (!window.confirm(confirmMessage)) return;
+
+  trip.packingCategories = trip.packingCategories.filter(name => name !== category);
+  trip.packingList = (trip.packingList || []).filter(item => (item.category || "日常雜物 🎒").trim() !== category);
+  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  renderWorkspaceChecklists();
+  showToast(`已刪除「${category}」分類。`, "success");
+};
+
 window.addLuggageItem = function(category) {
   const categorySafeId = category.replace(/[^\w\u4e00-\u9fa5]/g, "");
   const input = document.getElementById(`lug-input-${categorySafeId}`);
@@ -2062,6 +2165,10 @@ window.addLuggageItem = function(category) {
   const trip = trips.find(t => t.id === activeTripId);
   if (trip) {
     if (!trip.packingList) trip.packingList = [];
+    ensurePackingCategoryState(trip);
+    if (!trip.packingCategories.includes(category)) {
+      trip.packingCategories.push(category);
+    }
     const newItem = {
       id: Date.now(),
       category: category,
@@ -3156,6 +3263,7 @@ function handleTripSubmit(e) {
       itinerary: null,
       alternativeSpots: { sights: [], restaurants: [] },
       packingList: [...DEFAULT_PACKING_TEMPLATE],
+      packingCategories: extractPackingCategoriesFromList(DEFAULT_PACKING_TEMPLATE),
       todoList: [],
       wishlist: [],
       ledger: [],

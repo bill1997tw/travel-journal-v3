@@ -188,11 +188,11 @@
               <button class="ws-menu-item" data-ws-tab="budget">
                 <span>💰 費用預算與記帳</span>
               </button>
-              <button class="ws-menu-item" data-ws-tab="diary">
-                <span>📖 故事回憶與日記</span>
-              </button>
               <button class="ws-menu-item" data-ws-tab="vouchers">
                 <span>🎫 票券憑證與備忘</span>
+              </button>
+              <button class="ws-menu-item" data-ws-tab="diary">
+                <span>📖 故事回憶與日記</span>
               </button>
             </div>
             <div class="ws-sidebar-footer">
@@ -280,6 +280,10 @@
                   <!-- 進度條 -->
                   <div class="packing-progress-bar">
                     <div class="packing-progress-fill" id="luggage-progress-bar" style="width:0%;"></div>
+                  </div>
+                  <div class="packing-category-toolbar">
+                    <input type="text" id="luggage-new-category" class="packing-category-input" placeholder="新增大分類，例如：電子配件、衣物、其他">
+                    <button class="btn btn-secondary" id="luggage-add-category-btn" style="padding:0.55rem 1rem;">新增分類</button>
                   </div>
                   <div class="packing-grid" id="ws-luggage-grid">
                     <!-- 行李分類卡片 (證件、電子、盥洗衣物、藥品、生活用品) -->
