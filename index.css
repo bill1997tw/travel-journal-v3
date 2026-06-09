@@ -1915,6 +1915,25 @@ label {
   box-shadow: 0 0 0 2px var(--accent-light);
 }
 
+.time-range-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.time-range-separator {
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.time-range-help {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
 .form-textarea {
   min-height: 120px;
   resize: vertical;

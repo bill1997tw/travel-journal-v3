@@ -244,6 +244,7 @@ let currentPrimaryView = "dashboard";
 
 const MOBILE_BREAKPOINT = 768;
 const LAST_MOBILE_TRIP_KEY = "voyage_last_mobile_trip_id";
+const SCHEDULE_TIME_STEP_MINUTES = 30;
 
 function isMobileViewport() {
   return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
@@ -294,6 +295,94 @@ function applyInitialView() {
 function refreshResponsiveShell() {
   const activeView = activeTripId ? "workspace" : currentPrimaryView;
   syncAppShellState(activeView);
+}
+
+function buildScheduleTimeOptions() {
+  const options = [];
+  for (let minutes = 0; minutes < 24 * 60; minutes += SCHEDULE_TIME_STEP_MINUTES) {
+    const hour = String(Math.floor(minutes / 60)).padStart(2, "0");
+    const minute = String(minutes % 60).padStart(2, "0");
+    options.push(`${hour}:${minute}`);
+  }
+  return options;
+}
+
+function ensureScheduleTimeControls() {
+  const originalInput = document.getElementById("s-time");
+  if (!originalInput) return;
+
+  const existing = document.getElementById("s-time-range-controls");
+  if (existing) return;
+
+  const timeLabel = document.querySelector('label[for="s-time"]');
+  if (timeLabel) {
+    timeLabel.setAttribute("for", "s-time-start");
+  }
+
+  originalInput.type = "hidden";
+
+  const wrapper = document.createElement("div");
+  wrapper.id = "s-time-range-controls";
+  wrapper.innerHTML = `
+    <div class="time-range-grid">
+      <select class="form-select" id="s-time-start" required>
+        <option value="">開始時間</option>
+      </select>
+      <span class="time-range-separator">-</span>
+      <select class="form-select" id="s-time-end">
+        <option value="">結束時間</option>
+      </select>
+    </div>
+    <div class="time-range-help">24 小時制，每 30 分鐘一格。若是單一時間點，可只選開始時間。</div>
+  `;
+
+  originalInput.insertAdjacentElement("afterend", wrapper);
+
+  const startSelect = document.getElementById("s-time-start");
+  const endSelect = document.getElementById("s-time-end");
+  const timeOptions = buildScheduleTimeOptions();
+  timeOptions.forEach(timeValue => {
+    startSelect.appendChild(new Option(timeValue, timeValue));
+    endSelect.appendChild(new Option(timeValue, timeValue));
+  });
+}
+
+function parseScheduleTimeValue(timeText) {
+  const matches = (timeText || "").match(/\b(?:[01]\d|2[0-3]):[0-5]\d\b/g) || [];
+  return {
+    start: matches[0] || "",
+    end: matches[1] || ""
+  };
+}
+
+function setScheduleTimeControls(timeText = "") {
+  ensureScheduleTimeControls();
+  const startSelect = document.getElementById("s-time-start");
+  const endSelect = document.getElementById("s-time-end");
+  const timeInput = document.getElementById("s-time");
+  if (!startSelect || !endSelect || !timeInput) return;
+
+  const { start, end } = parseScheduleTimeValue(timeText);
+  startSelect.value = start;
+  endSelect.value = end;
+  timeInput.value = timeText || "";
+}
+
+function buildScheduleTimeValue() {
+  ensureScheduleTimeControls();
+  const startSelect = document.getElementById("s-time-start");
+  const endSelect = document.getElementById("s-time-end");
+  const timeInput = document.getElementById("s-time");
+  if (!startSelect || !endSelect || !timeInput) return "";
+
+  const start = startSelect.value.trim();
+  const end = endSelect.value.trim();
+  if (!start) return "";
+  if (end && end <= start) return "__invalid_range__";
+
+  const timeValue = end ? `${start} - ${end}` : start;
+  timeInput.value = timeValue;
+  return timeValue;
 }
 
 async function bootApp() {
@@ -363,6 +452,7 @@ function initData() {
 
 // --- 事件監聽與綁定 ---
 function setupEventListeners() {
+  ensureScheduleTimeControls();
   // 導覽列切換
   document.querySelectorAll("nav .nav-link, #logo-btn").forEach(elem => {
     elem.addEventListener("click", () => {
@@ -1293,6 +1383,7 @@ function openScheduleModal(itemId = null) {
   form.reset();
   document.getElementById("sche-id").value = "";
   document.getElementById("sche-day-num").value = activeItineraryDay;
+  setScheduleTimeControls("");
 
   if (itemId) {
     title.innerText = "修改日程行程項目";
@@ -1307,7 +1398,7 @@ function openScheduleModal(itemId = null) {
 
     if (foundItem) {
       document.getElementById("sche-id").value = foundItem.id;
-      document.getElementById("s-time").value = foundItem.time;
+      setScheduleTimeControls(foundItem.time);
       document.getElementById("s-title").value = foundItem.title;
       document.getElementById("s-type").value = foundItem.type;
       document.getElementById("s-content").value = foundItem.content;
@@ -1319,6 +1410,7 @@ function openScheduleModal(itemId = null) {
     }
   } else {
     title.innerText = `新增 DAY ${activeItineraryDay} 行程項目`;
+    setScheduleTimeControls("09:00 - 10:00");
     document.getElementById("s-maps-url").value = "";
     document.getElementById("s-address").value = "";
     document.getElementById("s-rating").value = "";
@@ -1339,7 +1431,11 @@ function handleScheduleSubmit(e) {
 
   const id = document.getElementById("sche-id").value;
   const dayNum = parseInt(document.getElementById("sche-day-num").value) || activeItineraryDay;
-  const time = document.getElementById("s-time").value.trim();
+  const time = buildScheduleTimeValue();
+  if (time === "__invalid_range__") {
+    showToast("結束時間要晚於開始時間。", "error");
+    return;
+  }
   const title = document.getElementById("s-title").value.trim();
   const type = document.getElementById("s-type").value;
   const content = document.getElementById("s-content").value.trim();
