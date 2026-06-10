@@ -245,9 +245,57 @@ let currentPrimaryView = "dashboard";
 const MOBILE_BREAKPOINT = 768;
 const LAST_MOBILE_TRIP_KEY = "voyage_last_mobile_trip_id";
 const SCHEDULE_TIME_STEP_MINUTES = 30;
+const ITINERARY_HISTORY_KEY = "voyage_itinerary_history";
+
+let itineraryHistoryByTrip = {};
 
 function isMobileViewport() {
   return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
+}
+
+function cloneSerializable(value) {
+  return value == null ? value : JSON.parse(JSON.stringify(value));
+}
+
+function persistItineraryHistory() {
+  localStorage.setItem(ITINERARY_HISTORY_KEY, JSON.stringify(itineraryHistoryByTrip));
+}
+
+function loadItineraryHistory() {
+  try {
+    itineraryHistoryByTrip = JSON.parse(localStorage.getItem(ITINERARY_HISTORY_KEY) || "{}");
+  } catch (error) {
+    itineraryHistoryByTrip = {};
+  }
+}
+
+function pushItineraryHistorySnapshot(trip, options = {}) {
+  if (!trip || !trip.id) return;
+  const history = Array.isArray(itineraryHistoryByTrip[trip.id]) ? itineraryHistoryByTrip[trip.id] : [];
+  history.push({
+    itinerary: cloneSerializable(trip.itinerary || null),
+    alternativeSpots: cloneSerializable(trip.alternativeSpots || { sights: [], restaurants: [] }),
+    activeDay: options.activeDay ?? activeItineraryDay,
+    savedAt: Date.now()
+  });
+  itineraryHistoryByTrip[trip.id] = history.slice(-20);
+  persistItineraryHistory();
+}
+
+function getItineraryHistoryCount(tripId) {
+  if (!tripId || !Array.isArray(itineraryHistoryByTrip[tripId])) return 0;
+  return itineraryHistoryByTrip[tripId].length;
+}
+
+function refreshItineraryUndoButton() {
+  const btn = document.getElementById("ws-undo-itinerary-btn");
+  if (!btn) return;
+
+  const count = getItineraryHistoryCount(activeTripId);
+  btn.disabled = count === 0;
+  btn.style.opacity = count === 0 ? "0.45" : "1";
+  btn.style.cursor = count === 0 ? "not-allowed" : "pointer";
+  btn.title = count === 0 ? "目前沒有可還原的上一步" : `可還原最近 ${count} 次行程操作`;
 }
 
 function setActiveNav(viewName) {
@@ -432,6 +480,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // --- 資料初始化 ---
 function initData() {
+  loadItineraryHistory();
+
   // 載入客製化標題 Logo 名稱
   const savedLogoText = localStorage.getItem("voyage_logo_text");
   if (savedLogoText) {
@@ -560,6 +610,7 @@ function setupEventListeners() {
   // Workspace 行程與備案相關事件
   document.getElementById("ws-edit-trip-btn").addEventListener("click", () => openTripEditorModal(activeTripId));
   document.getElementById("ws-add-schedule-btn").addEventListener("click", () => openScheduleModal());
+  document.getElementById("ws-undo-itinerary-btn").addEventListener("click", handleUndoItineraryStep);
   document.getElementById("sche-modal-close").addEventListener("click", closeScheduleModal);
   document.getElementById("sche-modal-cancel").addEventListener("click", closeScheduleModal);
   document.getElementById("sche-form").addEventListener("submit", handleScheduleSubmit);
@@ -1118,6 +1169,7 @@ function switchWorkspaceTab(tabId) {
 function renderWorkspaceItinerary() {
   const trip = trips.find(t => t.id === activeTripId);
   if (!trip) return;
+  refreshItineraryUndoButton();
 
   const iti = trip.itinerary;
 
@@ -1307,6 +1359,8 @@ function reorderScheduleItems(draggedId, targetId, placeBefore) {
 
   if (draggedIndex === -1 || targetIndex === -1) return;
 
+  pushItineraryHistorySnapshot(trip);
+
   // 取出被拖曳的項目
   const [draggedItem] = dayData.items.splice(draggedIndex, 1);
 
@@ -1488,6 +1542,8 @@ function handleScheduleSubmit(e) {
   const rating = document.getElementById("s-rating").value.trim();
   const hours = document.getElementById("s-hours").value.trim();
 
+  pushItineraryHistorySnapshot(trip, { activeDay: dayNum });
+
   if (!trip.itinerary) {
     // 初始化空行程
     trip.itinerary = {
@@ -1531,6 +1587,7 @@ window.deleteScheduleItem = function(itemId) {
   if (confirm("確認要刪除這筆詳細日程項目嗎？")) {
     const trip = trips.find(t => t.id === activeTripId);
     if (trip && trip.itinerary) {
+      pushItineraryHistorySnapshot(trip);
       trip.itinerary.days.forEach(d => {
         d.items = d.items.filter(item => item.id !== itemId);
       });
@@ -1545,12 +1602,37 @@ function handleClearItinerary() {
   if (confirm("您確定要完全清空這趟旅程的詳細行程表嗎？（此動作不會刪除備案庫）")) {
     const trip = trips.find(t => t.id === activeTripId);
     if (trip) {
+      pushItineraryHistorySnapshot(trip);
       trip.itinerary = null;
       localStorage.setItem("voyage_trips", JSON.stringify(trips));
       renderWorkspaceItinerary();
       showToast("詳細行程已清空", "info");
     }
   }
+}
+
+function handleUndoItineraryStep() {
+  const trip = trips.find(t => t.id === activeTripId);
+  if (!trip) return;
+
+  const history = Array.isArray(itineraryHistoryByTrip[trip.id]) ? itineraryHistoryByTrip[trip.id] : [];
+  if (history.length === 0) {
+    showToast("目前沒有可回復的上一步。", "info");
+    refreshItineraryUndoButton();
+    return;
+  }
+
+  const previousState = history.pop();
+  itineraryHistoryByTrip[trip.id] = history;
+
+  trip.itinerary = cloneSerializable(previousState.itinerary || null);
+  trip.alternativeSpots = cloneSerializable(previousState.alternativeSpots || { sights: [], restaurants: [] });
+  activeItineraryDay = previousState.activeDay || 1;
+
+  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  persistItineraryHistory();
+  renderWorkspaceItinerary();
+  showToast("已回到上一步。", "success");
 }
 
 // 備案庫 CRUD
@@ -1653,6 +1735,8 @@ function handleAddToScheduleSubmit(e) {
   const dayNum = parseInt(document.getElementById("ats-day").value) || 1;
   const time = document.getElementById("ats-time").value.trim();
 
+  pushItineraryHistorySnapshot(trip, { activeDay: dayNum });
+
   if (!trip.itinerary) {
     trip.itinerary = { title: trip.title, dates: trip.dateRange || trip.date, subInfo: "", days: [] };
   }
@@ -1707,6 +1791,7 @@ function handleItineraryImport() {
     const data = JSON.parse(jsonText);
     const trip = trips.find(t => t.id === activeTripId);
     if (!trip) return;
+    pushItineraryHistorySnapshot(trip);
 
     // A. 智慧適配器：繁體中文大語言模型輸出格式 (如使用者所貼格式)
     if (data["行程名稱"] || data["每日詳細行程"] || data["沿途推薦景點備案庫_供自由挑選加點"]) {
@@ -4061,6 +4146,7 @@ function handleDaySummarySubmit(e) {
   e.preventDefault();
   const trip = trips.find(t => t.id === activeTripId);
   if (!trip || !trip.itinerary || !trip.itinerary.days) return;
+  pushItineraryHistorySnapshot(trip);
 
   let dayData = trip.itinerary.days.find(d => d.dayNum === activeItineraryDay);
   if (!dayData) {
