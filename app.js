@@ -1157,13 +1157,14 @@ function renderWorkspaceItinerary() {
     return;
   }
 
-  // 取得當前選定天數的資料
-  let dayData = iti.days.find(d => d.dayNum === activeItineraryDay);
-  if (!dayData) {
-    // 防呆：如果 activeDay 溢出，重設為 Day 1
-    activeItineraryDay = 1;
-    dayData = iti.days[0];
-  }
+  // 取得當前選定天數的資料；若該天尚未建立，先以獨立的空白天數畫面呈現
+  const dayData = iti.days.find(d => d.dayNum === activeItineraryDay) || {
+    dayNum: activeItineraryDay,
+    date: `Day ${activeItineraryDay}`,
+    theme: "自由行日程",
+    desc: "",
+    items: []
+  };
 
   if (dayData) {
     document.getElementById("ws-day-theme").innerText = `DAY ${dayData.dayNum}: ${escapeHTML(dayData.theme || '自由行日程')}`;
