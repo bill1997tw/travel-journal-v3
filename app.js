@@ -461,6 +461,87 @@ function ensurePackingCategoryState(trip) {
   return trip.packingCategories;
 }
 
+function ensureDiaryState(trip) {
+  if (!trip) {
+    return {
+      content: "",
+      rating: 5,
+      weather: "晴天",
+      companion: "",
+      image: "",
+      cost: 0,
+      mode: "post",
+      storyTitle: "",
+      hashtags: [],
+      locationTag: ""
+    };
+  }
+
+  const diary = trip.diary || {};
+  const normalizedHashtags = Array.isArray(diary.hashtags)
+    ? diary.hashtags
+      .map(tag => normalizeDiaryHashtag(tag))
+      .filter(Boolean)
+    : [];
+
+  trip.diary = {
+    content: diary.content || "",
+    rating: parseInt(diary.rating) || 5,
+    weather: diary.weather || "晴天",
+    companion: diary.companion || trip.companion || "",
+    image: diary.image || "",
+    cost: parseInt(diary.cost) || 0,
+    mode: diary.mode === "story" ? "story" : "post",
+    storyTitle: diary.storyTitle || trip.title || "旅途片刻",
+    hashtags: [...new Set(normalizedHashtags)],
+    locationTag: diary.locationTag || trip.location || ""
+  };
+
+  return trip.diary;
+}
+
+function normalizeDiaryHashtag(tag) {
+  return String(tag || "")
+    .replace(/#/g, "")
+    .replace(/[^\u4e00-\u9fa5A-Za-z0-9_]/g, "")
+    .trim();
+}
+
+function buildDiarySuggestedHashtags(trip, diary) {
+  const suggestions = [];
+  const addTag = (value) => {
+    const normalized = normalizeDiaryHashtag(value);
+    if (!normalized || suggestions.includes(normalized)) return;
+    suggestions.push(normalized);
+  };
+
+  const titleTokens = String(trip.title || "")
+    .split(/[・,，\s/]+/)
+    .map(token => token.trim())
+    .filter(token => token.length >= 2 && token.length <= 12);
+  titleTokens.slice(0, 3).forEach(addTag);
+
+  const locationTokens = String((diary?.locationTag || trip.location || ""))
+    .split(/[・,，\s/]+/)
+    .map(token => token.trim())
+    .filter(token => token.length >= 2 && token.length <= 10);
+  locationTokens.slice(0, 3).forEach(token => addTag(`${token}旅行`));
+
+  addTag("旅行日記");
+  addTag("旅遊回憶");
+
+  const summaryText = `${trip.title || ""} ${diary?.content || ""} ${trip.rental || ""}`;
+  if (summaryText.includes("重機")) addTag("重機旅行");
+  if (summaryText.includes("美食") || summaryText.includes("餐") || summaryText.includes("壽喜燒") || summaryText.includes("龍蝦")) addTag("旅行美食");
+  if (summaryText.includes("海") || summaryText.includes("灣")) addTag("海景旅行");
+  if (summaryText.includes("山") || summaryText.includes("阿里山")) addTag("山景旅行");
+  if (String(trip.location || "").includes("日本")) addTag("日本自由行");
+  if (String(trip.location || "").includes("台灣")) addTag("台灣旅行");
+  if ((diary?.weather || "").includes("晴")) addTag("晴天旅行");
+
+  return suggestions.slice(0, 10);
+}
+
 async function bootApp() {
   if (window.voyageCloud?.hydrateBeforeAppStart) {
     await window.voyageCloud.hydrateBeforeAppStart();
@@ -507,9 +588,7 @@ function initData() {
       if (!t.ledger) t.ledger = [];
       if (!t.advances) t.advances = [];
       if (!t.repayInfo) t.repayInfo = [];
-      if (!t.diary) {
-        t.diary = { content: "", rating: 5, weather: "晴天", companion: "", image: "", cost: 0 };
-      }
+      ensureDiaryState(t);
       ensurePackingCategoryState(t);
     });
     localStorage.setItem("voyage_trips", JSON.stringify(trips));
@@ -699,6 +778,15 @@ function setupEventListeners() {
   // 故事日記
   document.getElementById("ws-diary-import-cost-btn").addEventListener("click", handleDiaryImportCost);
   document.getElementById("ws-diary-save-btn").addEventListener("click", handleDiarySave);
+  document.getElementById("ws-diary-hashtag-add-btn").addEventListener("click", handleDiaryHashtagAdd);
+
+  document.querySelectorAll(".diary-mode-btn").forEach(btn => {
+    btn.addEventListener("click", () => setDiaryMode(btn.getAttribute("data-diary-mode")));
+  });
+
+  document.querySelectorAll(".diary-insert-btn").forEach(btn => {
+    btn.addEventListener("click", () => insertDiarySnippet(btn.getAttribute("data-diary-insert")));
+  });
 
   // 日記照片上傳
   const dPlaceholder = document.getElementById("ws-diary-upload-placeholder");
@@ -715,7 +803,29 @@ function setupEventListeners() {
     star.addEventListener("click", () => {
       const rating = parseInt(star.getAttribute("data-ws-rating"));
       setDiaryRating(rating);
+      updateDiaryPreview();
     });
+  });
+
+  [
+    "ws-diary-text",
+    "ws-diary-weather",
+    "ws-diary-companion",
+    "ws-diary-cost",
+    "ws-diary-story-title",
+    "ws-diary-location"
+  ].forEach(id => {
+    const field = document.getElementById(id);
+    if (!field) return;
+    field.addEventListener("input", updateDiaryPreview);
+    field.addEventListener("change", updateDiaryPreview);
+  });
+
+  document.getElementById("ws-diary-hashtag-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleDiaryHashtagAdd();
+    }
   });
 
   // 票券與備忘錄相關事件
@@ -2811,12 +2921,15 @@ function renderWorkspaceDiary() {
   const trip = trips.find(t => t.id === activeTripId);
   if (!trip) return;
 
-  const diary = trip.diary || { content: "", rating: 5, weather: "晴天", companion: "", image: "", cost: 0 };
-  
+  const diary = ensureDiaryState(trip);
+
   document.getElementById("ws-diary-text").value = diary.content || "";
   document.getElementById("ws-diary-weather").value = diary.weather || "晴天";
   document.getElementById("ws-diary-companion").value = diary.companion || trip.companion || "";
   document.getElementById("ws-diary-cost").value = diary.cost || 0;
+  document.getElementById("ws-diary-story-title").value = diary.storyTitle || trip.title || "旅途片刻";
+  document.getElementById("ws-diary-location").value = diary.locationTag || trip.location || "";
+  document.getElementById("ws-diary-hashtags").value = JSON.stringify(diary.hashtags || []);
 
   // 圖片預覽
   const preview = document.getElementById("ws-diary-preview-img");
@@ -2826,15 +2939,20 @@ function renderWorkspaceDiary() {
   if (imgUrl) {
     preview.src = imgUrl;
     preview.style.display = "block";
+    preview.classList.add("active");
     placeholder.style.display = "none";
     document.getElementById("ws-diary-image-base64").value = imgUrl;
   } else {
     preview.style.display = "none";
+    preview.classList.remove("active");
     placeholder.style.display = "flex";
     document.getElementById("ws-diary-image-base64").value = "";
   }
 
   setDiaryRating(diary.rating || 5);
+  setDiaryMode(diary.mode || "post", { skipPreview: true });
+  renderDiaryHashtagChips(trip, diary);
+  updateDiaryPreview();
 }
 
 function setDiaryRating(rating) {
@@ -2850,6 +2968,199 @@ function setDiaryRating(rating) {
   });
 }
 
+function setDiaryMode(mode, options = {}) {
+  const safeMode = mode === "story" ? "story" : "post";
+  const workspace = document.getElementById("ws-diary-workspace");
+  if (workspace) {
+    workspace.dataset.diaryMode = safeMode;
+  }
+
+  document.querySelectorAll(".diary-mode-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.getAttribute("data-diary-mode") === safeMode);
+  });
+
+  const formatBadge = document.getElementById("ws-diary-format-badge");
+  const previewModePill = document.getElementById("ws-diary-preview-mode-pill");
+  if (formatBadge) {
+    formatBadge.innerText = safeMode === "story" ? "IG 限動 9:16" : "IG 貼文 4:5";
+  }
+  if (previewModePill) {
+    previewModePill.innerText = safeMode === "story" ? "限動預覽" : "貼文預覽";
+  }
+
+  const postPreview = document.getElementById("ws-diary-post-preview");
+  const storyPreview = document.getElementById("ws-diary-story-preview");
+  if (postPreview && storyPreview) {
+    postPreview.classList.toggle("active", safeMode === "post");
+    storyPreview.classList.toggle("active", safeMode === "story");
+  }
+
+  if (!options.skipPreview) {
+    updateDiaryPreview();
+  }
+}
+
+function getDiaryHashtagsFromField() {
+  try {
+    return JSON.parse(document.getElementById("ws-diary-hashtags").value || "[]");
+  } catch (error) {
+    return [];
+  }
+}
+
+function setDiaryHashtags(tags) {
+  const normalized = [...new Set((tags || []).map(tag => normalizeDiaryHashtag(tag)).filter(Boolean))];
+  document.getElementById("ws-diary-hashtags").value = JSON.stringify(normalized);
+  return normalized;
+}
+
+function renderDiaryHashtagChips(trip, diary = ensureDiaryState(trip)) {
+  const selectedTags = setDiaryHashtags(diary.hashtags || getDiaryHashtagsFromField());
+  const selectedContainer = document.getElementById("ws-diary-selected-tags");
+  const suggestedContainer = document.getElementById("ws-diary-suggested-tags");
+  const suggestions = buildDiarySuggestedHashtags(trip, {
+    ...diary,
+    hashtags: selectedTags,
+    content: document.getElementById("ws-diary-text").value.trim() || diary.content || "",
+    locationTag: document.getElementById("ws-diary-location").value.trim() || diary.locationTag || trip.location || "",
+    weather: document.getElementById("ws-diary-weather").value || diary.weather || "晴天"
+  });
+
+  selectedContainer.innerHTML = selectedTags.length > 0
+    ? selectedTags.map(tag => `
+        <button type="button" class="diary-chip selected" data-diary-remove-tag="${escapeHTML(tag)}">
+          #${escapeHTML(tag)}<span class="diary-chip-remove">✕</span>
+        </button>
+      `).join("")
+    : `<span style="font-size:0.82rem; color:var(--text-secondary);">尚未加入 hashtag，可從下方建議快速選。</span>`;
+
+  suggestedContainer.innerHTML = suggestions.length > 0
+    ? suggestions.map(tag => `
+        <button type="button" class="diary-chip" data-diary-add-tag="${escapeHTML(tag)}">#${escapeHTML(tag)}</button>
+      `).join("")
+    : `<span style="font-size:0.82rem; color:var(--text-secondary);">目前沒有可建議的 hashtag。</span>`;
+
+  selectedContainer.querySelectorAll("[data-diary-remove-tag]").forEach(btn => {
+    btn.addEventListener("click", () => removeDiaryHashtag(btn.getAttribute("data-diary-remove-tag")));
+  });
+  suggestedContainer.querySelectorAll("[data-diary-add-tag]").forEach(btn => {
+    btn.addEventListener("click", () => addDiaryHashtag(btn.getAttribute("data-diary-add-tag")));
+  });
+}
+
+function addDiaryHashtag(tag) {
+  const normalized = normalizeDiaryHashtag(tag);
+  if (!normalized) return;
+
+  const trip = trips.find(t => t.id === activeTripId);
+  if (!trip) return;
+
+  const currentTags = getDiaryHashtagsFromField();
+  if (currentTags.includes(normalized)) return;
+
+  const nextTags = setDiaryHashtags([...currentTags, normalized]);
+  trip.diary = { ...ensureDiaryState(trip), hashtags: nextTags };
+  renderDiaryHashtagChips(trip, trip.diary);
+  updateDiaryPreview();
+}
+
+function removeDiaryHashtag(tag) {
+  const trip = trips.find(t => t.id === activeTripId);
+  if (!trip) return;
+
+  const nextTags = setDiaryHashtags(getDiaryHashtagsFromField().filter(item => item !== tag));
+  trip.diary = { ...ensureDiaryState(trip), hashtags: nextTags };
+  renderDiaryHashtagChips(trip, trip.diary);
+  updateDiaryPreview();
+}
+
+function handleDiaryHashtagAdd() {
+  const input = document.getElementById("ws-diary-hashtag-input");
+  const normalized = normalizeDiaryHashtag(input.value);
+  if (!normalized) {
+    showToast("請先輸入 hashtag 內容。", "info");
+    return;
+  }
+
+  addDiaryHashtag(normalized);
+  input.value = "";
+}
+
+function insertDiarySnippet(type) {
+  const textarea = document.getElementById("ws-diary-text");
+  if (!textarea) return;
+
+  const snippets = {
+    location: `📍 ${document.getElementById("ws-diary-location").value.trim() || "旅行地點"}`,
+    cost: `💰 這趟旅程總花費約 NT$ ${(parseInt(document.getElementById("ws-diary-cost").value) || 0).toLocaleString()}`,
+    weather: `☀️ 旅途天氣：${document.getElementById("ws-diary-weather").value || "晴天"}`,
+    companion: `👥 同行旅伴：${document.getElementById("ws-diary-companion").value.trim() || "旅伴"}`
+  };
+
+  const snippet = snippets[type];
+  if (!snippet) return;
+
+  const current = textarea.value.trim();
+  textarea.value = current ? `${current}\n${snippet}` : snippet;
+  updateDiaryPreview();
+}
+
+function updateDiaryPreview() {
+  const trip = trips.find(t => t.id === activeTripId);
+  if (!trip) return;
+
+  const diary = ensureDiaryState(trip);
+  const mode = document.querySelector(".diary-mode-btn.active")?.getAttribute("data-diary-mode") || diary.mode || "post";
+  const content = document.getElementById("ws-diary-text").value.trim() || diary.content || "寫下一段讓人想收藏的旅行片刻，右邊就會出現貼文預覽。";
+  const locationTag = document.getElementById("ws-diary-location").value.trim() || diary.locationTag || trip.location || "旅行地點";
+  const storyTitle = document.getElementById("ws-diary-story-title").value.trim() || diary.storyTitle || trip.title || "旅途片刻";
+  const weather = document.getElementById("ws-diary-weather").value || diary.weather || "晴天";
+  const companion = document.getElementById("ws-diary-companion").value.trim() || diary.companion || trip.companion || "旅伴";
+  const cost = parseInt(document.getElementById("ws-diary-cost").value) || diary.cost || 0;
+  const image = document.getElementById("ws-diary-image-base64").value || diary.image || trip.image || "";
+  const hashtags = getDiaryHashtagsFromField();
+  const logoName = localStorage.getItem("voyage_logo_text") || "悠遊小本本";
+
+  setDiaryMode(mode, { skipPreview: true });
+
+  document.getElementById("ws-diary-post-account").innerText = logoName;
+  document.getElementById("ws-diary-post-location").innerText = locationTag;
+  document.getElementById("ws-diary-post-caption").innerText = content;
+  document.getElementById("ws-diary-post-meta").innerText = `${weather} · ${companion} · 推薦 ${parseInt(document.getElementById("ws-diary-rating-val").value) || diary.rating || 5} 星`;
+  document.getElementById("ws-diary-post-likes").innerText = `${trip.title || "這趟旅程"} 值得你發成貼文收藏`;
+
+  document.getElementById("ws-diary-story-account").innerText = logoName;
+  document.getElementById("ws-diary-story-location").innerText = locationTag;
+  document.getElementById("ws-diary-story-headline").innerText = storyTitle;
+  document.getElementById("ws-diary-story-caption").innerText = content;
+  document.getElementById("ws-diary-story-weather").innerText = weather.startsWith("☀") || weather.startsWith("☁") || weather.startsWith("🌧") || weather.startsWith("❄") || weather.startsWith("💨") ? weather : `☀️ ${weather}`;
+  document.getElementById("ws-diary-story-cost").innerText = `💰 NT$${cost.toLocaleString()}`;
+  document.getElementById("ws-diary-story-companion").innerText = `👥 ${companion}`;
+
+  const postTagsMarkup = hashtags.map(tag => `<span class="diary-preview-tag">#${escapeHTML(tag)}</span>`).join("");
+  const storyTagsMarkup = hashtags.slice(0, 5).map(tag => `<span class="diary-preview-tag">#${escapeHTML(tag)}</span>`).join("");
+  document.getElementById("ws-diary-post-tags").innerHTML = postTagsMarkup;
+  document.getElementById("ws-diary-story-tags").innerHTML = storyTagsMarkup;
+
+  const postImage = document.getElementById("ws-diary-post-image");
+  const storyImage = document.getElementById("ws-diary-story-image");
+  if (image) {
+    postImage.src = image;
+    storyImage.src = image;
+  } else {
+    postImage.removeAttribute("src");
+    storyImage.removeAttribute("src");
+  }
+
+  renderDiaryHashtagChips(trip, {
+    ...diary,
+    hashtags,
+    content,
+    locationTag,
+    weather
+  });
+}
+
 function handleDiaryImportCost() {
   const trip = trips.find(t => t.id === activeTripId);
   if (trip) {
@@ -2859,6 +3170,7 @@ function handleDiaryImportCost() {
     const grandCost = Math.max(totalExp, totalAdv);
     
     document.getElementById("ws-diary-cost").value = grandCost;
+    updateDiaryPreview();
     showToast(`成功導入此行程預算總支出 $${grandCost.toLocaleString()} 元！`, "success");
   }
 }
@@ -2867,19 +3179,23 @@ function handleDiarySave() {
   const trip = trips.find(t => t.id === activeTripId);
   if (!trip) return;
 
+  const mode = document.querySelector(".diary-mode-btn.active")?.getAttribute("data-diary-mode") || "post";
   const content = document.getElementById("ws-diary-text").value.trim();
   const weather = document.getElementById("ws-diary-weather").value;
   const companion = document.getElementById("ws-diary-companion").value.trim();
   const cost = parseInt(document.getElementById("ws-diary-cost").value) || 0;
   const rating = parseInt(document.getElementById("ws-diary-rating-val").value) || 5;
   const image = document.getElementById("ws-diary-image-base64").value;
+  const storyTitle = document.getElementById("ws-diary-story-title").value.trim();
+  const locationTag = document.getElementById("ws-diary-location").value.trim();
+  const hashtags = getDiaryHashtagsFromField();
 
   if (!content) {
     showToast("請填寫日記內容！", "error");
     return;
   }
 
-  trip.diary = { content, weather, companion, cost, rating, image };
+  trip.diary = { ...ensureDiaryState(trip), content, weather, companion, cost, rating, image, mode, storyTitle, locationTag, hashtags };
   
   // 同步更新 trip 的基本數值，以更新儀表板顯示
   trip.rating = rating;
@@ -3355,7 +3671,18 @@ function handleTripSubmit(e) {
       ledger: [],
       advances: [],
       repayInfo: [],
-      diary: { content: "", rating: 5, weather: "晴天", companion: travelers, image: "", cost: 0 }
+      diary: {
+        content: "",
+        rating: 5,
+        weather: "晴天",
+        companion: travelers,
+        image: "",
+        cost: 0,
+        mode: "post",
+        storyTitle: title || "旅途片刻",
+        hashtags: [],
+        locationTag: location || ""
+      }
     };
     trips.unshift(newTrip);
     showToast("成功建立新旅程！立即開啟小本本規劃吧！", "success");
@@ -3381,8 +3708,12 @@ function handleImageUpload(file, base64InputId, previewImgId, uploadTextId) {
     const preview = document.getElementById(previewImgId);
     preview.src = base64Data;
     preview.style.display = "block";
+    preview.classList.add("active");
     const textEl = document.getElementById(uploadTextId);
     if (textEl) textEl.style.display = "none";
+    if (base64InputId === "ws-diary-image-base64") {
+      updateDiaryPreview();
+    }
     showToast("封面照片上傳成功！", "success");
   };
   reader.readAsDataURL(file);

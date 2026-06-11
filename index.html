@@ -430,68 +430,204 @@
             <div class="ws-tab-panel" id="ws-panel-diary">
               <div class="panel-section-header">
                 <h2>📖 旅途故事與日記手記</h2>
-                <button class="btn btn-secondary" id="ws-diary-import-cost-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">💰 導入此行程總費用</button>
+                <div style="display:flex; gap:0.65rem; flex-wrap:wrap; justify-content:flex-end;">
+                  <button class="btn btn-secondary" id="ws-diary-import-cost-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">💰 導入此行程總費用</button>
+                  <button class="btn btn-primary" id="ws-diary-save-btn" style="font-size:0.8rem; padding:0.45rem 1rem;">儲存 IG 旅記草稿</button>
+                </div>
               </div>
 
-              <div class="diary-editor-container" style="margin-top:1rem; display:grid; grid-template-columns:1fr 1.5fr; gap:2rem;">
-                <!-- 左側：圖片與屬性 -->
-                <div style="display:flex; flex-direction:column; gap:1.25rem;">
-                  <!-- 當前日記封面 -->
-                  <div style="position:relative; width:100%; height:220px; border-radius:12px; overflow:hidden; border:1px solid var(--border-color);">
-                    <img id="ws-diary-preview-img" src="" alt="封面預覽" style="width:100%; height:100%; object-fit:cover; display:none;">
-                    <div id="ws-diary-upload-placeholder" style="width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--badge-bg); cursor:pointer;">
-                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                      <span style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.5rem;">上傳/變更日記照片</span>
+              <div class="diary-social-workspace" id="ws-diary-workspace">
+                <section class="diary-composer-card glass">
+                  <div class="diary-mode-toggle" id="ws-diary-mode-toggle">
+                    <button type="button" class="diary-mode-btn active" data-diary-mode="post">貼文 Post</button>
+                    <button type="button" class="diary-mode-btn" data-diary-mode="story">限動 Story</button>
+                  </div>
+
+                  <div class="diary-composer-section">
+                    <div class="diary-section-title-row">
+                      <div>
+                        <h3>封面照片</h3>
+                        <p>貼文預設 4:5，限動自動切成 9:16 海報感預覽。</p>
+                      </div>
+                      <span class="diary-format-badge" id="ws-diary-format-badge">IG 貼文 4:5</span>
                     </div>
-                    <input type="file" id="ws-diary-image-file" accept="image/*" style="display:none;">
-                    <input type="hidden" id="ws-diary-image-base64">
-                  </div>
 
-                  <!-- 評分星級 -->
-                  <div class="form-group">
-                    <label>推薦指數 / 旅途評分</label>
-                    <div class="rating-input" id="ws-diary-rating-stars">
-                      <span class="ws-star" data-ws-rating="1">★</span>
-                      <span class="ws-star" data-ws-rating="2">★</span>
-                      <span class="ws-star" data-ws-rating="3">★</span>
-                      <span class="ws-star" data-ws-rating="4">★</span>
-                      <span class="ws-star" data-ws-rating="5">★</span>
+                    <div class="diary-image-editor">
+                      <div class="diary-upload-stage">
+                        <img id="ws-diary-preview-img" src="" alt="封面預覽" class="diary-upload-image">
+                        <div id="ws-diary-upload-placeholder" class="diary-upload-placeholder">
+                          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                          <span>上傳旅途主視覺</span>
+                          <small>建議用風景、餐點或最有代表性的旅程瞬間</small>
+                        </div>
+                        <input type="file" id="ws-diary-image-file" accept="image/*" style="display:none;">
+                        <input type="hidden" id="ws-diary-image-base64">
+                      </div>
+
+                      <div class="diary-detail-grid">
+                        <div class="form-group diary-mode-story-only">
+                          <label for="ws-diary-story-title">限動海報主標題</label>
+                          <input type="text" class="form-input" id="ws-diary-story-title" placeholder="例如：伊勢灣海風與龍蝦大餐">
+                        </div>
+
+                        <div class="form-group">
+                          <label for="ws-diary-location">地點標記</label>
+                          <input type="text" class="form-input" id="ws-diary-location" placeholder="例如：日本・名古屋 / 伊勢">
+                        </div>
+                      </div>
                     </div>
-                    <input type="hidden" id="ws-diary-rating-val" value="5">
                   </div>
 
-                  <!-- 旅途天氣 -->
-                  <div class="form-group">
-                    <label for="ws-diary-weather">旅行氣候</label>
-                    <select class="form-select" id="ws-diary-weather">
-                      <option value="晴天">☀️ 晴天</option>
-                      <option value="陰天">☁️ 陰天</option>
-                      <option value="雨天">🌧️ 雨天</option>
-                      <option value="雪天">❄️ 雪天</option>
-                      <option value="風天">💨 颳風</option>
-                    </select>
+                  <div class="diary-composer-section">
+                    <div class="diary-section-title-row">
+                      <div>
+                        <h3>貼文文案</h3>
+                        <p>像在寫 IG caption，一邊打字，右邊就會同步預覽。</p>
+                      </div>
+                    </div>
+
+                    <div class="diary-quick-inserts">
+                      <button type="button" class="diary-insert-btn" data-diary-insert="location">插入地點</button>
+                      <button type="button" class="diary-insert-btn" data-diary-insert="cost">插入花費</button>
+                      <button type="button" class="diary-insert-btn" data-diary-insert="weather">插入天氣</button>
+                      <button type="button" class="diary-insert-btn" data-diary-insert="companion">插入旅伴</button>
+                    </div>
+
+                    <div class="form-group">
+                      <textarea class="form-textarea diary-caption-textarea" id="ws-diary-text" placeholder="記錄這趟旅途最值得分享的瞬間、驚喜美食、沿路風景，或你想發在 IG 的那段故事..." required></textarea>
+                    </div>
                   </div>
 
-                  <!-- 旅行伴侶 -->
-                  <div class="form-group">
-                    <label for="ws-diary-companion">旅行同伴</label>
-                    <input type="text" class="form-input" id="ws-diary-companion" placeholder="例如：2位朋友、獨自騎行">
+                  <div class="diary-composer-section">
+                    <div class="diary-section-title-row">
+                      <div>
+                        <h3>Hashtag 工作台</h3>
+                        <p>可自己手打，也能點一下快速插入建議標籤。</p>
+                      </div>
+                    </div>
+
+                    <div class="diary-hashtag-input-row">
+                      <input type="text" class="form-input" id="ws-diary-hashtag-input" placeholder="輸入 hashtag，例如：名古屋旅行">
+                      <button type="button" class="btn btn-secondary" id="ws-diary-hashtag-add-btn" style="padding:0.75rem 1rem;">加入</button>
+                    </div>
+
+                    <input type="hidden" id="ws-diary-hashtags">
+
+                    <div class="diary-tag-block">
+                      <span class="diary-tag-label">已選 hashtag</span>
+                      <div class="diary-chip-list" id="ws-diary-selected-tags"></div>
+                    </div>
+
+                    <div class="diary-tag-block">
+                      <span class="diary-tag-label">自動建議</span>
+                      <div class="diary-chip-list diary-chip-list-muted" id="ws-diary-suggested-tags"></div>
+                    </div>
                   </div>
 
-                  <!-- 開銷總計 -->
-                  <div class="form-group">
-                    <label for="ws-diary-cost">手記預算花費 (TWD)</label>
-                    <input type="number" class="form-input" id="ws-diary-cost" placeholder="手動輸入或一鍵導入">
-                  </div>
-                </div>
+                  <div class="diary-composer-section">
+                    <div class="diary-section-title-row">
+                      <div>
+                        <h3>旅程資訊素材</h3>
+                        <p>這些資訊會同步進預覽，也能當成文案素材。</p>
+                      </div>
+                    </div>
 
-                <!-- 右側：主內容寫作 -->
-                <div style="display:flex; flex-direction:column; gap:1rem;">
-                  <div class="form-group" style="flex:1; display:flex; flex-direction:column;">
-                    <label for="ws-diary-text">寫下您的旅行日記 *</label>
-                    <textarea class="form-textarea" id="ws-diary-text" placeholder="記錄這趟旅途精彩的冒險、發生的趣事，以及品嚐到的極致美食..." style="flex:1; min-height:360px;" required></textarea>
+                    <div class="diary-detail-grid">
+                      <div class="form-group">
+                        <label>推薦指數 / 旅途評分</label>
+                        <div class="rating-input" id="ws-diary-rating-stars">
+                          <span class="ws-star" data-ws-rating="1">★</span>
+                          <span class="ws-star" data-ws-rating="2">★</span>
+                          <span class="ws-star" data-ws-rating="3">★</span>
+                          <span class="ws-star" data-ws-rating="4">★</span>
+                          <span class="ws-star" data-ws-rating="5">★</span>
+                        </div>
+                        <input type="hidden" id="ws-diary-rating-val" value="5">
+                      </div>
+
+                      <div class="form-group">
+                        <label for="ws-diary-weather">旅行氣候</label>
+                        <select class="form-select" id="ws-diary-weather">
+                          <option value="晴天">☀️ 晴天</option>
+                          <option value="陰天">☁️ 陰天</option>
+                          <option value="雨天">🌧️ 雨天</option>
+                          <option value="雪天">❄️ 雪天</option>
+                          <option value="風天">💨 颳風</option>
+                        </select>
+                      </div>
+
+                      <div class="form-group">
+                        <label for="ws-diary-companion">旅行同伴</label>
+                        <input type="text" class="form-input" id="ws-diary-companion" placeholder="例如：2位朋友、獨自騎行">
+                      </div>
+
+                      <div class="form-group">
+                        <label for="ws-diary-cost">手記預算花費 (TWD)</label>
+                        <input type="number" class="form-input" id="ws-diary-cost" placeholder="手動輸入或一鍵導入">
+                      </div>
+                    </div>
                   </div>
-                  <button class="btn btn-primary" id="ws-diary-save-btn" style="align-self:flex-end; padding:0.65rem 2rem;">儲存日記與回憶</button>
+                </section>
+
+                <section class="diary-preview-stage">
+                  <div class="diary-preview-header">
+                    <div>
+                      <span class="diary-preview-kicker">Preview</span>
+                      <h3>IG 預覽排版</h3>
+                    </div>
+                    <span class="diary-preview-mode-pill" id="ws-diary-preview-mode-pill">貼文預覽</span>
+                  </div>
+
+                  <div class="diary-preview-phone">
+                    <div class="diary-preview-post active" id="ws-diary-post-preview">
+                      <div class="diary-post-topbar">
+                        <div class="diary-post-avatar">悠</div>
+                        <div class="diary-post-user">
+                          <strong id="ws-diary-post-account">悠遊小本本</strong>
+                          <span id="ws-diary-post-location">旅行地點</span>
+                        </div>
+                        <span class="diary-post-more">•••</span>
+                      </div>
+                      <div class="diary-post-media ratio-post">
+                        <img id="ws-diary-post-image" src="" alt="IG貼文預覽照片">
+                      </div>
+                      <div class="diary-post-actions">
+                        <span>♡</span>
+                        <span>💬</span>
+                        <span>↗</span>
+                        <span class="diary-post-bookmark">⌑</span>
+                      </div>
+                      <div class="diary-post-copy">
+                        <div class="diary-post-likes" id="ws-diary-post-likes">旅人們會想收藏這趟路線</div>
+                        <p class="diary-post-caption" id="ws-diary-post-caption"></p>
+                        <div class="diary-post-tags" id="ws-diary-post-tags"></div>
+                        <div class="diary-post-meta" id="ws-diary-post-meta"></div>
+                      </div>
+                    </div>
+
+                    <div class="diary-preview-story" id="ws-diary-story-preview">
+                      <img id="ws-diary-story-image" src="" alt="IG限動預覽照片">
+                      <div class="diary-story-overlay"></div>
+                      <div class="diary-story-top">
+                        <div class="diary-post-avatar story-avatar">悠</div>
+                        <div class="diary-story-user">
+                          <strong id="ws-diary-story-account">悠遊小本本</strong>
+                          <span id="ws-diary-story-time">剛剛</span>
+                        </div>
+                      </div>
+                      <div class="diary-story-content">
+                        <span class="diary-story-location" id="ws-diary-story-location">旅行地點</span>
+                        <h4 id="ws-diary-story-headline">把旅程做成一張漂亮的限動海報</h4>
+                        <p id="ws-diary-story-caption"></p>
+                        <div class="diary-story-stickers">
+                          <span id="ws-diary-story-weather">☀️ 晴天</span>
+                          <span id="ws-diary-story-cost">💰 NT$0</span>
+                          <span id="ws-diary-story-companion">👥 旅伴</span>
+                        </div>
+                        <div class="diary-story-tags" id="ws-diary-story-tags"></div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
