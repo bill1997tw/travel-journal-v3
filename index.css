@@ -850,6 +850,72 @@ main {
   color: var(--text-secondary);
 }
 
+.route-import-summary {
+  margin: -0.5rem 0 1.25rem;
+  padding: 1rem 1.1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(173, 145, 118, 0.22);
+  background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(248,240,231,0.88));
+}
+
+.route-import-summary-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.route-import-summary-head strong {
+  display: block;
+  font-size: 0.95rem;
+  margin-bottom: 0.2rem;
+}
+
+.route-import-summary-head p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.route-import-link {
+  color: var(--accent-color);
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.route-stop-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.route-stop-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.88);
+  border: 1px solid rgba(173, 145, 118, 0.18);
+  font-size: 0.78rem;
+  color: var(--text-primary);
+}
+
+.route-stop-chip-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: rgba(214, 118, 71, 0.14);
+  color: var(--accent-color);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
 /* Time Timeline */
 .ws-timeline-list {
   position: relative;

@@ -211,6 +211,7 @@
                 <h2>📅 每日詳細行程規劃</h2>
                 <div style="display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:flex-end;">
                   <button class="btn btn-secondary" id="iti-import-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">🔌 智慧匯入</button>
+                  <button class="btn btn-secondary" id="ws-route-import-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">🗺️ 匯入 Google 路線</button>
                   <button class="btn btn-primary" id="ws-add-schedule-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">➕ 新增日程項目</button>
                   <button class="btn btn-secondary" id="ws-undo-itinerary-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">↩️ 回到上一步</button>
                   <button class="btn btn-secondary" id="ws-clear-itinerary-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem; color:var(--danger); border-color:rgba(169, 74, 66, 0.2);">🗑️ 清空行程</button>
@@ -233,6 +234,16 @@
                     <button class="btn btn-secondary" id="ws-edit-day-summary-btn" style="padding:0.4rem 0.75rem; font-size:0.8rem; flex-shrink:0;" title="編輯今日摘要">
                       ✏️ 編輯
                     </button>
+                  </div>
+                  <div class="route-import-summary" id="ws-route-summary" style="display:none;">
+                    <div class="route-import-summary-head">
+                      <div>
+                        <strong id="ws-route-summary-title">Google 路線摘要</strong>
+                        <p id="ws-route-summary-meta">共 0 站 · 交通方式未設定</p>
+                      </div>
+                      <a href="#" target="_blank" rel="noopener noreferrer" class="route-import-link" id="ws-route-summary-link">開啟原始路線</a>
+                    </div>
+                    <div class="route-stop-chip-list" id="ws-route-stop-chip-list"></div>
                   </div>
                   <div class="ws-timeline-list" id="ws-schedule-timeline">
                     <!-- 動態載入日程項目 -->
@@ -1035,6 +1046,48 @@
         <button type="button" class="btn btn-secondary" id="importer-modal-cancel">取消</button>
         <button type="button" class="btn btn-primary" id="importer-modal-submit">解析並載入</button>
       </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="route-import-modal">
+    <div class="modal-content glass" style="max-width: 620px; width: 90vw;">
+      <button class="modal-close" id="route-import-close" title="關閉">✕</button>
+      <h2 class="modal-title">匯入 Google Maps 路線</h2>
+      <div class="importer-tips-box" style="margin-bottom:1rem; padding:0.75rem; border-radius:8px; border-left:4px solid var(--accent-color); background:var(--badge-bg); font-size:0.85rem;">
+        <strong>💡 建議貼法</strong><br>
+        優先貼上完整的 Google Maps 路線網址 `google.com/maps/dir/...`。若目前只有 `maps.app.goo.gl` 短網址，請先點開一次，再複製瀏覽器展開後的完整網址。也支援直接貼上每站一行的停靠點清單。
+      </div>
+      <form id="route-import-form">
+        <div class="form-grid" style="grid-template-columns: 1fr;">
+          <div class="form-group">
+            <label for="route-import-input">Google Maps 路線連結或站點清單 *</label>
+            <textarea class="form-textarea" id="route-import-input" placeholder="貼上 Google Maps 路線網址，或每站一行的清單..." style="min-height: 170px;"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="route-import-day">要匯入到哪一天？ *</label>
+            <select class="form-select" id="route-import-day"></select>
+          </div>
+          <div class="form-group">
+            <label for="route-import-mode">交通方式</label>
+            <select class="form-select" id="route-import-mode">
+              <option value="auto">自動判斷</option>
+              <option value="driving">開車</option>
+              <option value="two-wheeler">機車 / 重機</option>
+              <option value="transit">大眾運輸</option>
+              <option value="walking">步行</option>
+              <option value="bicycling">單車</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="route-import-notes">附註（選填）</label>
+            <input type="text" class="form-input" id="route-import-notes" placeholder="例如：順遊台南老城區一日路線">
+          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:1rem; border-top:1px solid var(--border-color); padding-top:1.5rem; margin-top:1rem;">
+          <button type="button" class="btn btn-secondary" id="route-import-cancel">取消</button>
+          <button type="submit" class="btn btn-primary">生成今日行程草稿</button>
+        </div>
+      </form>
     </div>
   </div>
 

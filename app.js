@@ -275,6 +275,7 @@ function pushItineraryHistorySnapshot(trip, options = {}) {
   history.push({
     itinerary: cloneSerializable(trip.itinerary || null),
     alternativeSpots: cloneSerializable(trip.alternativeSpots || { sights: [], restaurants: [] }),
+    routePlans: cloneSerializable(trip.routePlans || []),
     activeDay: options.activeDay ?? activeItineraryDay,
     savedAt: Date.now()
   });
@@ -500,6 +501,14 @@ function ensureDiaryState(trip) {
   return trip.diary;
 }
 
+function ensureRoutePlansState(trip) {
+  if (!trip) return [];
+  if (!Array.isArray(trip.routePlans)) {
+    trip.routePlans = [];
+  }
+  return trip.routePlans;
+}
+
 function normalizeDiaryHashtag(tag) {
   return String(tag || "")
     .replace(/#/g, "")
@@ -588,6 +597,7 @@ function initData() {
       if (!t.ledger) t.ledger = [];
       if (!t.advances) t.advances = [];
       if (!t.repayInfo) t.repayInfo = [];
+      ensureRoutePlansState(t);
       ensureDiaryState(t);
       ensurePackingCategoryState(t);
     });
@@ -741,6 +751,12 @@ function setupEventListeners() {
   document.getElementById("importer-modal-close").addEventListener("click", () => document.getElementById("itinerary-importer-modal").classList.remove("active"));
   document.getElementById("importer-modal-cancel").addEventListener("click", () => document.getElementById("itinerary-importer-modal").classList.remove("active"));
   document.getElementById("importer-modal-submit").addEventListener("click", handleItineraryImport);
+
+  // Google Maps 路線匯入
+  document.getElementById("ws-route-import-btn").addEventListener("click", openRouteImportModal);
+  document.getElementById("route-import-close").addEventListener("click", closeRouteImportModal);
+  document.getElementById("route-import-cancel").addEventListener("click", closeRouteImportModal);
+  document.getElementById("route-import-form").addEventListener("submit", handleRouteImportSubmit);
 
   // 行前清單 checklist 增刪與代辦
   document.getElementById("todo-add-btn").addEventListener("click", handleTodoAdd);
@@ -1315,6 +1331,7 @@ function renderWorkspaceItinerary() {
         <p style="font-size:0.85rem; margin-top:0.5rem; opacity:0.8;">建議貼上 Gemini 生成的行程 JSON 來快速填充！</p>
       </div>
     `;
+    renderActiveRouteSummary(trip);
     renderAlternativeSpots();
     return;
   }
@@ -1331,6 +1348,7 @@ function renderWorkspaceItinerary() {
   if (dayData) {
     document.getElementById("ws-day-theme").innerText = `DAY ${dayData.dayNum}: ${escapeHTML(dayData.theme || '自由行日程')}`;
     document.getElementById("ws-day-desc").innerText = escapeHTML(dayData.desc || '無特定交通或住宿說明。');
+    renderActiveRouteSummary(trip);
     if (document.getElementById("ws-edit-day-summary-btn")) {
       document.getElementById("ws-edit-day-summary-btn").style.display = "block";
     }
@@ -1714,11 +1732,156 @@ function handleClearItinerary() {
     if (trip) {
       pushItineraryHistorySnapshot(trip);
       trip.itinerary = null;
+      trip.routePlans = [];
       localStorage.setItem("voyage_trips", JSON.stringify(trips));
       renderWorkspaceItinerary();
       showToast("詳細行程已清空", "info");
     }
   }
+}
+
+const ROUTE_MODE_LABELS = {
+  auto: "自動判斷",
+  driving: "開車",
+  "two-wheeler": "機車 / 重機",
+  transit: "大眾運輸",
+  walking: "步行",
+  bicycling: "單車"
+};
+
+function populateRouteImportDayOptions() {
+  const trip = trips.find(t => t.id === activeTripId);
+  const select = document.getElementById("route-import-day");
+  if (!trip || !select) return;
+
+  const daysCount = parseInt(trip.duration) || 1;
+  select.innerHTML = "";
+  for (let i = 1; i <= daysCount; i++) {
+    select.appendChild(new Option(`DAY ${i}`, String(i)));
+  }
+  select.value = String(activeItineraryDay || 1);
+}
+
+function openRouteImportModal() {
+  populateRouteImportDayOptions();
+  document.getElementById("route-import-input").value = "";
+  document.getElementById("route-import-mode").value = "auto";
+  document.getElementById("route-import-notes").value = "";
+  document.getElementById("route-import-modal").classList.add("active");
+}
+
+function closeRouteImportModal() {
+  document.getElementById("route-import-modal").classList.remove("active");
+}
+
+function inferRouteModeFromGoogleUrl(url) {
+  const lower = String(url || "").toLowerCase();
+  const explicitMode = lower.match(/[?&]travelmode=([^&]+)/);
+  if (explicitMode && ROUTE_MODE_LABELS[explicitMode[1]]) {
+    return explicitMode[1];
+  }
+  if (lower.includes("!3e0")) return "driving";
+  return "auto";
+}
+
+function formatRouteModeLabel(mode) {
+  return ROUTE_MODE_LABELS[mode] || ROUTE_MODE_LABELS.auto;
+}
+
+function cleanRouteStopLabel(rawStop) {
+  const decoded = decodeURIComponent(String(rawStop || "").replace(/\+/g, " ")).trim();
+  if (!decoded) return "";
+
+  let label = decoded.replace(/\s+/g, " ");
+  const cityMarkers = ["臺北市", "台北市", "新北市", "桃園市", "新竹市", "新竹縣", "苗栗縣", "臺中市", "台中市", "彰化縣", "南投縣", "雲林縣", "嘉義市", "嘉義縣", "臺南市", "台南市", "高雄市", "屏東縣", "宜蘭縣", "花蓮縣", "臺東縣", "台東縣"];
+  const markerIndex = cityMarkers
+    .map(marker => label.indexOf(marker))
+    .filter(index => index > 3)
+    .sort((a, b) => a - b)[0];
+
+  if (typeof markerIndex === "number") {
+    label = label.slice(0, markerIndex).trim();
+  }
+
+  label = label.replace(/\s*\d{3,5}$/, "").trim();
+  return label || decoded;
+}
+
+function parseGoogleDirectionsStops(url) {
+  if (!url.includes("/maps/dir/")) return [];
+
+  let routePart = decodeURIComponent(url);
+  routePart = routePart.split("/maps/dir/")[1] || "";
+  routePart = routePart.split("/@")[0];
+  routePart = routePart.split("/data=")[0];
+  routePart = routePart.split("?")[0];
+
+  return routePart
+    .split("/")
+    .map(stop => stop.trim())
+    .filter(Boolean)
+    .map((stop, index) => ({
+      order: index + 1,
+      raw: decodeURIComponent(stop),
+      name: cleanRouteStopLabel(stop)
+    }))
+    .filter(stop => stop.name);
+}
+
+function parseManualRouteStopList(input) {
+  return String(input || "")
+    .split(/\r?\n/)
+    .map(line => line.replace(/^[\-\d\.\)\s]+/, "").trim())
+    .filter(Boolean)
+    .map((line, index) => ({
+      order: index + 1,
+      raw: line,
+      name: line
+    }));
+}
+
+function inferRouteStopType(stopName) {
+  const text = String(stopName || "").toLowerCase();
+  if (text.includes("飯店") || text.includes("旅館") || text.includes("民宿") || text.includes("hotel")) return "hotel";
+  if (text.includes("漢堡") || text.includes("餐") || text.includes("咖啡") || text.includes("甜點") || text.includes("燒肉") || text.includes("夜市")) return "food";
+  if (text.includes("車站") || text.includes("捷運") || text.includes("高鐵") || text.includes("火車")) return "train";
+  if (text.includes("機場")) return "flight";
+  return "sight";
+}
+
+function getRoutePlanForActiveDay(trip) {
+  if (!trip) return null;
+  const plans = ensureRoutePlansState(trip);
+  return plans.find(plan => plan.dayNum === activeItineraryDay) || null;
+}
+
+function renderActiveRouteSummary(trip) {
+  const summaryBox = document.getElementById("ws-route-summary");
+  const titleEl = document.getElementById("ws-route-summary-title");
+  const metaEl = document.getElementById("ws-route-summary-meta");
+  const linkEl = document.getElementById("ws-route-summary-link");
+  const chipsEl = document.getElementById("ws-route-stop-chip-list");
+  if (!summaryBox || !titleEl || !metaEl || !linkEl || !chipsEl) return;
+
+  const routePlan = getRoutePlanForActiveDay(trip);
+  if (!routePlan) {
+    summaryBox.style.display = "none";
+    chipsEl.innerHTML = "";
+    return;
+  }
+
+  summaryBox.style.display = "block";
+  titleEl.innerText = routePlan.summaryTitle || "Google 路線摘要";
+  metaEl.innerText = `共 ${routePlan.stops.length} 站 · ${formatRouteModeLabel(routePlan.mode)}${routePlan.notes ? ` · ${routePlan.notes}` : ""}`;
+  linkEl.style.display = routePlan.sourceUrl ? "inline-flex" : "none";
+  if (routePlan.sourceUrl) linkEl.href = routePlan.sourceUrl;
+
+  chipsEl.innerHTML = routePlan.stops.map(stop => `
+    <span class="route-stop-chip">
+      <span class="route-stop-chip-index">${stop.order}</span>
+      <span>${escapeHTML(stop.name)}</span>
+    </span>
+  `).join("");
 }
 
 function handleUndoItineraryStep() {
@@ -1737,6 +1900,7 @@ function handleUndoItineraryStep() {
 
   trip.itinerary = cloneSerializable(previousState.itinerary || null);
   trip.alternativeSpots = cloneSerializable(previousState.alternativeSpots || { sights: [], restaurants: [] });
+  trip.routePlans = cloneSerializable(previousState.routePlans || []);
   activeItineraryDay = previousState.activeDay || 1;
 
   localStorage.setItem("voyage_trips", JSON.stringify(trips));
@@ -2134,6 +2298,107 @@ function handleItineraryImport() {
     showToast("JSON 格式解析錯誤，請確認格式正確！", "error");
     console.error(err);
   }
+}
+
+function handleRouteImportSubmit(e) {
+  e.preventDefault();
+  const trip = trips.find(t => t.id === activeTripId);
+  if (!trip) return;
+
+  const rawInput = document.getElementById("route-import-input").value.trim();
+  const dayNum = parseInt(document.getElementById("route-import-day").value) || activeItineraryDay || 1;
+  const selectedMode = document.getElementById("route-import-mode").value;
+  const notes = document.getElementById("route-import-notes").value.trim();
+
+  if (!rawInput) {
+    showToast("請先貼上 Google Maps 路線網址或每站清單。", "error");
+    return;
+  }
+
+  let parsedStops = [];
+  let sourceUrl = "";
+  let sourceType = "manual";
+  let mode = selectedMode;
+
+  if (/maps\.app\.goo\.gl/i.test(rawInput)) {
+    showToast("短網址目前無法直接解析，請先點開一次後，貼上展開後的完整 Google Maps 網址。", "error");
+    return;
+  }
+
+  if (/google\.[^/]+\/maps\/dir\//i.test(rawInput)) {
+    sourceType = "google-url";
+    sourceUrl = rawInput;
+    parsedStops = parseGoogleDirectionsStops(rawInput);
+    if (mode === "auto") {
+      mode = inferRouteModeFromGoogleUrl(rawInput);
+    }
+  } else if (/^https?:\/\//i.test(rawInput)) {
+    showToast("目前僅支援 Google Maps 路線網址，或每站一行的手動清單。", "error");
+    return;
+  } else {
+    parsedStops = parseManualRouteStopList(rawInput);
+  }
+
+  if (parsedStops.length < 2) {
+    showToast("至少需要 2 個站點才能生成路線草稿。", "error");
+    return;
+  }
+
+  pushItineraryHistorySnapshot(trip, { activeDay: dayNum });
+
+  if (!trip.itinerary) {
+    trip.itinerary = {
+      title: trip.title,
+      dates: trip.dateRange || trip.date,
+      subInfo: `旅伴: ${trip.companion || "旅伴"}`,
+      days: []
+    };
+  }
+
+  ensureRoutePlansState(trip);
+
+  let dayData = trip.itinerary.days.find(d => d.dayNum === dayNum);
+  if (!dayData) {
+    dayData = { dayNum, date: `Day ${dayNum}`, theme: "", desc: "", items: [] };
+    trip.itinerary.days.push(dayData);
+  }
+
+  const generatedItems = parsedStops.map((stop, index) => ({
+    id: `sche-route-${Date.now()}-${index}`,
+    time: `第 ${stop.order} 站`,
+    title: stop.name,
+    content: `由 Google Maps 路線匯入，請補上停留時間、交通細節與備註。`,
+    type: inferRouteStopType(stop.name),
+    highlight: index === 0 || index === parsedStops.length - 1,
+    mapsUrl: sourceUrl ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stop.raw || stop.name)}` : "",
+    address: "",
+    rating: "",
+    hours: ""
+  }));
+
+  dayData.items = [...(dayData.items || []), ...generatedItems];
+  dayData.theme = dayData.theme && dayData.theme !== "自由行日程"
+    ? dayData.theme
+    : `${parsedStops[0].name} → ${parsedStops[parsedStops.length - 1].name}`;
+  dayData.desc = `Google Maps 路線草稿 · 共 ${parsedStops.length} 站 · ${formatRouteModeLabel(mode)}${notes ? ` · ${notes}` : ""}`;
+
+  trip.routePlans = trip.routePlans.filter(plan => plan.dayNum !== dayNum);
+  trip.routePlans.push({
+    dayNum,
+    sourceUrl,
+    sourceType,
+    mode,
+    notes,
+    importedAt: Date.now(),
+    summaryTitle: `${parsedStops[0].name} → ${parsedStops[parsedStops.length - 1].name}`,
+    stops: parsedStops
+  });
+
+  activeItineraryDay = dayNum;
+  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  closeRouteImportModal();
+  renderWorkspaceItinerary();
+  showToast(`已匯入 ${parsedStops.length} 個站點到 DAY ${dayNum}。`, "success");
 }
 
 
@@ -3664,6 +3929,7 @@ function handleTripSubmit(e) {
       image: image || "assets/paris_cafe.png",
       itinerary: null,
       alternativeSpots: { sights: [], restaurants: [] },
+      routePlans: [],
       packingList: [...DEFAULT_PACKING_TEMPLATE],
       packingCategories: extractPackingCategoriesFromList(DEFAULT_PACKING_TEMPLATE),
       todoList: [],
