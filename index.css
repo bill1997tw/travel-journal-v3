@@ -756,6 +756,11 @@ main {
   min-height: 600px;
 }
 
+/* Guard against misparsed duplicate panels escaping the main workspace card. */
+.workspace-layout > #ws-panel-vouchers {
+  display: none !important;
+}
+
 .ws-tab-panel {
   display: none;
   animation: fadeInPanel 0.3s ease;
