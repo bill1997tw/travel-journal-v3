@@ -5094,6 +5094,180 @@ function setupAlternativeAutofill() {
   showToast("已依 Google Maps 連結嘗試帶入資料，請再檢查一次內容。", "info");
 }
 
+function canReplaceAutofillValue(value) {
+  const text = String(value || "").trim();
+  if (!text) return true;
+  return /^https?:\/\//i.test(text) || /maps\.app\.goo\.gl/i.test(text);
+}
+
+function isGoogleShortMapsUrl(url) {
+  return /https?:\/\/maps\.app\.goo\.gl\//i.test(String(url || "").trim());
+}
+
+function findSpotByUrlOrName(url, searchName, trip, options = {}) {
+  const urlLower = String(url || "").trim().toLowerCase();
+  const nameLower = String(searchName || "").trim().toLowerCase();
+  const typeGroup = options.typeGroup || null;
+
+  const alt = trip?.alternativeSpots || { sights: [], restaurants: [] };
+  const scopedSpots = typeGroup
+    ? [...(alt[typeGroup] || [])]
+    : [...alt.sights, ...alt.restaurants];
+
+  let foundSpot = null;
+
+  if (urlLower) {
+    foundSpot = LOCAL_GEO_DATABASE.find(item =>
+      item.keys.some(key => {
+        const normalizedKey = String(key || "").trim().toLowerCase();
+        return normalizedKey.length >= 6 && urlLower.includes(normalizedKey);
+      })
+    );
+    if (foundSpot) return foundSpot;
+
+    foundSpot = scopedSpots.find(spot => String(spot.mapsUrl || "").trim().toLowerCase() === urlLower);
+    if (foundSpot) return foundSpot;
+  }
+
+  if (!nameLower) return null;
+
+  foundSpot = LOCAL_GEO_DATABASE.find(item =>
+    item.keys.some(key => {
+      const normalizedKey = String(key || "").trim().toLowerCase();
+      return normalizedKey.length >= 3 && (nameLower.includes(normalizedKey) || normalizedKey.includes(nameLower));
+    })
+  );
+  if (foundSpot) return foundSpot;
+
+  foundSpot = scopedSpots.find(spot => {
+    const candidateValues = [spot.name, spot.subtype]
+      .map(value => String(value || "").trim().toLowerCase())
+      .filter(Boolean);
+    return candidateValues.some(value => nameLower.includes(value) || value.includes(nameLower));
+  });
+
+  return foundSpot || null;
+}
+
+function setupScheduleAutofill() {
+  const urlInput = document.getElementById("s-maps-url");
+  const url = urlInput.value.trim();
+  if (!url) return;
+
+  const addressInput = document.getElementById("s-address");
+  const ratingInput = document.getElementById("s-rating");
+  const titleInput = document.getElementById("s-title");
+  const hoursInput = document.getElementById("s-hours");
+  const typeSelect = document.getElementById("s-type");
+  const trip = trips.find(t => t.id === activeTripId);
+  if (!trip) return;
+
+  const extractedName = extractPlaceNameFromUrl(url);
+  const foundSpot = findSpotByUrlOrName(url, titleInput.value || extractedName, trip);
+  const isShortGoogleLink = isGoogleShortMapsUrl(url);
+
+  if (foundSpot) {
+    if (foundSpot.address) addressInput.value = foundSpot.address;
+    if (foundSpot.rating) ratingInput.value = foundSpot.rating;
+    if (foundSpot.hours) hoursInput.value = foundSpot.hours;
+    if (foundSpot.name && canReplaceAutofillValue(titleInput.value)) {
+      titleInput.value = foundSpot.name;
+    }
+    if (foundSpot.type && typeSelect) {
+      typeSelect.value = foundSpot.type;
+      typeSelect.dispatchEvent(new Event("change"));
+    }
+    showToast(`已帶入「${foundSpot.name || "此地點"}」的已知資料。`, "success");
+    return;
+  }
+
+  if (extractedName && !titleInput.value) {
+    titleInput.value = extractedName;
+    showToast("已從 Google Maps 連結帶入地點名稱，其餘資訊請再手動確認。", "info");
+    return;
+  }
+
+  if (isShortGoogleLink) {
+    showToast("這是 Google Maps 短網址，暫時無法穩定讀出名稱與營業時間。建議先打開地圖，再貼上展開後的完整網址。", "info");
+    return;
+  }
+
+  showToast("目前只能先帶入部分資訊；營業時間、評分與地址請再手動確認。", "info");
+}
+
+function setupAlternativeAutofill() {
+  const urlInput = document.getElementById("a-mapsurl");
+  const url = urlInput.value.trim();
+  if (!url) return;
+
+  const addressInput = document.getElementById("a-address");
+  const ratingInput = document.getElementById("a-rating");
+  const titleInput = document.getElementById("a-name");
+  const hoursInput = document.getElementById("a-hours");
+  const subtypeInput = document.getElementById("a-subtype");
+  const typeGroup = document.getElementById("alt-type-group").value;
+  const trip = trips.find(t => t.id === activeTripId);
+  if (!trip) return;
+
+  const extractedName = extractPlaceNameFromUrl(url);
+  const lookupName = typeGroup === "restaurants"
+    ? (subtypeInput.value || extractedName || "")
+    : (titleInput.value || extractedName || "");
+  const foundSpot = findSpotByUrlOrName(url, lookupName, trip, { typeGroup });
+  const isShortGoogleLink = isGoogleShortMapsUrl(url);
+
+  if (foundSpot) {
+    if (foundSpot.address) addressInput.value = foundSpot.address;
+    if (foundSpot.rating) ratingInput.value = foundSpot.rating;
+    if (foundSpot.hours) hoursInput.value = foundSpot.hours;
+
+    if (typeGroup === "restaurants") {
+      if (foundSpot.name) {
+        subtypeInput.value = foundSpot.name;
+      }
+      if (canReplaceAutofillValue(titleInput.value)) {
+        titleInput.value = foundSpot.subtype || inferRestaurantThemeFromPlaceName(foundSpot.name || extractedName || "") || "";
+      }
+    } else {
+      if (foundSpot.name && canReplaceAutofillValue(titleInput.value)) {
+        titleInput.value = foundSpot.name;
+      }
+      if (foundSpot.subtype) {
+        subtypeInput.value = foundSpot.subtype;
+      } else if (foundSpot.type) {
+        subtypeInput.value = foundSpot.type === "food" ? "美食餐廳" : "景點行程";
+      }
+    }
+
+    showToast(`已帶入「${foundSpot.name || "此備案"}」的已知資料。`, "success");
+    return;
+  }
+
+  if (typeGroup === "restaurants" && extractedName) {
+    if (!subtypeInput.value) {
+      subtypeInput.value = extractedName;
+    }
+    if (!titleInput.value) {
+      titleInput.value = inferRestaurantThemeFromPlaceName(extractedName) || "美食清單";
+    }
+    showToast("已從 Google Maps 連結帶入餐廳名稱，主題也先幫您分類；其餘資訊請再手動確認。", "info");
+    return;
+  }
+
+  if (extractedName && !titleInput.value) {
+    titleInput.value = extractedName;
+    showToast("已從 Google Maps 連結帶入名稱，其餘資訊請再手動確認。", "info");
+    return;
+  }
+
+  if (isShortGoogleLink) {
+    showToast("這是 Google Maps 短網址，暫時無法穩定讀出店名與營業時間。建議先打開地圖，再貼上展開後的完整網址。", "info");
+    return;
+  }
+
+  showToast("目前無法可靠帶入店名與營業時間，建議手動補上，避免資料抓錯。", "info");
+}
+
 function openDaySummaryModal() {
   const trip = trips.find(t => t.id === activeTripId);
   if (!trip || !trip.itinerary || !trip.itinerary.days) return;
