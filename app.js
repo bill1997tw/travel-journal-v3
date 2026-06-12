@@ -1920,7 +1920,29 @@ function openAlternativeModal(typeGroup) {
   document.getElementById("alt-type-group").value = typeGroup;
 
   title.innerText = typeGroup === "sights" ? "新增景點備案庫卡片" : "新增餐廳推薦備案卡片";
+  syncAlternativeFieldCopy(typeGroup);
   modal.classList.add("active");
+}
+
+function syncAlternativeFieldCopy(typeGroup) {
+  const nameLabel = document.getElementById("a-name-label");
+  const subtypeLabel = document.getElementById("a-subtype-label");
+  const nameInput = document.getElementById("a-name");
+  const subtypeInput = document.getElementById("a-subtype");
+  if (!nameLabel || !subtypeLabel || !nameInput || !subtypeInput) return;
+
+  if (typeGroup === "restaurants") {
+    nameLabel.innerText = "想吃類型 / 備案主題 *";
+    subtypeLabel.innerText = "餐廳名稱 *";
+    nameInput.placeholder = "例如：吃冰、燒肉、咖啡廳、宵夜";
+    subtypeInput.placeholder = "貼上 Google Maps 連結後，會自動帶入餐廳名稱";
+    return;
+  }
+
+  nameLabel.innerText = "備案景點/餐廳名稱 *";
+  subtypeLabel.innerText = "分類標籤 *";
+  nameInput.placeholder = "例如：茶田35號、二延平步道";
+  subtypeInput.placeholder = "例如：下午茶甜點、景觀步道/賞日出";
 }
 
 function closeAlternativeModal() {
@@ -4394,7 +4416,14 @@ function setupScheduleAutofill() {
     addressInput.value = foundSpot.address || "";
     ratingInput.value = foundSpot.rating || "";
     hoursInput.value = foundSpot.hours || "";
-    if (foundSpot.name && (!titleInput.value || titleInput.value.includes("maps.app.goo.gl") || titleInput.value.startsWith("http"))) {
+    if (typeGroup === "restaurants") {
+      if (foundSpot.name) {
+        subtypeInput.value = foundSpot.name;
+      }
+      if (!titleInput.value || titleInput.value.includes("maps.app.goo.gl") || titleInput.value.startsWith("http")) {
+        titleInput.value = foundSpot.subtype || inferRestaurantThemeFromPlaceName(foundSpot.name || extractedName || "") || foundSpot.name || "";
+      }
+    } else if (foundSpot.name && (!titleInput.value || titleInput.value.includes("maps.app.goo.gl") || titleInput.value.startsWith("http"))) {
       titleInput.value = foundSpot.name;
     }
     if (foundSpot.type) {
@@ -4529,6 +4558,21 @@ function setupScheduleAutofill() {
 }
 
 // 智慧 Google 地圖 URL 自動填充 (備案庫卡片)
+function inferRestaurantThemeFromPlaceName(name) {
+  const text = String(name || "").toLowerCase();
+  if (!text) return "";
+  if (text.includes("冰") || text.includes("豆花") || text.includes("剉冰") || text.includes("雪花冰")) return "吃冰";
+  if (text.includes("咖啡") || text.includes("cafe") || text.includes("coffee")) return "咖啡廳";
+  if (text.includes("燒肉") || text.includes("烤肉") || text.includes("焼肉")) return "燒肉";
+  if (text.includes("火鍋") || text.includes("鍋")) return "火鍋";
+  if (text.includes("拉麵") || text.includes("麵")) return "吃麵";
+  if (text.includes("早餐") || text.includes("早午餐")) return "早午餐";
+  if (text.includes("甜點") || text.includes("蛋糕") || text.includes("甜品")) return "甜點";
+  if (text.includes("牛肉湯")) return "牛肉湯";
+  if (text.includes("宵夜")) return "宵夜";
+  return "美食清單";
+}
+
 function setupAlternativeAutofill() {
   const urlInput = document.getElementById("a-mapsurl");
   const url = urlInput.value.trim();
@@ -4722,6 +4766,334 @@ function extractPlaceNameFromUrl(url) {
 }
 
 // 編輯單日行程摘要
+function extractPlaceNameFromUrl(url) {
+  try {
+    const decoded = decodeURIComponent(String(url || ""));
+
+    const placeMatch = decoded.match(/\/maps\/place\/([^/@?]+)/);
+    if (placeMatch && placeMatch[1]) {
+      return placeMatch[1].replace(/\+/g, " ").trim();
+    }
+
+    const queryMatch = decoded.match(/[?&]query=([^&]+)/);
+    if (queryMatch && queryMatch[1]) {
+      return queryMatch[1].replace(/\+/g, " ").trim();
+    }
+
+    const qMatch = decoded.match(/[?&]q=([^&]+)/);
+    if (qMatch && qMatch[1]) {
+      return qMatch[1].replace(/\+/g, " ").trim();
+    }
+  } catch (e) {
+    console.error("Error decoding URL for place name:", e);
+  }
+  return null;
+}
+
+function setupAlternativeAutofill() {
+  const urlInput = document.getElementById("a-mapsurl");
+  const url = urlInput.value.trim();
+  if (!url) return;
+
+  const addressInput = document.getElementById("a-address");
+  const ratingInput = document.getElementById("a-rating");
+  const titleInput = document.getElementById("a-name");
+  const hoursInput = document.getElementById("a-hours");
+  const subtypeInput = document.getElementById("a-subtype");
+  const typeGroup = document.getElementById("alt-type-group").value;
+  const trip = trips.find(t => t.id === activeTripId);
+  if (!trip) return;
+
+  const extractedName = extractPlaceNameFromUrl(url);
+  const urlLower = url.toLowerCase();
+  const searchName = (subtypeInput.value || titleInput.value || extractedName || "").trim().toLowerCase();
+
+  let foundSpot = LOCAL_GEO_DATABASE.find(item => {
+    if (urlLower) {
+      const hasUrlKey = item.keys.some(k => k.length >= 6 && urlLower.includes(k.toLowerCase()));
+      if (hasUrlKey) return true;
+    }
+    if (searchName) {
+      const hasTitleKey = item.keys.some(k => k.length >= 2 && (searchName.includes(k.toLowerCase()) || k.toLowerCase().includes(searchName)));
+      if (hasTitleKey) return true;
+    }
+    return false;
+  });
+
+  if (!foundSpot) {
+    const alt = trip.alternativeSpots || { sights: [], restaurants: [] };
+    const allSpots = [...alt.sights, ...alt.restaurants];
+    foundSpot = allSpots.find(spot => spot.mapsUrl && spot.mapsUrl.trim() === url);
+
+    if (!foundSpot && extractedName) {
+      const extractedLower = extractedName.toLowerCase();
+      foundSpot = allSpots.find(spot => {
+        const nameMatched = spot.name && spot.name.toLowerCase().includes(extractedLower);
+        const subtypeMatched = spot.subtype && spot.subtype.toLowerCase().includes(extractedLower);
+        return nameMatched || subtypeMatched;
+      });
+    }
+  }
+
+  if (foundSpot) {
+    addressInput.value = foundSpot.address || "";
+    ratingInput.value = foundSpot.rating || "";
+    hoursInput.value = foundSpot.hours || "";
+
+    if (typeGroup === "restaurants") {
+      if (foundSpot.name) {
+        subtypeInput.value = foundSpot.name;
+      } else if (extractedName) {
+        subtypeInput.value = extractedName;
+      }
+
+      if (!titleInput.value || titleInput.value.includes("maps.app.goo.gl") || titleInput.value.startsWith("http")) {
+        titleInput.value = foundSpot.subtype || inferRestaurantThemeFromPlaceName(foundSpot.name || extractedName || "") || foundSpot.name || "";
+      }
+    } else {
+      if (foundSpot.name && (!titleInput.value || titleInput.value.includes("maps.app.goo.gl") || titleInput.value.startsWith("http"))) {
+        titleInput.value = foundSpot.name;
+      }
+
+      if (foundSpot.subtype) {
+        subtypeInput.value = foundSpot.subtype;
+      } else if (foundSpot.type) {
+        subtypeInput.value = foundSpot.type === "food" ? "美食餐廳" : "觀光景點";
+      }
+    }
+
+    showToast(`已自動帶入 ${foundSpot.name || "店家"} 的資料`, "success");
+    return;
+  }
+
+  if (!ratingInput.value || ratingInput.value.startsWith("⭐")) {
+    const score = (4.2 + Math.random() * 0.7).toFixed(1);
+    const reviews = Math.floor(Math.random() * 7500) + 500;
+    ratingInput.value = `⭐ ${score} (${reviews.toLocaleString()} 則評論)`;
+  }
+
+  if (!addressInput.value.trim()) {
+    if (trip.location && trip.location.includes("台南")) {
+      addressInput.value = "台南市中西區海安路二段附近";
+    } else if (trip.location) {
+      addressInput.value = `${trip.location} 附近`;
+    }
+  }
+
+  if (!hoursInput.value.trim()) {
+    hoursInput.value = typeGroup === "restaurants" ? "11:00 - 15:00, 17:00 - 21:30" : "08:00 - 17:00";
+  }
+
+  if (typeGroup === "restaurants") {
+    if (extractedName && !subtypeInput.value) {
+      subtypeInput.value = extractedName;
+    }
+    if (!titleInput.value && extractedName) {
+      titleInput.value = inferRestaurantThemeFromPlaceName(extractedName) || extractedName;
+    }
+  } else if (!titleInput.value && extractedName) {
+    titleInput.value = extractedName;
+  }
+
+  showToast("已依 Google Maps 連結嘗試帶入資料，請再檢查一次內容。", "info");
+}
+
+function extractPlaceNameFromUrl(url) {
+  try {
+    const decoded = decodeURIComponent(String(url || ""));
+
+    const placeMatch = decoded.match(/\/maps\/place\/([^/@?]+)/);
+    if (placeMatch && placeMatch[1]) {
+      return placeMatch[1].replace(/\+/g, " ").trim();
+    }
+
+    const queryMatch = decoded.match(/[?&]query=([^&]+)/);
+    if (queryMatch && queryMatch[1]) {
+      return queryMatch[1].replace(/\+/g, " ").trim();
+    }
+
+    const qMatch = decoded.match(/[?&]q=([^&]+)/);
+    if (qMatch && qMatch[1]) {
+      return qMatch[1].replace(/\+/g, " ").trim();
+    }
+  } catch (e) {
+    console.error("Error decoding URL for place name:", e);
+  }
+  return null;
+}
+
+function setupScheduleAutofill() {
+  const urlInput = document.getElementById("s-maps-url");
+  const url = urlInput.value.trim();
+  if (!url) return;
+
+  const addressInput = document.getElementById("s-address");
+  const ratingInput = document.getElementById("s-rating");
+  const titleInput = document.getElementById("s-title");
+  const hoursInput = document.getElementById("s-hours");
+  const typeSelect = document.getElementById("s-type");
+  const trip = trips.find(t => t.id === activeTripId);
+  if (!trip) return;
+
+  const extractedName = extractPlaceNameFromUrl(url);
+  const urlLower = url.toLowerCase();
+  const searchTitle = (titleInput.value || extractedName || "").trim().toLowerCase();
+  const alt = trip.alternativeSpots || { sights: [], restaurants: [] };
+  const allSpots = [...alt.sights, ...alt.restaurants];
+
+  let foundSpot = LOCAL_GEO_DATABASE.find(item => {
+    if (urlLower) {
+      const hasUrlKey = item.keys.some(k => k.length >= 6 && urlLower.includes(k.toLowerCase()));
+      if (hasUrlKey) return true;
+    }
+    if (searchTitle) {
+      const hasTitleKey = item.keys.some(k => k.length >= 2 && (searchTitle.includes(k.toLowerCase()) || k.toLowerCase().includes(searchTitle)));
+      if (hasTitleKey) return true;
+    }
+    return false;
+  });
+
+  if (!foundSpot) {
+    foundSpot = allSpots.find(spot => spot.mapsUrl && spot.mapsUrl.trim() === url);
+  }
+  if (!foundSpot && extractedName) {
+    const extractedLower = extractedName.toLowerCase();
+    foundSpot = allSpots.find(spot => spot.name && spot.name.toLowerCase().includes(extractedLower));
+  }
+
+  if (foundSpot) {
+    addressInput.value = foundSpot.address || "";
+    ratingInput.value = foundSpot.rating || "";
+    hoursInput.value = foundSpot.hours || "";
+    if (foundSpot.name && (!titleInput.value || titleInput.value.includes("maps.app.goo.gl") || titleInput.value.startsWith("http"))) {
+      titleInput.value = foundSpot.name;
+    }
+    if (foundSpot.type && typeSelect) {
+      typeSelect.value = foundSpot.type;
+      typeSelect.dispatchEvent(new Event("change"));
+    }
+    showToast(`已自動帶入 ${foundSpot.name || "地點"} 的資料`, "success");
+    return;
+  }
+
+  if (!titleInput.value && extractedName) {
+    titleInput.value = extractedName;
+  }
+  if (!ratingInput.value) {
+    const score = (4.2 + Math.random() * 0.7).toFixed(1);
+    const reviews = Math.floor(Math.random() * 7500) + 500;
+    ratingInput.value = `⭐ ${score} (${reviews.toLocaleString()} 則評論)`;
+  }
+  if (!hoursInput.value) {
+    hoursInput.value = "08:00 - 17:00";
+  }
+  if (!addressInput.value && trip.location) {
+    addressInput.value = `${trip.location} 附近`;
+  }
+  showToast("已依 Google Maps 連結嘗試帶入資料，請再檢查一次內容。", "info");
+}
+
+function setupAlternativeAutofill() {
+  const urlInput = document.getElementById("a-mapsurl");
+  const url = urlInput.value.trim();
+  if (!url) return;
+
+  const addressInput = document.getElementById("a-address");
+  const ratingInput = document.getElementById("a-rating");
+  const titleInput = document.getElementById("a-name");
+  const hoursInput = document.getElementById("a-hours");
+  const subtypeInput = document.getElementById("a-subtype");
+  const typeGroup = document.getElementById("alt-type-group").value;
+  const trip = trips.find(t => t.id === activeTripId);
+  if (!trip) return;
+
+  const extractedName = extractPlaceNameFromUrl(url);
+  const urlLower = url.toLowerCase();
+  const searchName = (subtypeInput.value || titleInput.value || extractedName || "").trim().toLowerCase();
+
+  let foundSpot = LOCAL_GEO_DATABASE.find(item => {
+    if (urlLower) {
+      const hasUrlKey = item.keys.some(k => k.length >= 6 && urlLower.includes(k.toLowerCase()));
+      if (hasUrlKey) return true;
+    }
+    if (searchName) {
+      const hasTitleKey = item.keys.some(k => k.length >= 2 && (searchName.includes(k.toLowerCase()) || k.toLowerCase().includes(searchName)));
+      if (hasTitleKey) return true;
+    }
+    return false;
+  });
+
+  if (!foundSpot) {
+    const alt = trip.alternativeSpots || { sights: [], restaurants: [] };
+    const allSpots = [...alt.sights, ...alt.restaurants];
+    foundSpot = allSpots.find(spot => spot.mapsUrl && spot.mapsUrl.trim() === url);
+
+    if (!foundSpot && extractedName) {
+      const extractedLower = extractedName.toLowerCase();
+      foundSpot = allSpots.find(spot => {
+        const nameMatched = spot.name && spot.name.toLowerCase().includes(extractedLower);
+        const subtypeMatched = spot.subtype && spot.subtype.toLowerCase().includes(extractedLower);
+        return nameMatched || subtypeMatched;
+      });
+    }
+  }
+
+  if (foundSpot) {
+    addressInput.value = foundSpot.address || "";
+    ratingInput.value = foundSpot.rating || "";
+    hoursInput.value = foundSpot.hours || "";
+
+    if (typeGroup === "restaurants") {
+      if (foundSpot.name) {
+        subtypeInput.value = foundSpot.name;
+      } else if (extractedName) {
+        subtypeInput.value = extractedName;
+      }
+
+      if (!titleInput.value || titleInput.value.includes("maps.app.goo.gl") || titleInput.value.startsWith("http")) {
+        titleInput.value = foundSpot.subtype || inferRestaurantThemeFromPlaceName(foundSpot.name || extractedName || "") || foundSpot.name || "";
+      }
+    } else {
+      if (foundSpot.name && (!titleInput.value || titleInput.value.includes("maps.app.goo.gl") || titleInput.value.startsWith("http"))) {
+        titleInput.value = foundSpot.name;
+      }
+      if (foundSpot.subtype) {
+        subtypeInput.value = foundSpot.subtype;
+      } else if (foundSpot.type) {
+        subtypeInput.value = foundSpot.type === "food" ? "美食餐廳" : "觀光景點";
+      }
+    }
+
+    showToast(`已自動帶入 ${foundSpot.name || "店家"} 的資料`, "success");
+    return;
+  }
+
+  if (!ratingInput.value) {
+    const score = (4.2 + Math.random() * 0.7).toFixed(1);
+    const reviews = Math.floor(Math.random() * 7500) + 500;
+    ratingInput.value = `⭐ ${score} (${reviews.toLocaleString()} 則評論)`;
+  }
+  if (!addressInput.value && trip.location) {
+    addressInput.value = trip.location.includes("台南") ? "台南市中西區海安路二段附近" : `${trip.location} 附近`;
+  }
+  if (!hoursInput.value) {
+    hoursInput.value = typeGroup === "restaurants" ? "11:00 - 15:00, 17:00 - 21:30" : "08:00 - 17:00";
+  }
+
+  if (typeGroup === "restaurants") {
+    if (extractedName && !subtypeInput.value) {
+      subtypeInput.value = extractedName;
+    }
+    if (!titleInput.value && extractedName) {
+      titleInput.value = inferRestaurantThemeFromPlaceName(extractedName) || extractedName;
+    }
+  } else if (!titleInput.value && extractedName) {
+    titleInput.value = extractedName;
+  }
+
+  showToast("已依 Google Maps 連結嘗試帶入資料，請再檢查一次內容。", "info");
+}
+
 function openDaySummaryModal() {
   const trip = trips.find(t => t.id === activeTripId);
   if (!trip || !trip.itinerary || !trip.itinerary.days) return;
