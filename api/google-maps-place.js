@@ -1,0 +1,312 @@
+const GOOGLE_HEADERS = {
+  "accept-language": "zh-TW,zh;q=0.9,en;q=0.8",
+  "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+};
+
+function decodeHtmlEntities(text) {
+  return String(text || "")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ");
+}
+
+function cleanText(value) {
+  return decodeHtmlEntities(String(value || ""))
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripGoogleSuffix(title) {
+  return cleanText(title)
+    .replace(/\s*-\s*Google Maps\s*$/i, "")
+    .replace(/\s*-\s*Google 地圖\s*$/i, "")
+    .trim();
+}
+
+function formatRatingValue(ratingValue, reviewCount) {
+  const rating = String(ratingValue || "").trim();
+  const reviews = String(reviewCount || "").trim();
+  if (!rating) return "";
+  if (!reviews) return `⭐️ ${rating}`;
+  return `⭐️ ${rating} (${reviews} 則評論)`;
+}
+
+function normalizeHours(rawHours) {
+  if (!rawHours) return "";
+  if (Array.isArray(rawHours)) {
+    return rawHours.map(item => cleanText(item)).filter(Boolean).join(" / ");
+  }
+  return cleanText(rawHours)
+    .replace(/\s*[–—]\s*/g, " - ")
+    .replace(/\s*-\s*/g, " - ");
+}
+
+function formatAddress(address) {
+  if (!address) return "";
+  if (typeof address === "string") return cleanText(address);
+  if (typeof address === "object") {
+    return [
+      address.streetAddress,
+      address.addressLocality,
+      address.addressRegion,
+      address.postalCode,
+      address.addressCountry
+    ]
+      .map(part => cleanText(part))
+      .filter(Boolean)
+      .join(" ");
+  }
+  return "";
+}
+
+function extractMetaContent(html, matcher) {
+  const metaRegex = new RegExp(`<meta[^>]+(?:property|name)=["']${matcher}["'][^>]+content=["']([^"']+)["'][^>]*>`, "i");
+  const matched = html.match(metaRegex);
+  return matched ? cleanText(matched[1]) : "";
+}
+
+function extractJsonLdBlocks(html) {
+  return [...html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)]
+    .map(match => match[1])
+    .flatMap(block => {
+      try {
+        const parsed = JSON.parse(block);
+        return Array.isArray(parsed) ? parsed : [parsed];
+      } catch (error) {
+        return [];
+      }
+    });
+}
+
+function pickLikelyPlaceBlock(blocks) {
+  return blocks.find(block => {
+    const type = Array.isArray(block?.["@type"]) ? block["@type"].join(",") : String(block?.["@type"] || "");
+    return /Place|LocalBusiness|Restaurant|CafeOrCoffeeShop|FoodEstablishment/i.test(type);
+  }) || null;
+}
+
+function extractTextPattern(text, patterns) {
+  for (const pattern of patterns) {
+    const matched = text.match(pattern);
+    if (matched?.[1]) return cleanText(matched[1]);
+  }
+  return "";
+}
+
+function parseDirectGoogleHtml(html, finalUrl) {
+  const details = {
+    name: "",
+    address: "",
+    rating: "",
+    hours: "",
+    category: ""
+  };
+
+  const jsonLdBlocks = extractJsonLdBlocks(html);
+  const placeBlock = pickLikelyPlaceBlock(jsonLdBlocks);
+  const ogTitle = stripGoogleSuffix(extractMetaContent(html, "og:title"));
+  const pageTitle = stripGoogleSuffix((html.match(/<title[^>]*>([^<]+)<\/title>/i) || [])[1] || "");
+  const ogDescription = cleanText(extractMetaContent(html, "og:description"));
+
+  details.name = placeBlock?.name ? cleanText(placeBlock.name) : (ogTitle || pageTitle);
+  details.address = formatAddress(placeBlock?.address);
+  details.hours = normalizeHours(placeBlock?.openingHours);
+  details.category = cleanText(placeBlock?.servesCuisine || placeBlock?.["@type"] || "");
+
+  if (placeBlock?.aggregateRating) {
+    details.rating = formatRatingValue(
+      placeBlock.aggregateRating.ratingValue,
+      cleanText(placeBlock.aggregateRating.reviewCount).replace(/[^\d,]/g, "")
+    );
+  }
+
+  if (!details.rating && ogDescription) {
+    const scoreMatch = ogDescription.match(/([0-5]\.\d)\s*\(([\d,]+)\s*(?:則評論|reviews?)\)/i)
+      || ogDescription.match(/([0-5]\.\d)[^\d]+([\d,]+)\s*(?:則評論|reviews?)/i);
+    if (scoreMatch) {
+      details.rating = formatRatingValue(scoreMatch[1], scoreMatch[2]);
+    }
+  }
+
+  if (!details.address) {
+    details.address = extractTextPattern(html, [
+      /"address":"([^"]+)"/i,
+      /"formattedAddress":"([^"]+)"/i,
+      /地址[:：]\s*([^<\n]+)/i
+    ]);
+  }
+
+  if (!details.hours) {
+    details.hours = extractTextPattern(html, [
+      /"openingHours":"([^"]+)"/i,
+      /"hours":"([^"]+)"/i,
+      /營業時間[:：]\s*([^<\n]+)/i,
+      /((?:[01]?\d|2[0-3]):[0-5]\d\s*[-–—]\s*(?:[01]?\d|2[0-3]):[0-5]\d(?:\s*\/\s*(?:[01]?\d|2[0-3]):[0-5]\d\s*[-–—]\s*(?:[01]?\d|2[0-3]):[0-5]\d)*)/i
+    ]);
+  }
+
+  if (!details.name) {
+    const fallbackName = decodeURIComponent(String(finalUrl || "").split("/place/")[1] || "")
+      .split("/")[0]
+      .replace(/\+/g, " ");
+    details.name = cleanText(fallbackName);
+  }
+
+  return details;
+}
+
+function buildReaderUrl(targetUrl) {
+  const sanitized = String(targetUrl || "").trim().replace(/^https?:\/\//i, "");
+  return `https://r.jina.ai/http://${sanitized}`;
+}
+
+function parseReaderText(text) {
+  const details = {
+    name: "",
+    address: "",
+    rating: "",
+    hours: "",
+    category: ""
+  };
+
+  const lines = String(text || "")
+    .split(/\r?\n/)
+    .map(line => cleanText(line))
+    .filter(Boolean);
+
+  const heading = lines.find(line => /^#\s*/.test(line));
+  if (heading) {
+    details.name = heading.replace(/^#\s*/, "").trim();
+  }
+
+  const ratingMatch = text.match(/([0-5]\.\d)\s*\(([\d,]+)\s*(?:則評論|reviews?)\)/i)
+    || text.match(/⭐️?\s*([0-5]\.\d)\s*\(([\d,]+)\s*(?:則評論|reviews?)\)/i);
+  if (ratingMatch) {
+    details.rating = formatRatingValue(ratingMatch[1], ratingMatch[2]);
+  }
+
+  const addressLine = lines.find(line => /(?:地址|Address)[:：]/i.test(line))
+    || lines.find(line => /(台灣|臺灣|台南市|臺南市|台北市|臺北市|高雄市|台中市|臺中市|新北市|桃園市|嘉義市|嘉義縣|屏東縣|花蓮縣|宜蘭縣|三重縣|東京都|大阪府|京都府|北海道).{3,40}/.test(line));
+  if (addressLine) {
+    details.address = cleanText(addressLine.replace(/^(地址|Address)[:：]\s*/i, ""));
+  }
+
+  const hoursLine = lines.find(line => /(營業時間|Opening hours|Hours)[:：]/i.test(line))
+    || lines.find(line => /(?:[01]?\d|2[0-3]):[0-5]\d\s*[-–—]\s*(?:[01]?\d|2[0-3]):[0-5]\d/.test(line));
+  if (hoursLine) {
+    details.hours = normalizeHours(hoursLine.replace(/^(營業時間|Opening hours|Hours)[:：]\s*/i, ""));
+  }
+
+  const categoryLine = lines.find(line => /(餐廳|冰店|甜點|咖啡|景點|旅遊|旅館|壽司|拉麵)/.test(line));
+  if (categoryLine) {
+    details.category = categoryLine;
+  }
+
+  return details;
+}
+
+function mergeDetails(primary, secondary) {
+  return {
+    name: primary.name || secondary.name || "",
+    address: primary.address || secondary.address || "",
+    rating: primary.rating || secondary.rating || "",
+    hours: primary.hours || secondary.hours || "",
+    category: primary.category || secondary.category || ""
+  };
+}
+
+async function fetchTextWithTimeout(targetUrl, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(targetUrl, {
+      headers: GOOGLE_HEADERS,
+      redirect: "follow",
+      signal: controller.signal
+    });
+    const text = await response.text();
+    return { ok: response.ok, url: response.url || targetUrl, text };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function isGoogleMapsUrl(url) {
+  return /(?:google\.[^/]+\/maps|maps\.app\.goo\.gl)/i.test(String(url || ""));
+}
+
+async function resolveGooglePlaceDetails(inputUrl) {
+  let direct = { ok: false, url: inputUrl, text: "" };
+  try {
+    direct = await fetchTextWithTimeout(inputUrl, 10000);
+  } catch (error) {
+    direct = { ok: false, url: inputUrl, text: "" };
+  }
+
+  const directDetails = parseDirectGoogleHtml(direct.text || "", direct.url || inputUrl);
+  let mergedDetails = directDetails;
+  let source = direct.ok ? "google-direct" : "";
+
+  const needsReaderFallback = !mergedDetails.name || (!mergedDetails.address && !mergedDetails.rating && !mergedDetails.hours);
+  if (needsReaderFallback) {
+    try {
+      const reader = await fetchTextWithTimeout(buildReaderUrl(direct.url || inputUrl), 12000);
+      const readerDetails = parseReaderText(reader.text || "");
+      mergedDetails = mergeDetails(mergedDetails, readerDetails);
+      if (reader.ok && (readerDetails.name || readerDetails.address || readerDetails.rating || readerDetails.hours)) {
+        source = source ? `${source}+reader` : "reader";
+      }
+    } catch (error) {
+      // Ignore reader fallback failures and return whatever direct parsing found.
+    }
+  }
+
+  return {
+    ...mergedDetails,
+    resolvedUrl: direct.url || inputUrl,
+    source
+  };
+}
+
+module.exports = async (req, res) => {
+  const inputUrl = cleanText(req.query?.url || "");
+
+  if (!inputUrl || !isGoogleMapsUrl(inputUrl)) {
+    res.status(400).json({ error: "A valid Google Maps URL is required." });
+    return;
+  }
+
+  try {
+    const details = await resolveGooglePlaceDetails(inputUrl);
+    if (!details.name && !details.address && !details.rating && !details.hours) {
+      res.status(200).json({ ok: false, resolvedUrl: details.resolvedUrl || inputUrl });
+      return;
+    }
+
+    res.status(200).json({
+      ok: true,
+      name: details.name || "",
+      address: details.address || "",
+      rating: details.rating || "",
+      hours: details.hours || "",
+      category: details.category || "",
+      resolvedUrl: details.resolvedUrl || inputUrl,
+      source: details.source || "google-direct"
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to parse Google Maps place details." });
+  }
+};
+
+module.exports._test = {
+  parseDirectGoogleHtml,
+  parseReaderText,
+  mergeDetails,
+  normalizeHours,
+  formatAddress
+};

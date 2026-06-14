@@ -247,9 +247,14 @@ const LAST_MOBILE_TRIP_KEY = "voyage_last_mobile_trip_id";
 const SCHEDULE_TIME_STEP_MINUTES = 30;
 const ITINERARY_HISTORY_KEY = "voyage_itinerary_history";
 const KNOWN_PLACE_LIBRARY_KEY = "voyage_known_places";
+const GOOGLE_PLACE_LOOKUP_ENDPOINT = "/api/google-maps-place";
+const GOOGLE_PLACE_LOOKUP_TIMEOUT_MS = 8000;
 
 let itineraryHistoryByTrip = {};
 let knownPlaces = [];
+let googlePlaceLookupCache = new Map();
+let scheduleAutofillRequestId = 0;
+let alternativeAutofillRequestId = 0;
 
 function isMobileViewport() {
   return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
@@ -408,6 +413,9 @@ function rememberKnownPlace(place, typeGroup = "") {
 
   if (existingIndex >= 0) {
     knownPlaces[existingIndex] = { ...knownPlaces[existingIndex], ...entry };
+    if (match.subtype && fields.titleInput.value === match.name) {
+      fields.titleInput.value = match.subtype;
+    }
   } else {
     knownPlaces.unshift(entry);
     knownPlaces = knownPlaces.slice(0, 300);
@@ -1481,6 +1489,10 @@ function renderWorkspaceItinerary() {
     `;
     renderActiveRouteSummary(trip);
     renderAlternativeSpots();
+    nameLabel.innerText = "擗輒?迂 *";
+    subtypeLabel.innerText = "?喳?憿? / ??銝駁? *";
+    nameInput.placeholder = "鞎潔? Google Maps ???敺???葆?仿?撱喳?蝔?";
+    subtypeInput.placeholder = "靘?嚗??啜????∪輒?挾憭?";
     return;
   }
 
@@ -2092,10 +2104,10 @@ function syncAlternativeFieldCopy(typeGroup) {
   if (!nameLabel || !subtypeLabel || !nameInput || !subtypeInput) return;
 
   if (typeGroup === "restaurants") {
-    nameLabel.innerText = "想吃類型 / 備案主題 *";
-    subtypeLabel.innerText = "餐廳名稱 *";
-    nameInput.placeholder = "例如：吃冰、燒肉、咖啡廳、宵夜";
-    subtypeInput.placeholder = "貼上 Google Maps 連結後，會自動帶入餐廳名稱";
+    nameLabel.innerText = "餐廳名稱 *";
+    subtypeLabel.innerText = "想吃類型 / 備案主題 *";
+    nameInput.placeholder = "貼上 Google Maps 連結後，會自動帶入餐廳名稱";
+    subtypeInput.placeholder = "例如：吃冰、燒肉、咖啡廳、宵夜";
     return;
   }
 
@@ -5410,7 +5422,7 @@ function setupAlternativeAutofill() {
 
   if (typeGroup === "restaurants" && extractedName) {
     if (!subtypeInput.value) {
-      subtypeInput.value = extractedName;
+      titleInput.value = extractedName;
     }
     if (!titleInput.value) {
       titleInput.value = inferRestaurantThemeFromPlaceName(extractedName) || "美食清單";
@@ -5431,6 +5443,314 @@ function setupAlternativeAutofill() {
   }
 
   showToast("目前還沒有這家店的已記住資料，建議先手動補上並儲存；之後再貼同一家就能自動帶入。", "info");
+}
+
+function normalizeGooglePlaceResponse(data) {
+  if (!data || typeof data !== "object") return null;
+
+  const normalized = {
+    name: String(data.name || "").trim(),
+    address: String(data.address || "").trim(),
+    rating: String(data.rating || "").trim(),
+    hours: String(data.hours || "").trim(),
+    category: String(data.category || "").trim(),
+    resolvedUrl: String(data.resolvedUrl || data.finalUrl || "").trim(),
+    source: String(data.source || "").trim()
+  };
+
+  if (!normalized.name && !normalized.address && !normalized.rating && !normalized.hours) {
+    return null;
+  }
+
+  return normalized;
+}
+
+async function fetchGooglePlaceDetails(url) {
+  const normalizedUrl = normalizeMapsUrl(url);
+  if (!normalizedUrl) return null;
+
+  if (googlePlaceLookupCache.has(normalizedUrl)) {
+    return googlePlaceLookupCache.get(normalizedUrl);
+  }
+
+  const requestPromise = (async () => {
+    try {
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), GOOGLE_PLACE_LOOKUP_TIMEOUT_MS);
+
+      try {
+        const response = await fetch(`${GOOGLE_PLACE_LOOKUP_ENDPOINT}?url=${encodeURIComponent(url)}`, {
+          method: "GET",
+          headers: { "Accept": "application/json" },
+          signal: controller.signal
+        });
+
+        if (!response.ok) return null;
+        return normalizeGooglePlaceResponse(await response.json());
+      } finally {
+        window.clearTimeout(timer);
+      }
+    } catch (error) {
+      return null;
+    }
+  })();
+
+  googlePlaceLookupCache.set(normalizedUrl, requestPromise);
+  return requestPromise;
+}
+
+function buildPlaceMatchFromRemote(details, typeGroup = "") {
+  if (!details) return null;
+
+  if (typeGroup === "restaurants") {
+    const restaurantName = String(details.name || "").trim();
+    return normalizePlaceCandidate({
+      name: restaurantName,
+      subtype: inferRestaurantThemeFromPlaceName(restaurantName) || "美食清單",
+      mapsUrl: details.resolvedUrl || "",
+      address: details.address || "",
+      rating: details.rating || "",
+      hours: details.hours || "",
+      lookupName: restaurantName,
+      source: details.source || "remote"
+    }, "restaurants");
+  }
+
+  return normalizePlaceCandidate({
+    name: details.name || "",
+    subtype: details.category || "",
+    mapsUrl: details.resolvedUrl || "",
+    address: details.address || "",
+    rating: details.rating || "",
+    hours: details.hours || "",
+    lookupName: details.name || "",
+    source: details.source || "remote"
+  }, typeGroup || "sights");
+}
+
+function mergePlaceMatchDetails(existingMatch, remoteMatch) {
+  if (!existingMatch) return remoteMatch;
+  if (!remoteMatch) return existingMatch;
+
+  return {
+    ...existingMatch,
+    ...remoteMatch,
+    name: remoteMatch.name || existingMatch.name || "",
+    subtype: remoteMatch.subtype || existingMatch.subtype || "",
+    mapsUrl: remoteMatch.mapsUrl || existingMatch.mapsUrl || "",
+    address: remoteMatch.address || existingMatch.address || "",
+    rating: remoteMatch.rating || existingMatch.rating || "",
+    hours: remoteMatch.hours || existingMatch.hours || "",
+    lookupName: remoteMatch.lookupName || existingMatch.lookupName || "",
+    source: remoteMatch.source || existingMatch.source || "",
+    type: remoteMatch.type || existingMatch.type || "",
+    typeGroup: remoteMatch.typeGroup || existingMatch.typeGroup || ""
+  };
+}
+
+function rememberRemotePlaceDetails(remoteMatch, fallbackUrl = "") {
+  if (!remoteMatch) return;
+  rememberKnownPlace({
+    name: remoteMatch.typeGroup === "restaurants" ? remoteMatch.subtype : remoteMatch.name,
+    subtype: remoteMatch.typeGroup === "restaurants" ? remoteMatch.name : remoteMatch.subtype,
+    mapsUrl: remoteMatch.mapsUrl || fallbackUrl,
+    address: remoteMatch.address || "",
+    rating: remoteMatch.rating || "",
+    hours: remoteMatch.hours || ""
+  }, remoteMatch.typeGroup || "");
+}
+
+function applyPlaceMatchToScheduleForm(match, fields) {
+  if (!match) return false;
+
+  if (match.address && !fields.addressInput.value) fields.addressInput.value = match.address;
+  if (match.rating && !fields.ratingInput.value) fields.ratingInput.value = match.rating;
+  if (match.hours && !fields.hoursInput.value) fields.hoursInput.value = match.hours;
+  if (match.name && canReplaceAutofillValue(fields.titleInput.value)) {
+    fields.titleInput.value = match.name;
+  }
+  if (match.type && fields.typeSelect) {
+    fields.typeSelect.value = match.type;
+    fields.typeSelect.dispatchEvent(new Event("change"));
+  }
+
+  return true;
+}
+
+function applyPlaceMatchToAlternativeForm(match, typeGroup, fields, extractedName) {
+  if (!match) return false;
+
+  if (match.address && !fields.addressInput.value) fields.addressInput.value = match.address;
+  if (match.rating && !fields.ratingInput.value) fields.ratingInput.value = match.rating;
+  if (match.hours && !fields.hoursInput.value) fields.hoursInput.value = match.hours;
+
+  if (typeGroup === "restaurants") {
+    if (match.name && !fields.subtypeInput.value) {
+      fields.subtypeInput.value = match.name;
+    }
+    if (canReplaceAutofillValue(fields.titleInput.value) || !fields.titleInput.value) {
+      fields.titleInput.value = match.subtype || inferRestaurantThemeFromPlaceName(match.name || extractedName || "") || "美食清單";
+      fields.titleInput.value = match.name || inferRestaurantThemeFromPlaceName(match.subtype || extractedName || "") || "美食清單";
+    }
+  } else {
+    if (match.name && canReplaceAutofillValue(fields.titleInput.value)) {
+      fields.titleInput.value = match.name;
+    }
+    if (match.subtype && !fields.subtypeInput.value) {
+      fields.subtypeInput.value = match.subtype;
+    }
+  }
+
+  return true;
+}
+
+async function setupScheduleAutofill() {
+  const urlInput = document.getElementById("s-maps-url");
+  const url = urlInput.value.trim();
+  if (!url) return;
+
+  const addressInput = document.getElementById("s-address");
+  const ratingInput = document.getElementById("s-rating");
+  const titleInput = document.getElementById("s-title");
+  const hoursInput = document.getElementById("s-hours");
+  const typeSelect = document.getElementById("s-type");
+  const trip = trips.find(t => t.id === activeTripId);
+  if (!trip) return;
+
+  const requestId = ++scheduleAutofillRequestId;
+  const extractedName = extractPlaceNameFromUrl(url);
+  let foundSpot = findSpotByUrlOrName(url, titleInput.value || extractedName, trip);
+  const isShortGoogleLink = isGoogleShortMapsUrl(url);
+
+  const needsRemoteLookup = !!url && (
+    !foundSpot
+    || !foundSpot.address
+    || !foundSpot.rating
+    || !foundSpot.hours
+    || isShortGoogleLink
+  );
+
+  if (needsRemoteLookup) {
+    const remoteDetails = await fetchGooglePlaceDetails(url);
+    if (requestId !== scheduleAutofillRequestId || urlInput.value.trim() !== url) return;
+
+    const remoteMatch = buildPlaceMatchFromRemote(remoteDetails);
+    if (remoteMatch) {
+      foundSpot = mergePlaceMatchDetails(foundSpot, remoteMatch);
+      rememberRemotePlaceDetails(remoteMatch, url);
+    }
+  }
+
+  if (foundSpot && applyPlaceMatchToScheduleForm(foundSpot, { addressInput, ratingInput, titleInput, hoursInput, typeSelect })) {
+    showToast(`已帶入「${foundSpot.name || "此地點"}」的資料。`, "success");
+    return;
+  }
+
+  if (extractedName && !titleInput.value) {
+    titleInput.value = extractedName;
+    showToast("已從 Google Maps 連結帶入地點名稱，其餘資訊請再手動確認。", "info");
+    return;
+  }
+
+  if (isShortGoogleLink) {
+    showToast("這個 Google Maps 短網址目前還沒解析出完整資料，建議稍後再試或改貼完整網址。", "info");
+    return;
+  }
+
+  showToast("目前只能先帶入部分資訊；營業時間、評分與地址請再手動確認。", "info");
+}
+
+async function setupAlternativeAutofill() {
+  const urlInput = document.getElementById("a-mapsurl");
+  const url = urlInput.value.trim();
+  if (!url) return;
+
+  const addressInput = document.getElementById("a-address");
+  const ratingInput = document.getElementById("a-rating");
+  const titleInput = document.getElementById("a-name");
+  const hoursInput = document.getElementById("a-hours");
+  const subtypeInput = document.getElementById("a-subtype");
+  const typeGroup = document.getElementById("alt-type-group").value;
+  const trip = trips.find(t => t.id === activeTripId);
+  if (!trip) return;
+
+  const requestId = ++alternativeAutofillRequestId;
+  const extractedName = extractPlaceNameFromUrl(url);
+  const lookupName = typeGroup === "restaurants"
+    ? (subtypeInput.value || extractedName || "")
+    : (titleInput.value || extractedName || "");
+  let foundSpot = findSpotByUrlOrName(url, lookupName, trip, { typeGroup });
+  const isShortGoogleLink = isGoogleShortMapsUrl(url);
+
+  const needsRemoteLookup = !!url && (
+    !foundSpot
+    || !foundSpot.address
+    || !foundSpot.rating
+    || !foundSpot.hours
+    || isShortGoogleLink
+  );
+
+  if (needsRemoteLookup) {
+    const remoteDetails = await fetchGooglePlaceDetails(url);
+    if (requestId !== alternativeAutofillRequestId || urlInput.value.trim() !== url) return;
+
+    const remoteMatch = buildPlaceMatchFromRemote(remoteDetails, typeGroup);
+    if (remoteMatch) {
+      foundSpot = mergePlaceMatchDetails(foundSpot, remoteMatch);
+      if (typeGroup === "restaurants") {
+        const remoteTheme = remoteMatch.name || "";
+        const remoteRestaurantName = remoteMatch.subtype || "";
+        if (remoteRestaurantName) {
+          titleInput.value = remoteRestaurantName;
+        }
+        if (
+          remoteTheme
+          && (!titleInput.value || titleInput.value === remoteRestaurantName || canReplaceAutofillValue(titleInput.value))
+        ) {
+          subtypeInput.value = remoteTheme;
+        }
+      }
+      rememberRemotePlaceDetails(remoteMatch, url);
+    }
+  }
+
+  if (foundSpot && applyPlaceMatchToAlternativeForm(foundSpot, typeGroup, {
+    addressInput,
+    ratingInput,
+    titleInput,
+    hoursInput,
+    subtypeInput
+  }, extractedName)) {
+    const displayName = typeGroup === "restaurants"
+      ? (foundSpot.subtype || foundSpot.name || "此餐廳")
+      : (foundSpot.name || "此備案");
+    showToast(`已帶入「${displayName}」的資料。`, "success");
+    return;
+  }
+
+  if (typeGroup === "restaurants" && extractedName) {
+    if (!titleInput.value) {
+      titleInput.value = extractedName;
+    }
+    if (!titleInput.value) {
+      titleInput.value = inferRestaurantThemeFromPlaceName(extractedName) || "美食清單";
+    }
+    showToast("已從 Google Maps 連結帶入餐廳名稱與主題；如果這次仍沒有其他欄位，代表 Google 端尚未成功解析。", "info");
+    return;
+  }
+
+  if (extractedName && !titleInput.value) {
+    titleInput.value = extractedName;
+    showToast("已從 Google Maps 連結帶入名稱，其餘資訊請再手動確認。", "info");
+    return;
+  }
+
+  if (isShortGoogleLink) {
+    showToast("這個 Google Maps 短網址目前還沒解析出完整資料，建議稍後再試或改貼完整網址。", "info");
+    return;
+  }
+
+  showToast("目前還沒有解析到這家店的完整資訊，若您先手動補完並儲存，之後就會自動記住。", "info");
 }
 
 function openDaySummaryModal() {
