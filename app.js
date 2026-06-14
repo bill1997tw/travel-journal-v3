@@ -246,8 +246,10 @@ const MOBILE_BREAKPOINT = 768;
 const LAST_MOBILE_TRIP_KEY = "voyage_last_mobile_trip_id";
 const SCHEDULE_TIME_STEP_MINUTES = 30;
 const ITINERARY_HISTORY_KEY = "voyage_itinerary_history";
+const KNOWN_PLACE_LIBRARY_KEY = "voyage_known_places";
 
 let itineraryHistoryByTrip = {};
+let knownPlaces = [];
 
 function isMobileViewport() {
   return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
@@ -267,6 +269,151 @@ function loadItineraryHistory() {
   } catch (error) {
     itineraryHistoryByTrip = {};
   }
+}
+
+function normalizeSearchText(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function normalizeMapsUrl(url) {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+
+  try {
+    const parsed = new URL(raw);
+    parsed.hash = "";
+    parsed.pathname = parsed.pathname.replace(/\/+$/, "");
+
+    if (/google\./i.test(parsed.hostname) && parsed.pathname.includes("/maps/")) {
+      parsed.hostname = "google.com";
+    }
+
+    return `${parsed.protocol}//${parsed.hostname.toLowerCase()}${parsed.pathname}${parsed.search}`.toLowerCase();
+  } catch (error) {
+    return raw.toLowerCase();
+  }
+}
+
+function loadKnownPlaces() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(KNOWN_PLACE_LIBRARY_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function persistKnownPlaces() {
+  localStorage.setItem(KNOWN_PLACE_LIBRARY_KEY, JSON.stringify(knownPlaces));
+}
+
+function createKnownPlaceLookupName(place, typeGroup = "") {
+  if (typeGroup === "restaurants") {
+    return String(place.subtype || place.name || "").trim();
+  }
+  return String(place.name || place.subtype || "").trim();
+}
+
+function normalizePlaceCandidate(place, typeGroup = "") {
+  const resolvedTypeGroup = String(place?.typeGroup || typeGroup || "").trim();
+
+  if (resolvedTypeGroup === "restaurants") {
+    return {
+      ...place,
+      typeGroup: resolvedTypeGroup,
+      name: String(place?.subtype || place?.name || "").trim(),
+      subtype: String(place?.name || "").trim(),
+      lookupName: String(place?.lookupName || place?.subtype || place?.name || "").trim()
+    };
+  }
+
+  return {
+    ...place,
+    typeGroup: resolvedTypeGroup,
+    name: String(place?.name || "").trim(),
+    subtype: String(place?.subtype || "").trim(),
+    lookupName: String(place?.lookupName || place?.name || place?.subtype || "").trim()
+  };
+}
+
+function collectKnownPlacePool(typeGroup = null) {
+  const remembered = (Array.isArray(knownPlaces) ? knownPlaces : [])
+    .map(place => normalizePlaceCandidate(place, place.typeGroup || typeGroup || ""));
+  const fromTrips = (Array.isArray(trips) ? trips : []).flatMap(trip => {
+    const alt = trip?.alternativeSpots || { sights: [], restaurants: [] };
+    if (typeGroup) {
+      return (alt[typeGroup] || []).map(item => normalizePlaceCandidate(item, typeGroup));
+    }
+    return [
+      ...(alt.sights || []).map(item => normalizePlaceCandidate(item, "sights")),
+      ...(alt.restaurants || []).map(item => normalizePlaceCandidate(item, "restaurants"))
+    ];
+  });
+
+  const merged = [...remembered, ...fromTrips];
+  const deduped = [];
+  const seen = new Set();
+
+  merged.forEach(place => {
+    const normalizedUrl = normalizeMapsUrl(place.mapsUrl);
+    const normalizedLookup = normalizeSearchText(place.lookupName || createKnownPlaceLookupName(place, place.typeGroup || typeGroup || ""));
+    const dedupeKey = normalizedUrl || `${place.typeGroup || typeGroup || ""}::${normalizedLookup}`;
+    if (!dedupeKey || seen.has(dedupeKey)) return;
+    seen.add(dedupeKey);
+    deduped.push(place);
+  });
+
+  return deduped;
+}
+
+function rememberKnownPlace(place, typeGroup = "") {
+  const normalizedUrl = normalizeMapsUrl(place.mapsUrl);
+  const lookupName = createKnownPlaceLookupName(place, typeGroup);
+  const normalizedLookup = normalizeSearchText(lookupName);
+  const hasUsefulDetails = [place.address, place.rating, place.hours, place.price, place.notes]
+    .some(value => String(value || "").trim());
+
+  if ((!normalizedUrl && !normalizedLookup) || !hasUsefulDetails) return;
+
+  const normalizedName = typeGroup === "restaurants"
+    ? String(place.subtype || place.name || "").trim()
+    : String(place.name || "").trim();
+  const normalizedSubtype = typeGroup === "restaurants"
+    ? String(place.name || "").trim()
+    : String(place.subtype || "").trim();
+
+  const entry = {
+    typeGroup,
+    name: normalizedName,
+    subtype: normalizedSubtype,
+    lookupName,
+    mapsUrl: String(place.mapsUrl || "").trim(),
+    address: String(place.address || "").trim(),
+    rating: String(place.rating || "").trim(),
+    hours: String(place.hours || "").trim(),
+    price: String(place.price || "").trim(),
+    notes: String(place.notes || "").trim(),
+    savedAt: Date.now()
+  };
+
+  const existingIndex = knownPlaces.findIndex(item => {
+    const itemUrl = normalizeMapsUrl(item.mapsUrl);
+    const itemLookup = normalizeSearchText(item.lookupName || createKnownPlaceLookupName(item, item.typeGroup || ""));
+    return (normalizedUrl && itemUrl === normalizedUrl)
+      || (!!normalizedLookup && itemLookup === normalizedLookup && String(item.typeGroup || "") === typeGroup);
+  });
+
+  if (existingIndex >= 0) {
+    knownPlaces[existingIndex] = { ...knownPlaces[existingIndex], ...entry };
+  } else {
+    knownPlaces.unshift(entry);
+    knownPlaces = knownPlaces.slice(0, 300);
+  }
+
+  persistKnownPlaces();
 }
 
 function pushItineraryHistorySnapshot(trip, options = {}) {
@@ -571,6 +718,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // --- 資料初始化 ---
 function initData() {
   loadItineraryHistory();
+  knownPlaces = loadKnownPlaces();
 
   // 載入客製化標題 Logo 名稱
   const savedLogoText = localStorage.getItem("voyage_logo_text");
@@ -1903,6 +2051,18 @@ function handleUndoItineraryStep() {
   trip.routePlans = cloneSerializable(previousState.routePlans || []);
   activeItineraryDay = previousState.activeDay || 1;
 
+  if (mapsUrl || address || rating || hours) {
+    rememberKnownPlace({
+      name: type === "food" ? (inferRestaurantThemeFromPlaceName(title) || "美食清單") : title,
+      subtype: type === "food" ? title : "",
+      mapsUrl,
+      address,
+      rating,
+      hours,
+      notes: content
+    }, type === "food" ? "restaurants" : "sights");
+  }
+
   localStorage.setItem("voyage_trips", JSON.stringify(trips));
   persistItineraryHistory();
   renderWorkspaceItinerary();
@@ -1974,6 +2134,7 @@ function handleAlternativeSubmit(e) {
   };
 
   trip.alternativeSpots[typeGroup].push(newItem);
+  rememberKnownPlace(newItem, typeGroup);
   localStorage.setItem("voyage_trips", JSON.stringify(trips));
 
   closeAlternativeModal();
@@ -5105,14 +5266,18 @@ function isGoogleShortMapsUrl(url) {
 }
 
 function findSpotByUrlOrName(url, searchName, trip, options = {}) {
-  const urlLower = String(url || "").trim().toLowerCase();
-  const nameLower = String(searchName || "").trim().toLowerCase();
+  const urlLower = normalizeMapsUrl(url);
+  const nameLower = normalizeSearchText(searchName);
   const typeGroup = options.typeGroup || null;
 
   const alt = trip?.alternativeSpots || { sights: [], restaurants: [] };
-  const scopedSpots = typeGroup
-    ? [...(alt[typeGroup] || [])]
-    : [...alt.sights, ...alt.restaurants];
+  const tripScopedSpots = typeGroup
+    ? (alt[typeGroup] || []).map(item => normalizePlaceCandidate(item, typeGroup))
+    : [
+        ...(alt.sights || []).map(item => normalizePlaceCandidate(item, "sights")),
+        ...(alt.restaurants || []).map(item => normalizePlaceCandidate(item, "restaurants"))
+      ];
+  const scopedSpots = [...tripScopedSpots, ...collectKnownPlacePool(typeGroup)];
 
   let foundSpot = null;
 
@@ -5125,7 +5290,7 @@ function findSpotByUrlOrName(url, searchName, trip, options = {}) {
     );
     if (foundSpot) return foundSpot;
 
-    foundSpot = scopedSpots.find(spot => String(spot.mapsUrl || "").trim().toLowerCase() === urlLower);
+    foundSpot = scopedSpots.find(spot => normalizeMapsUrl(spot.mapsUrl) === urlLower);
     if (foundSpot) return foundSpot;
   }
 
@@ -5140,8 +5305,8 @@ function findSpotByUrlOrName(url, searchName, trip, options = {}) {
   if (foundSpot) return foundSpot;
 
   foundSpot = scopedSpots.find(spot => {
-    const candidateValues = [spot.name, spot.subtype]
-      .map(value => String(value || "").trim().toLowerCase())
+    const candidateValues = [spot.lookupName, spot.name, spot.subtype]
+      .map(value => normalizeSearchText(value))
       .filter(Boolean);
     return candidateValues.some(value => nameLower.includes(value) || value.includes(nameLower));
   });
@@ -5250,13 +5415,13 @@ function setupAlternativeAutofill() {
     if (!titleInput.value) {
       titleInput.value = inferRestaurantThemeFromPlaceName(extractedName) || "美食清單";
     }
-    showToast("已從 Google Maps 連結帶入餐廳名稱，主題也先幫您分類；其餘資訊請再手動確認。", "info");
+    showToast("已從 Google Maps 連結帶入餐廳名稱與主題；若這次補完地址、評分、營業時間並儲存，下次就會自動記住。", "info");
     return;
   }
 
   if (extractedName && !titleInput.value) {
     titleInput.value = extractedName;
-    showToast("已從 Google Maps 連結帶入名稱，其餘資訊請再手動確認。", "info");
+    showToast("已從 Google Maps 連結帶入名稱；若這次補完資料並儲存，下次就會自動記住。", "info");
     return;
   }
 
@@ -5265,7 +5430,7 @@ function setupAlternativeAutofill() {
     return;
   }
 
-  showToast("目前無法可靠帶入店名與營業時間，建議手動補上，避免資料抓錯。", "info");
+  showToast("目前還沒有這家店的已記住資料，建議先手動補上並儲存；之後再貼同一家就能自動帶入。", "info");
 }
 
 function openDaySummaryModal() {
