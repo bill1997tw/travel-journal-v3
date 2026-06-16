@@ -186,6 +186,107 @@ function buildReaderUrl(targetUrl) {
   return `https://r.jina.ai/http://${sanitized}`;
 }
 
+function decodeJavascriptEscapes(text) {
+  return String(text || "")
+    .replace(/\\x([0-9a-fA-F]{2})/g, (_, code) => String.fromCharCode(parseInt(code, 16)))
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
+}
+
+function extractCoordinatesFromText(text) {
+  const source = decodeJavascriptEscapes(decodeHtmlEntities(String(text || "")));
+
+  const placeMatch = source.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
+  if (placeMatch) {
+    return {
+      lat: Number(placeMatch[1]),
+      lon: Number(placeMatch[2])
+    };
+  }
+
+  const centerMatch = source.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?),/);
+  if (centerMatch) {
+    return {
+      lat: Number(centerMatch[1]),
+      lon: Number(centerMatch[2])
+    };
+  }
+
+  const staticMapMatch = source.match(/center=(-?\d+(?:\.\d+)?)%2C(-?\d+(?:\.\d+)?)/i);
+  if (staticMapMatch) {
+    return {
+      lat: Number(staticMapMatch[1]),
+      lon: Number(staticMapMatch[2])
+    };
+  }
+
+  return null;
+}
+
+function extractNameFromEmbeddedGoogleData(html) {
+  const source = decodeJavascriptEscapes(decodeHtmlEntities(String(html || "")));
+  const previewQueryMatch = source.match(/\/maps\/preview\/place[^"' ]*[?&]q=([^&"']+)/i);
+  if (previewQueryMatch) {
+    return cleanText(decodeURIComponent(previewQueryMatch[1].replace(/\+/g, " ")));
+  }
+
+  const pathMatch = source.match(/\/maps\/place\/([^/@?]+)/i);
+  if (pathMatch) {
+    return cleanText(decodeURIComponent(pathMatch[1].replace(/\+/g, " ")));
+  }
+
+  return "";
+}
+
+function formatReverseGeocodeAddress(data) {
+  if (!data || typeof data !== "object") return "";
+
+  const parts = [
+    data.address?.house_number,
+    data.address?.road,
+    data.address?.quarter,
+    data.address?.suburb,
+    data.address?.city || data.address?.town || data.address?.village,
+    data.address?.province || data.address?.state,
+    data.address?.postcode,
+    data.address?.country
+  ]
+    .map(part => cleanText(part))
+    .filter(Boolean);
+
+  if (parts.length) {
+    return sanitizeAddress(parts.join(", "));
+  }
+
+  return sanitizeAddress(data.display_name || "");
+}
+
+async function reverseGeocodeCoordinates(coords) {
+  if (!coords || !Number.isFinite(coords.lat) || !Number.isFinite(coords.lon)) {
+    return "";
+  }
+
+  const searchParams = new URLSearchParams({
+    format: "jsonv2",
+    lat: String(coords.lat),
+    lon: String(coords.lon),
+    zoom: "18",
+    addressdetails: "1",
+    "accept-language": "zh-TW,en"
+  });
+
+  const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${searchParams.toString()}`, {
+    headers: {
+      "accept-language": "zh-TW,zh;q=0.9,en;q=0.8",
+      "user-agent": "travel-journal-v3/1.0"
+    }
+  });
+
+  if (!response.ok) return "";
+
+  const payload = await response.json();
+  return formatReverseGeocodeAddress(payload);
+}
+
 function parseReaderText(text) {
   const details = {
     name: "",
@@ -262,6 +363,10 @@ function isGoogleMapsUrl(url) {
   return /(?:google\.[^/]+\/maps|maps\.app\.goo\.gl)/i.test(String(url || ""));
 }
 
+function isGenericGoogleMapsName(value) {
+  return /^(?:Google Maps|Google 地圖)$/i.test(cleanText(value));
+}
+
 async function resolveGooglePlaceDetails(inputUrl) {
   let direct = { ok: false, url: inputUrl, text: "" };
   try {
@@ -271,6 +376,11 @@ async function resolveGooglePlaceDetails(inputUrl) {
   }
 
   const directDetails = parseDirectGoogleHtml(direct.text || "", direct.url || inputUrl);
+  const embeddedName = extractNameFromEmbeddedGoogleData(direct.text || "");
+  const coordinates = extractCoordinatesFromText(direct.text || "");
+  if ((!directDetails.name || isGenericGoogleMapsName(directDetails.name)) && embeddedName) {
+    directDetails.name = embeddedName;
+  }
   let mergedDetails = directDetails;
   let source = direct.ok ? "google-direct" : "";
 
@@ -285,6 +395,18 @@ async function resolveGooglePlaceDetails(inputUrl) {
       }
     } catch (error) {
       // Ignore reader fallback failures and return whatever direct parsing found.
+    }
+  }
+
+  if (!mergedDetails.address && coordinates) {
+    try {
+      const fallbackAddress = await reverseGeocodeCoordinates(coordinates);
+      if (fallbackAddress) {
+        mergedDetails.address = fallbackAddress;
+        source = source ? `${source}+reverse-geocode` : "reverse-geocode";
+      }
+    } catch (error) {
+      // Ignore reverse geocoding failures and return whatever details we already have.
     }
   }
 

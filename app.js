@@ -413,9 +413,6 @@ function rememberKnownPlace(place, typeGroup = "") {
 
   if (existingIndex >= 0) {
     knownPlaces[existingIndex] = { ...knownPlaces[existingIndex], ...entry };
-    if (match.subtype && fields.titleInput.value === match.name) {
-      fields.titleInput.value = match.subtype;
-    }
   } else {
     knownPlaces.unshift(entry);
     knownPlaces = knownPlaces.slice(0, 300);
@@ -5737,21 +5734,21 @@ async function setupScheduleAutofill() {
       rating: "",
       hours: ""
     });
-    showToast("?? Google Maps ???????", "success");
+    showToast("\u5df2\u5f9e Google Maps \u9023\u7d50\u5e36\u5165\u5730\u5740\u3002", "success");
     return;
   }
 
-  if (foundSpot?.address) {
-    showToast("???????????", "info");
+  if (cachedAddress) {
+    showToast("\u5df2\u5e36\u5165\u5148\u524d\u8a18\u4f4f\u7684\u5730\u5740\u3002", "info");
     return;
   }
 
   if (isGoogleShortMapsUrl(url)) {
-    showToast("?? Google Maps ???????????????????????????", "info");
+    showToast("\u9019\u500b Google Maps \u77ed\u7db2\u5740\u76ee\u524d\u6c92\u6709\u76f4\u63a5\u63d0\u4f9b\u53ef\u7528\u5730\u5740\uff0c\u5df2\u7565\u904e\u81ea\u52d5\u5e36\u5165\u3002", "info");
     return;
   }
 
-  showToast("????????????????????", "info");
+  showToast("\u76ee\u524d\u7121\u6cd5\u5f9e\u9019\u500b Google Maps \u9023\u7d50\u5e36\u5165\u5730\u5740\uff0c\u8acb\u624b\u52d5\u88dc\u4e0a\u3002", "info");
 }
 
 async function setupAlternativeAutofill() {
@@ -5813,6 +5810,54 @@ function openDaySummaryModal() {
   document.getElementById("ds-desc").value = dayData.desc || "";
 
   document.getElementById("day-summary-modal").classList.add("active");
+}
+
+async function setupAlternativeAutofill() {
+  const urlInput = document.getElementById("a-mapsurl");
+  const url = urlInput.value.trim();
+  if (!url) return;
+
+  const addressInput = document.getElementById("a-address");
+  const typeGroup = document.getElementById("alt-type-group").value;
+  const trip = trips.find(t => t.id === activeTripId);
+  if (!trip || !addressInput) return;
+
+  const requestId = ++alternativeAutofillRequestId;
+  const foundSpot = findSpotByUrlOrName(url, "", trip, { typeGroup });
+  const cachedAddress = sanitizeAutofillAddress(foundSpot?.address);
+  if (cachedAddress && !addressInput.value) {
+    addressInput.value = cachedAddress;
+  }
+
+  const remoteDetails = await fetchGooglePlaceDetails(url);
+  if (requestId !== alternativeAutofillRequestId || urlInput.value.trim() !== url) return;
+
+  const remoteAddress = sanitizeAutofillAddress(remoteDetails?.address);
+  if (remoteAddress) {
+    addressInput.value = remoteAddress;
+    rememberKnownPlace({
+      name: "",
+      subtype: "",
+      mapsUrl: url,
+      address: remoteAddress,
+      rating: "",
+      hours: ""
+    }, typeGroup);
+    showToast("\u5df2\u5f9e Google Maps \u9023\u7d50\u5e36\u5165\u5730\u5740\u3002", "success");
+    return;
+  }
+
+  if (cachedAddress) {
+    showToast("\u5df2\u5e36\u5165\u5148\u524d\u8a18\u4f4f\u7684\u5730\u5740\u3002", "info");
+    return;
+  }
+
+  if (isGoogleShortMapsUrl(url)) {
+    showToast("\u9019\u500b Google Maps \u77ed\u7db2\u5740\u76ee\u524d\u6c92\u6709\u76f4\u63a5\u63d0\u4f9b\u53ef\u7528\u5730\u5740\uff0c\u5df2\u7565\u904e\u81ea\u52d5\u5e36\u5165\u3002", "info");
+    return;
+  }
+
+  showToast("\u76ee\u524d\u7121\u6cd5\u5f9e\u9019\u500b Google Maps \u9023\u7d50\u5e36\u5165\u5730\u5740\uff0c\u8acb\u624b\u52d5\u88dc\u4e0a\u3002", "info");
 }
 
 function closeDaySummaryModal() {
