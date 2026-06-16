@@ -1205,6 +1205,44 @@ main {
   padding-top: 0.75rem;
 }
 
+.hours-builder {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem;
+  border-radius: 12px;
+  background: rgba(200, 92, 50, 0.05);
+  border: 1px solid rgba(200, 92, 50, 0.12);
+}
+
+.hours-builder-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.hours-builder-row.range-row {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+.hours-builder-separator {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.hours-builder-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.hours-builder-actions .btn {
+  flex: 1 1 160px;
+}
+
 
 /* ================= 4. 行李與待辦清單 ================= */
 .checklist-workspace-layout {

@@ -874,18 +874,15 @@
       <h2 class="modal-title" id="alt-modal-title">新增備案項目</h2>
       <form id="alt-form">
         <input type="hidden" id="alt-id">
-        <input type="hidden" id="alt-type-group"> <!-- sights 或 restaurants -->
+        <input type="hidden" id="alt-type-group">
         <div class="form-grid" style="grid-template-columns: 1fr;">
           <div class="form-group">
-            <label for="a-name" id="a-name-label">備案景點/餐廳名稱 *</label>
+            <label for="a-name" id="a-name-label">備案景點名稱 *</label>
             <input type="text" class="form-input" id="a-name" placeholder="例如：茶田35號、二延平步道" required>
           </div>
+          <input type="hidden" id="a-subtype" value="">
           <div class="form-group">
-            <label for="a-subtype" id="a-subtype-label">分類標籤 *</label>
-            <input type="text" class="form-input" id="a-subtype" placeholder="例如：下午茶甜點、景觀步道/賞日出" required>
-          </div>
-          <div class="form-group">
-            <label for="a-mapsurl">Google Maps 連結 (輸入後自動填充地址、評分與營業時間)</label>
+            <label for="a-mapsurl">Google Maps 連結 (輸入後只自動填入地址)</label>
             <input type="url" class="form-input" id="a-mapsurl" placeholder="https://maps.app.goo.gl/... (可為空)">
           </div>
           <div class="form-group">
@@ -898,7 +895,25 @@
           </div>
           <div class="form-group">
             <label for="a-hours">商家營業時間</label>
-            <input type="text" class="form-input" id="a-hours" placeholder="例如：08:00 - 17:00 / 24小時">
+            <input type="text" class="form-input" id="a-hours" placeholder="可直接輸入，或用下方快速加入">
+            <div class="hours-builder" id="a-hours-builder">
+              <div class="hours-builder-row">
+                <select class="form-select" id="a-hours-day"></select>
+                <select class="form-select" id="a-hours-mode">
+                  <option value="range">時段</option>
+                  <option value="24h">24小時</option>
+                </select>
+              </div>
+              <div class="hours-builder-row range-row" id="a-hours-range-row">
+                <select class="form-select" id="a-hours-open"></select>
+                <span class="hours-builder-separator">至</span>
+                <select class="form-select" id="a-hours-close"></select>
+              </div>
+              <div class="hours-builder-actions">
+                <button type="button" class="btn btn-secondary" id="a-hours-add-btn">加入營業時間</button>
+                <button type="button" class="btn btn-secondary" id="a-hours-clear-btn">清空欄位</button>
+              </div>
+            </div>
           </div>
           <div class="form-group">
             <label for="a-price">價格門票預估</label>
@@ -917,7 +932,6 @@
     </div>
   </div>
 
-  <!-- 4. 新增/編輯費用支出帳目 Modal -->
   <div class="modal-overlay" id="expense-modal">
     <div class="modal-content glass" style="max-width: 500px;">
       <button class="modal-close" id="expense-modal-close" title="關閉">✕</button>

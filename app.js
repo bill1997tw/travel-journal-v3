@@ -511,6 +511,81 @@ function buildScheduleTimeOptions() {
   return options;
 }
 
+const BUSINESS_HOUR_DAY_OPTIONS = ["每日", "週一", "週二", "週三", "週四", "週五", "週六", "週日"];
+
+function fillSelectOptions(select, values) {
+  if (!select) return;
+  select.innerHTML = values
+    .map(value => `<option value="${value}">${value}</option>`)
+    .join("");
+}
+
+function syncAlternativeHoursBuilderMode() {
+  const modeSelect = document.getElementById("a-hours-mode");
+  const rangeRow = document.getElementById("a-hours-range-row");
+  const openSelect = document.getElementById("a-hours-open");
+  const closeSelect = document.getElementById("a-hours-close");
+  if (!modeSelect || !rangeRow || !openSelect || !closeSelect) return;
+
+  const is24Hours = modeSelect.value === "24h";
+  rangeRow.style.display = is24Hours ? "none" : "grid";
+  rangeRow.classList.toggle("range-row", !is24Hours);
+  openSelect.disabled = is24Hours;
+  closeSelect.disabled = is24Hours;
+}
+
+function appendAlternativeHoursEntry() {
+  const hoursInput = document.getElementById("a-hours");
+  const daySelect = document.getElementById("a-hours-day");
+  const modeSelect = document.getElementById("a-hours-mode");
+  const openSelect = document.getElementById("a-hours-open");
+  const closeSelect = document.getElementById("a-hours-close");
+  if (!hoursInput || !daySelect || !modeSelect || !openSelect || !closeSelect) return;
+
+  const dayLabel = daySelect.value || "每日";
+  const entry = modeSelect.value === "24h"
+    ? `${dayLabel} 24小時`
+    : `${dayLabel} ${openSelect.value}-${closeSelect.value}`;
+
+  const currentEntries = hoursInput.value
+    .split(" / ")
+    .map(item => item.trim())
+    .filter(Boolean)
+    .filter(item => item !== entry);
+
+  currentEntries.push(entry);
+  hoursInput.value = currentEntries.join(" / ");
+}
+
+function ensureAlternativeHoursControls() {
+  const daySelect = document.getElementById("a-hours-day");
+  const modeSelect = document.getElementById("a-hours-mode");
+  const openSelect = document.getElementById("a-hours-open");
+  const closeSelect = document.getElementById("a-hours-close");
+  const addButton = document.getElementById("a-hours-add-btn");
+  const clearButton = document.getElementById("a-hours-clear-btn");
+  const hoursInput = document.getElementById("a-hours");
+  if (!daySelect || !modeSelect || !openSelect || !closeSelect || !addButton || !clearButton || !hoursInput) return;
+  if (daySelect.dataset.ready === "true") {
+    syncAlternativeHoursBuilderMode();
+    return;
+  }
+
+  fillSelectOptions(daySelect, BUSINESS_HOUR_DAY_OPTIONS);
+  fillSelectOptions(openSelect, buildScheduleTimeOptions());
+  fillSelectOptions(closeSelect, buildScheduleTimeOptions());
+  openSelect.value = "09:00";
+  closeSelect.value = "18:00";
+
+  modeSelect.addEventListener("change", syncAlternativeHoursBuilderMode);
+  addButton.addEventListener("click", appendAlternativeHoursEntry);
+  clearButton.addEventListener("click", () => {
+    hoursInput.value = "";
+  });
+
+  daySelect.dataset.ready = "true";
+  syncAlternativeHoursBuilderMode();
+}
 function ensureScheduleTimeControls() {
   const originalInput = document.getElementById("s-time");
   if (!originalInput) return;
@@ -1687,7 +1762,7 @@ function renderAlternativeSpots() {
       card.innerHTML = `
         <div class="alt-card-header">
           <span class="alt-card-name">📍 ${escapeHTML(spot.name)}</span>
-          <span class="alt-card-badge">${escapeHTML(spot.subtype)}</span>
+          ${spot.subtype ? `<span class="alt-card-badge">${escapeHTML(spot.subtype)}</span>` : ""}
         </div>
         <div class="alt-card-meta">
           <div>⭐ 評分：<span class="star-badge">${escapeHTML(spot.rating)}</span></div>
@@ -1720,7 +1795,7 @@ function renderAlternativeSpots() {
       card.innerHTML = `
         <div class="alt-card-header">
           <span class="alt-card-name">🍜 ${escapeHTML(spot.name)}</span>
-          <span class="alt-card-badge">${escapeHTML(spot.subtype)}</span>
+          ${spot.subtype ? `<span class="alt-card-badge">${escapeHTML(spot.subtype)}</span>` : ""}
         </div>
         <div class="alt-card-meta">
           <div>⭐ 評分：<span class="star-badge">${escapeHTML(spot.rating)}</span></div>
@@ -2086,35 +2161,34 @@ function openAlternativeModal(typeGroup) {
   const modal = document.getElementById("alternative-modal");
   const form = document.getElementById("alt-form");
   const title = document.getElementById("alt-modal-title");
-  
+
   form.reset();
   document.getElementById("alt-id").value = "";
   document.getElementById("alt-type-group").value = typeGroup;
 
   title.innerText = typeGroup === "sights" ? "新增景點備案庫卡片" : "新增餐廳推薦備案卡片";
   syncAlternativeFieldCopy(typeGroup);
+  ensureAlternativeHoursControls();
+  syncAlternativeHoursBuilderMode();
   modal.classList.add("active");
 }
 
 function syncAlternativeFieldCopy(typeGroup) {
   const nameLabel = document.getElementById("a-name-label");
-  const subtypeLabel = document.getElementById("a-subtype-label");
   const nameInput = document.getElementById("a-name");
   const subtypeInput = document.getElementById("a-subtype");
-  if (!nameLabel || !subtypeLabel || !nameInput || !subtypeInput) return;
+  if (!nameLabel || !nameInput || !subtypeInput) return;
+
+  subtypeInput.value = "";
 
   if (typeGroup === "restaurants") {
     nameLabel.innerText = "餐廳名稱 *";
-    subtypeLabel.innerText = "想吃類型 / 備案主題 *";
-    nameInput.placeholder = "貼上 Google Maps 連結後，會自動帶入餐廳名稱";
-    subtypeInput.placeholder = "例如：吃冰、燒肉、咖啡廳、宵夜";
+    nameInput.placeholder = "例如：太陽牌冰品、阿明豬心";
     return;
   }
 
-  nameLabel.innerText = "備案景點/餐廳名稱 *";
-  subtypeLabel.innerText = "分類標籤 *";
+  nameLabel.innerText = "備案景點名稱 *";
   nameInput.placeholder = "例如：茶田35號、二延平步道";
-  subtypeInput.placeholder = "例如：下午茶甜點、景觀步道/賞日出";
 }
 
 function closeAlternativeModal() {
@@ -2126,9 +2200,8 @@ function handleAlternativeSubmit(e) {
   const trip = trips.find(t => t.id === activeTripId);
   if (!trip) return;
 
-  const typeGroup = document.getElementById("alt-type-group").value; // sights 或 restaurants
+  const typeGroup = document.getElementById("alt-type-group").value;
   const name = document.getElementById("a-name").value.trim();
-  const subtype = document.getElementById("a-subtype").value.trim();
   const rating = document.getElementById("a-rating").value.trim();
   const mapsUrl = document.getElementById("a-mapsurl").value.trim();
   const address = document.getElementById("a-address").value.trim();
@@ -2142,7 +2215,14 @@ function handleAlternativeSubmit(e) {
 
   const newItem = {
     id: "alt-" + Date.now(),
-    name, subtype, rating, mapsUrl, address, hours, price, notes
+    name,
+    subtype: "",
+    rating,
+    mapsUrl,
+    address,
+    hours,
+    price,
+    notes
   };
 
   trip.alternativeSpots[typeGroup].push(newItem);
@@ -2166,7 +2246,6 @@ window.deleteAlternative = function(id, typeGroup) {
   }
 };
 
-// 備案「加到行程」一鍵加入邏輯
 window.openAddToScheduleModal = function(name, notes, type) {
   const modal = document.getElementById("add-to-schedule-modal");
   const trip = trips.find(t => t.id === activeTripId);
@@ -5666,91 +5745,44 @@ async function setupAlternativeAutofill() {
   if (!url) return;
 
   const addressInput = document.getElementById("a-address");
-  const ratingInput = document.getElementById("a-rating");
-  const titleInput = document.getElementById("a-name");
-  const hoursInput = document.getElementById("a-hours");
-  const subtypeInput = document.getElementById("a-subtype");
   const typeGroup = document.getElementById("alt-type-group").value;
   const trip = trips.find(t => t.id === activeTripId);
-  if (!trip) return;
+  if (!trip || !addressInput) return;
 
   const requestId = ++alternativeAutofillRequestId;
-  const extractedName = extractPlaceNameFromUrl(url);
-  const lookupName = typeGroup === "restaurants"
-    ? (subtypeInput.value || extractedName || "")
-    : (titleInput.value || extractedName || "");
-  let foundSpot = findSpotByUrlOrName(url, lookupName, trip, { typeGroup });
-  const isShortGoogleLink = isGoogleShortMapsUrl(url);
-
-  const needsRemoteLookup = !!url && (
-    !foundSpot
-    || !foundSpot.address
-    || !foundSpot.rating
-    || !foundSpot.hours
-    || isShortGoogleLink
-  );
-
-  if (needsRemoteLookup) {
-    const remoteDetails = await fetchGooglePlaceDetails(url);
-    if (requestId !== alternativeAutofillRequestId || urlInput.value.trim() !== url) return;
-
-    const remoteMatch = buildPlaceMatchFromRemote(remoteDetails, typeGroup);
-    if (remoteMatch) {
-      foundSpot = mergePlaceMatchDetails(foundSpot, remoteMatch);
-      if (typeGroup === "restaurants") {
-        const remoteTheme = remoteMatch.name || "";
-        const remoteRestaurantName = remoteMatch.subtype || "";
-        if (remoteRestaurantName) {
-          titleInput.value = remoteRestaurantName;
-        }
-        if (
-          remoteTheme
-          && (!titleInput.value || titleInput.value === remoteRestaurantName || canReplaceAutofillValue(titleInput.value))
-        ) {
-          subtypeInput.value = remoteTheme;
-        }
-      }
-      rememberRemotePlaceDetails(remoteMatch, url);
-    }
+  const foundSpot = findSpotByUrlOrName(url, "", trip, { typeGroup });
+  if (foundSpot?.address && !addressInput.value) {
+    addressInput.value = foundSpot.address;
   }
 
-  if (foundSpot && applyPlaceMatchToAlternativeForm(foundSpot, typeGroup, {
-    addressInput,
-    ratingInput,
-    titleInput,
-    hoursInput,
-    subtypeInput
-  }, extractedName)) {
-    const displayName = typeGroup === "restaurants"
-      ? (foundSpot.subtype || foundSpot.name || "此餐廳")
-      : (foundSpot.name || "此備案");
-    showToast(`已帶入「${displayName}」的資料。`, "success");
+  const remoteDetails = await fetchGooglePlaceDetails(url);
+  if (requestId !== alternativeAutofillRequestId || urlInput.value.trim() !== url) return;
+
+  if (remoteDetails?.address) {
+    addressInput.value = remoteDetails.address;
+    rememberKnownPlace({
+      name: "",
+      subtype: "",
+      mapsUrl: url,
+      address: remoteDetails.address,
+      rating: "",
+      hours: ""
+    }, typeGroup);
+    showToast("已從 Google Maps 連結帶入地址。", "success");
     return;
   }
 
-  if (typeGroup === "restaurants" && extractedName) {
-    if (!titleInput.value) {
-      titleInput.value = extractedName;
-    }
-    if (!titleInput.value) {
-      titleInput.value = inferRestaurantThemeFromPlaceName(extractedName) || "美食清單";
-    }
-    showToast("已從 Google Maps 連結帶入餐廳名稱與主題；如果這次仍沒有其他欄位，代表 Google 端尚未成功解析。", "info");
+  if (foundSpot?.address) {
+    showToast("已帶入先前記住的地址。", "info");
     return;
   }
 
-  if (extractedName && !titleInput.value) {
-    titleInput.value = extractedName;
-    showToast("已從 Google Maps 連結帶入名稱，其餘資訊請再手動確認。", "info");
+  if (isGoogleShortMapsUrl(url)) {
+    showToast("這個 Google Maps 短網址這次沒有成功讀到地址，建議改貼展開後的完整網址。", "info");
     return;
   }
 
-  if (isShortGoogleLink) {
-    showToast("這個 Google Maps 短網址目前還沒解析出完整資料，建議稍後再試或改貼完整網址。", "info");
-    return;
-  }
-
-  showToast("目前還沒有解析到這家店的完整資訊，若您先手動補完並儲存，之後就會自動記住。", "info");
+  showToast("這次沒有自動抓到地址，您可以先手動貼上。", "info");
 }
 
 function openDaySummaryModal() {
