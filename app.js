@@ -5689,54 +5689,43 @@ async function setupScheduleAutofill() {
   if (!url) return;
 
   const addressInput = document.getElementById("s-address");
-  const ratingInput = document.getElementById("s-rating");
-  const titleInput = document.getElementById("s-title");
-  const hoursInput = document.getElementById("s-hours");
-  const typeSelect = document.getElementById("s-type");
   const trip = trips.find(t => t.id === activeTripId);
-  if (!trip) return;
+  if (!trip || !addressInput) return;
 
   const requestId = ++scheduleAutofillRequestId;
-  const extractedName = extractPlaceNameFromUrl(url);
-  let foundSpot = findSpotByUrlOrName(url, titleInput.value || extractedName, trip);
-  const isShortGoogleLink = isGoogleShortMapsUrl(url);
-
-  const needsRemoteLookup = !!url && (
-    !foundSpot
-    || !foundSpot.address
-    || !foundSpot.rating
-    || !foundSpot.hours
-    || isShortGoogleLink
-  );
-
-  if (needsRemoteLookup) {
-    const remoteDetails = await fetchGooglePlaceDetails(url);
-    if (requestId !== scheduleAutofillRequestId || urlInput.value.trim() !== url) return;
-
-    const remoteMatch = buildPlaceMatchFromRemote(remoteDetails);
-    if (remoteMatch) {
-      foundSpot = mergePlaceMatchDetails(foundSpot, remoteMatch);
-      rememberRemotePlaceDetails(remoteMatch, url);
-    }
+  const foundSpot = findSpotByUrlOrName(url, "", trip);
+  if (foundSpot?.address && !addressInput.value) {
+    addressInput.value = foundSpot.address;
   }
 
-  if (foundSpot && applyPlaceMatchToScheduleForm(foundSpot, { addressInput, ratingInput, titleInput, hoursInput, typeSelect })) {
-    showToast(`已帶入「${foundSpot.name || "此地點"}」的資料。`, "success");
+  const remoteDetails = await fetchGooglePlaceDetails(url);
+  if (requestId !== scheduleAutofillRequestId || urlInput.value.trim() !== url) return;
+
+  if (remoteDetails?.address) {
+    addressInput.value = remoteDetails.address;
+    rememberKnownPlace({
+      name: "",
+      subtype: "",
+      mapsUrl: url,
+      address: remoteDetails.address,
+      rating: "",
+      hours: ""
+    });
+    showToast("?? Google Maps ???????", "success");
     return;
   }
 
-  if (extractedName && !titleInput.value) {
-    titleInput.value = extractedName;
-    showToast("已從 Google Maps 連結帶入地點名稱，其餘資訊請再手動確認。", "info");
+  if (foundSpot?.address) {
+    showToast("???????????", "info");
     return;
   }
 
-  if (isShortGoogleLink) {
-    showToast("這個 Google Maps 短網址目前還沒解析出完整資料，建議稍後再試或改貼完整網址。", "info");
+  if (isGoogleShortMapsUrl(url)) {
+    showToast("?? Google Maps ???????????????????????????", "info");
     return;
   }
 
-  showToast("目前只能先帶入部分資訊；營業時間、評分與地址請再手動確認。", "info");
+  showToast("????????????????????", "info");
 }
 
 async function setupAlternativeAutofill() {
