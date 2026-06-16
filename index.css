@@ -3069,3 +3069,55 @@ footer {
   border-bottom: 3px dashed var(--accent-color);
   margin-bottom: 1rem;
 }
+
+/* 餐廳公休日選擇器與按鈕樣式 */
+.offdays-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.offday-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.offday-label input[type="checkbox"] {
+  display: none;
+}
+
+.offday-label span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background-color: var(--input-bg);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all var(--transition-speed);
+}
+
+.offday-label input[type="checkbox"]:checked + span {
+  background-color: var(--danger);
+  border-color: var(--danger);
+  color: #FFFFFF;
+  box-shadow: 0 2px 6px rgba(169, 74, 66, 0.4);
+}
+
+.offday-label:hover span {
+  border-color: var(--accent-color);
+  background-color: var(--accent-light);
+}
+
+.offday-label input[type="checkbox"]:checked:hover + span {
+  background-color: var(--danger);
+  opacity: 0.9;
+}

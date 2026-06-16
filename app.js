@@ -1765,6 +1765,7 @@ function renderAlternativeSpots() {
           <div>⭐ 評分：<span class="star-badge">${escapeHTML(spot.rating)}</span></div>
           ${spot.address ? `<div>🏠 地址：<span>${escapeHTML(spot.address)}</span></div>` : ''}
           ${spot.hours ? `<div>🕒 營業：<span>${escapeHTML(spot.hours)}</span></div>` : ''}
+          ${spot.offDays && spot.offDays.length > 0 ? `<div style="color:var(--danger); font-weight:600;">❌ 公休：<span>${escapeHTML(spot.offDays.join('、'))}</span></div>` : ''}
           ${spot.price ? `<div>🎫 價格：<span>${escapeHTML(spot.price)}</span></div>` : ''}
         </div>
         <p class="alt-card-notes">${escapeHTML(spot.notes || '暫無備註')}</p>
@@ -1798,6 +1799,7 @@ function renderAlternativeSpots() {
           <div>⭐ 評分：<span class="star-badge">${escapeHTML(spot.rating)}</span></div>
           ${spot.address ? `<div>🏠 地址：<span>${escapeHTML(spot.address)}</span></div>` : ''}
           ${spot.hours ? `<div>🕒 營業：<span>${escapeHTML(spot.hours)}</span></div>` : ''}
+          ${spot.offDays && spot.offDays.length > 0 ? `<div style="color:var(--danger); font-weight:600;">❌ 公休：<span>${escapeHTML(spot.offDays.join('、'))}</span></div>` : ''}
           ${spot.price ? `<div>💰 價額：<span>${escapeHTML(spot.price)}</span></div>` : ''}
         </div>
         <p class="alt-card-notes">${escapeHTML(spot.notes || '暫無備註')}</p>
@@ -2174,6 +2176,7 @@ function syncAlternativeFieldCopy(typeGroup) {
   const nameLabel = document.getElementById("a-name-label");
   const nameInput = document.getElementById("a-name");
   const subtypeInput = document.getElementById("a-subtype");
+  const offdaysGroup = document.getElementById("a-offdays-group");
   if (!nameLabel || !nameInput || !subtypeInput) return;
 
   subtypeInput.value = "";
@@ -2181,11 +2184,13 @@ function syncAlternativeFieldCopy(typeGroup) {
   if (typeGroup === "restaurants") {
     nameLabel.innerText = "餐廳名稱 *";
     nameInput.placeholder = "例如：太陽牌冰品、阿明豬心";
+    if (offdaysGroup) offdaysGroup.style.display = "flex";
     return;
   }
 
   nameLabel.innerText = "備案景點名稱 *";
   nameInput.placeholder = "例如：茶田35號、二延平步道";
+  if (offdaysGroup) offdaysGroup.style.display = "none";
 }
 
 function closeAlternativeModal() {
@@ -2206,6 +2211,14 @@ function handleAlternativeSubmit(e) {
   const price = document.getElementById("a-price").value.trim();
   const notes = document.getElementById("a-notes").value.trim();
 
+  // 取得勾選的公休日
+  const offDays = [];
+  if (typeGroup === "restaurants") {
+    document.querySelectorAll('input[name="a-offdays"]:checked').forEach(cb => {
+      offDays.push(cb.value);
+    });
+  }
+
   if (!trip.alternativeSpots) {
     trip.alternativeSpots = { sights: [], restaurants: [] };
   }
@@ -2219,7 +2232,8 @@ function handleAlternativeSubmit(e) {
     address,
     hours,
     price,
-    notes
+    notes,
+    offDays
   };
 
   trip.alternativeSpots[typeGroup].push(newItem);
