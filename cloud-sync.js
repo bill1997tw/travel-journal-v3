@@ -109,6 +109,51 @@
     window.voyageApp?.showToast?.(message, type);
   }
 
+  function getReadableAuthError(error) {
+    const message = String(error?.message || error?.description || "").trim();
+    if (!message) {
+      return "登入失敗，請再試一次。";
+    }
+
+    if (/redirect|redirect_to|redirect url|redirect_uri/i.test(message)) {
+      return "登入回跳網址未通過 Supabase 設定。請確認 Site URL、Redirect URLs，以及 Email Template 是否改用 {{ .RedirectTo }}。";
+    }
+
+    if (/invalid login credentials|email not confirmed/i.test(message)) {
+      return "此 Email 目前無法直接登入，請檢查信箱中的驗證信，或改用同一個登入方式。";
+    }
+
+    return `登入失敗：${message}`;
+  }
+
+  function getAuthCallbackErrorFromUrl() {
+    const hash = window.location.hash.startsWith("#")
+      ? new URLSearchParams(window.location.hash.slice(1))
+      : new URLSearchParams();
+    const search = new URLSearchParams(window.location.search);
+    const source = hash.get("error_description")
+      ? hash
+      : search.get("error_description")
+        ? search
+        : null;
+
+    if (!source) return "";
+
+    const description = source.get("error_description") || source.get("error") || "";
+    return description ? decodeURIComponent(description.replace(/\+/g, " ")) : "";
+  }
+
+  function surfaceAuthCallbackError() {
+    const message = getAuthCallbackErrorFromUrl();
+    if (!message) return;
+
+    setStatus("登入驗證失敗，請檢查雲端同步設定", "error");
+    showToast(getReadableAuthError({ message }), "error");
+
+    const cleanUrl = `${window.location.origin}${window.location.pathname}`;
+    window.history.replaceState({}, document.title, cleanUrl);
+  }
+
   function isCompactSyncUi() {
     return window.matchMedia("(max-width: 768px)").matches;
   }
@@ -418,14 +463,14 @@
 
     if (error) {
       console.warn("Email login failed:", error);
-      showToast("登入連結寄送失敗，請稍後再試。", "error");
+      showToast(getReadableAuthError(error), "error");
       return;
     }
 
     closeAuthModal();
     ui.emailForm.reset();
-    setStatus("登入連結已寄出，請回信箱開啟", "warn");
-    showToast("已寄出登入連結，請到信箱收信。", "success");
+    setStatus("登入信已寄出，請到信箱點擊連結完成登入", "warn");
+    showToast("登入信已寄出，請回到同一個瀏覽器完成登入。", "success");
   }
 
   async function handleInstallClick() {
@@ -470,8 +515,8 @@
     overlay.className = "cloud-auth-overlay";
     overlay.innerHTML = `
       <div class="cloud-auth-modal glass">
-        <h3>登入你的旅遊本</h3>
-        <p>輸入 Email 後，我們會寄一封登入連結給你。登入後，資料就能在手機與電腦之間同步。</p>
+        <h3>登入雲端同步</h3>
+        <p>輸入 Email 後，我們會寄一封登入連結給你。手機上若是從 LINE 或信箱內建瀏覽器開啟，建議改用 Safari 或 Chrome 完成登入，比較不會卡住。</p>
         <form class="cloud-auth-form" id="cloud-auth-form">
           <input type="email" class="cloud-auth-input" id="cloud-auth-email" placeholder="you@example.com" autocomplete="email" required>
           <div class="cloud-auth-footer">
@@ -539,8 +584,8 @@
     overlay.className = "cloud-auth-overlay";
     overlay.innerHTML = `
       <div class="cloud-auth-modal glass">
-        <h3>登入你的旅遊本</h3>
-        <p>輸入 Email 後，我們會寄一封登入連結給你。登入後，資料就能在手機與電腦之間同步。</p>
+        <h3>登入雲端同步</h3>
+        <p>輸入 Email 後，我們會寄一封登入連結給你。手機上若是從 LINE 或信箱內建瀏覽器開啟，建議改用 Safari 或 Chrome 完成登入，比較不會卡住。</p>
         <form class="cloud-auth-form" id="cloud-auth-form">
           <input type="email" class="cloud-auth-input" id="cloud-auth-email" placeholder="you@example.com" autocomplete="email" required>
           <div class="cloud-auth-footer">
@@ -664,6 +709,7 @@
   document.addEventListener("voyage:app-ready", () => {
     mountResponsiveUi();
     updateUi();
+    surfaceAuthCallbackError();
   });
 
   registerServiceWorker();
