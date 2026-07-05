@@ -261,6 +261,16 @@
 
   function shouldApplyRemoteState(record) {
     if (!record?.updated_at) return false;
+
+    // 安全防護：如果本機有旅程資料，但雲端是空的（可能是新裝置登入誤蓋掉雲端）
+    // 則不應讓雲端的空資料覆蓋本機資料，而是應該保留本機資料
+    const localTrips = safeParse(localStorage.getItem("voyage_trips"), []);
+    const remoteTrips = Array.isArray(record.trips) ? record.trips : [];
+    if (localTrips.length > 0 && remoteTrips.length === 0) {
+      console.warn("Safety check: Local has trips but remote is empty. Preventing overwrite.");
+      return false;
+    }
+
     const remoteEditedAt = Date.parse(record.updated_at);
     return remoteEditedAt > getLocalEditAt();
   }
@@ -644,10 +654,31 @@
     updateUi();
   }
 
+  function hasAnyLocalData() {
+    const trips = safeParse(localStorage.getItem("voyage_trips"), []);
+    const notes = safeParse(localStorage.getItem("voyage_quick_notes"), []);
+    const userName = localStorage.getItem("voyage_user_name");
+    const logoText = localStorage.getItem("voyage_logo_text");
+    const theme = localStorage.getItem("theme");
+
+    if (trips.length > 0) return true;
+    if (notes.length > 0) return true;
+    if (userName && userName !== DEFAULTS.userName) return true;
+    if (logoText && logoText !== DEFAULTS.logoText) return true;
+    if (theme && theme !== DEFAULTS.theme) return true;
+
+    return false;
+  }
+
   async function hydrateBeforeAppStart() {
     patchLocalStorage();
     if (!localStorage.getItem(LOCAL_EDIT_AT_KEY)) {
-      touchLocalEditAt();
+      if (hasAnyLocalData()) {
+        touchLocalEditAt();
+      } else {
+        // 沒有任何本機資料，編輯時間設為 0 (1970)
+        originalSetItem.call(localStorage, LOCAL_EDIT_AT_KEY, new Date(0).toISOString());
+      }
     }
 
     if (!hasCloudConfig()) {
@@ -662,7 +693,8 @@
     const remoteState = await fetchRemoteState();
     if (remoteState && shouldApplyRemoteState(remoteState)) {
       applyRemoteState(remoteState);
-    } else if (!remoteState) {
+    } else {
+      // 如果雲端沒有資料，或者本機資料較新/觸發安全防護，則將本機資料推上雲端
       await pushState({ silent: true });
     }
   }
