@@ -7,6 +7,7 @@
     "theme"
   ]);
   const LOCAL_EDIT_AT_KEY = "voyage_last_local_edit_at";
+  const REMOTE_PULL_INTERVAL_MS = 20000;
   const DEFAULTS = {
     logoText: "旅遊小本本",
     userName: "旅人",
@@ -19,6 +20,8 @@
   let currentUser = null;
   let isApplyingRemoteState = false;
   let syncTimer = null;
+  let remotePullTimer = null;
+  let remoteChannel = null;
   let installPromptEvent = null;
   let mobilePanelOpen = false;
   let ui = null;
@@ -173,13 +176,22 @@
       updateUi();
 
       if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        setupRemoteSyncChannel();
+        startRemotePullLoop();
         await syncAfterSignIn();
       }
 
       if (event === "SIGNED_OUT") {
+        teardownRemoteChannel();
+        stopRemotePullLoop();
         setStatus("已登出，資料保留在本機", "warn");
       }
     });
+
+    if (currentUser) {
+      setupRemoteSyncChannel();
+      startRemotePullLoop();
+    }
 
     return client;
   }
@@ -206,6 +218,72 @@
     if (!record?.updated_at) return false;
     const remoteEditedAt = Date.parse(record.updated_at);
     return remoteEditedAt > getLocalEditAt();
+  }
+
+  function stopRemotePullLoop() {
+    if (!remotePullTimer) return;
+    window.clearInterval(remotePullTimer);
+    remotePullTimer = null;
+  }
+
+  function teardownRemoteChannel() {
+    if (!client || !remoteChannel) return;
+    client.removeChannel(remoteChannel);
+    remoteChannel = null;
+  }
+
+  function rehydrateFromRemote(record) {
+    if (!record || !shouldApplyRemoteState(record)) return false;
+    applyRemoteState(record);
+    window.voyageApp?.rehydrateAndRender?.();
+    return true;
+  }
+
+  async function pullRemoteState(options = {}) {
+    if (!client || !currentUser || !navigator.onLine) return false;
+
+    const remoteState = await fetchRemoteState();
+    if (!remoteState) return false;
+
+    const applied = rehydrateFromRemote(remoteState);
+    if (applied && !options.silent) {
+      setStatus("\u5df2\u53d6\u5f97\u5176\u4ed6\u88dd\u7f6e\u7684\u6700\u65b0\u8cc7\u6599", "live");
+      if (!options.skipToast) {
+        showToast("\u5df2\u540c\u6b65\u5176\u4ed6\u88dd\u7f6e\u525b\u525b\u5132\u5b58\u7684\u6700\u65b0\u5167\u5bb9", "success");
+      }
+    }
+    return applied;
+  }
+
+  function startRemotePullLoop() {
+    stopRemotePullLoop();
+    if (!client || !currentUser) return;
+
+    remotePullTimer = window.setInterval(() => {
+      pullRemoteState({ silent: true, skipToast: true });
+    }, REMOTE_PULL_INTERVAL_MS);
+  }
+
+  function setupRemoteSyncChannel() {
+    teardownRemoteChannel();
+    if (!client || !currentUser?.id || typeof client.channel !== "function") return;
+
+    remoteChannel = client
+      .channel(`voyage-app-state:${currentUser.id}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: getTableName(),
+        filter: `user_id=eq.${currentUser.id}`
+      }, (payload) => {
+        const nextRecord = payload?.new;
+        if (!nextRecord || isApplyingRemoteState) return;
+
+        if (rehydrateFromRemote(nextRecord)) {
+          setStatus("\u5df2\u53d6\u5f97\u5176\u4ed6\u88dd\u7f6e\u7684\u6700\u65b0\u8cc7\u6599", "live");
+        }
+      })
+      .subscribe();
   }
 
   async function pushState(options = {}) {
@@ -260,9 +338,7 @@
   async function syncAfterSignIn() {
     const remoteState = await fetchRemoteState();
 
-    if (remoteState && shouldApplyRemoteState(remoteState)) {
-      applyRemoteState(remoteState);
-      window.voyageApp?.rehydrateAndRender?.();
+    if (remoteState && rehydrateFromRemote(remoteState)) {
       setStatus("已載入你的雲端旅程", "live");
       showToast("已載入你的雲端旅程。", "success");
       return;
@@ -565,6 +641,24 @@
     if (document.hidden) {
       pushState({ silent: true });
     }
+  });
+
+  window.addEventListener("online", () => {
+    pullRemoteState({ silent: true, skipToast: true });
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      pullRemoteState({ silent: true, skipToast: true });
+    }
+  });
+
+  window.addEventListener("focus", () => {
+    pullRemoteState({ silent: true, skipToast: true });
+  });
+
+  window.addEventListener("pageshow", () => {
+    pullRemoteState({ silent: true, skipToast: true });
   });
 
   document.addEventListener("voyage:app-ready", () => {
