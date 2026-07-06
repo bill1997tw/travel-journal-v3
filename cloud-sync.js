@@ -17,7 +17,6 @@
   const originalSetItem = Storage.prototype.setItem;
   const originalRemoveItem = Storage.prototype.removeItem;
   let client = null;
-  let currentUser = null;
   let isApplyingRemoteState = false;
   let syncTimer = null;
   let remotePullTimer = null;
@@ -41,7 +40,17 @@
   }
 
   function getTableName() {
-    return getConfig().appStateTable || "app_states";
+    return "sync_states";
+  }
+
+  function generateSyncCode() {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let code = "VOYAGE-";
+    for (let i = 0; i < 8; i++) {
+      if (i === 4) code += "-";
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
   }
 
   function safeParse(value, fallback) {
@@ -109,51 +118,6 @@
     window.voyageApp?.showToast?.(message, type);
   }
 
-  function getReadableAuthError(error) {
-    const message = String(error?.message || error?.description || "").trim();
-    if (!message) {
-      return "登入失敗，請再試一次。";
-    }
-
-    if (/redirect|redirect_to|redirect url|redirect_uri/i.test(message)) {
-      return "登入回跳網址未通過 Supabase 設定。請確認 Site URL、Redirect URLs，以及 Email Template 是否改用 {{ .RedirectTo }}。";
-    }
-
-    if (/invalid login credentials|email not confirmed/i.test(message)) {
-      return "此 Email 目前無法直接登入，請檢查信箱中的驗證信，或改用同一個登入方式。";
-    }
-
-    return `登入失敗：${message}`;
-  }
-
-  function getAuthCallbackErrorFromUrl() {
-    const hash = window.location.hash.startsWith("#")
-      ? new URLSearchParams(window.location.hash.slice(1))
-      : new URLSearchParams();
-    const search = new URLSearchParams(window.location.search);
-    const source = hash.get("error_description")
-      ? hash
-      : search.get("error_description")
-        ? search
-        : null;
-
-    if (!source) return "";
-
-    const description = source.get("error_description") || source.get("error") || "";
-    return description ? decodeURIComponent(description.replace(/\+/g, " ")) : "";
-  }
-
-  function surfaceAuthCallbackError() {
-    const message = getAuthCallbackErrorFromUrl();
-    if (!message) return;
-
-    setStatus("登入驗證失敗，請檢查雲端同步設定", "error");
-    showToast(getReadableAuthError({ message }), "error");
-
-    const cleanUrl = `${window.location.origin}${window.location.pathname}`;
-    window.history.replaceState({}, document.title, cleanUrl);
-  }
-
   function isCompactSyncUi() {
     return window.matchMedia("(max-width: 768px)").matches;
   }
@@ -185,18 +149,11 @@
       return;
     }
 
-    if (currentUser) {
-      ui.authBtn.textContent = "登出";
-      ui.syncBtn.hidden = false;
-      ui.installBtn.hidden = !installPromptEvent;
-      setStatus(`已登入 ${currentUser.email}`, navigator.onLine ? "live" : "warn");
-      return;
-    }
-
-    ui.authBtn.textContent = "登入同步";
-    ui.syncBtn.hidden = true;
+    const syncCode = localStorage.getItem("voyage_sync_code");
+    ui.authBtn.textContent = "金鑰同步設定";
+    ui.syncBtn.hidden = false;
     ui.installBtn.hidden = !installPromptEvent;
-    setStatus("本機模式，可登入後跨手機同步", "warn");
+    setStatus(`雲端同步中 (${syncCode})`, navigator.onLine ? "live" : "warn");
   }
 
   async function ensureClient() {
@@ -205,49 +162,29 @@
     }
 
     const config = getConfig();
-    client = window.supabase.createClient(config.url, getClientKey(), {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true
-      }
-    });
+    client = window.supabase.createClient(config.url, getClientKey());
 
-    const sessionResult = await client.auth.getSession();
-    currentUser = sessionResult.data.session?.user || null;
-
-    client.auth.onAuthStateChange(async (event, session) => {
-      currentUser = session?.user || null;
-      updateUi();
-
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-        setupRemoteSyncChannel();
-        startRemotePullLoop();
-        await syncAfterSignIn();
-      }
-
-      if (event === "SIGNED_OUT") {
-        teardownRemoteChannel();
-        stopRemotePullLoop();
-        setStatus("已登出，資料保留在本機", "warn");
-      }
-    });
-
-    if (currentUser) {
-      setupRemoteSyncChannel();
-      startRemotePullLoop();
+    // 初始化/取得金鑰
+    let syncCode = localStorage.getItem("voyage_sync_code");
+    if (!syncCode) {
+      syncCode = generateSyncCode();
+      localStorage.setItem("voyage_sync_code", syncCode);
     }
+
+    setupRemoteSyncChannel();
+    startRemotePullLoop();
 
     return client;
   }
 
   async function fetchRemoteState() {
-    if (!client || !currentUser) return null;
+    const syncCode = localStorage.getItem("voyage_sync_code");
+    if (!client || !syncCode) return null;
 
     const { data, error } = await client
       .from(getTableName())
-      .select("user_id, logo_text, user_name, theme, trips, quick_notes, updated_at")
-      .eq("user_id", currentUser.id)
+      .select("sync_code, logo_text, user_name, theme, trips, quick_notes, updated_at")
+      .eq("sync_code", syncCode)
       .maybeSingle();
 
     if (error) {
@@ -295,16 +232,16 @@
   }
 
   async function pullRemoteState(options = {}) {
-    if (!client || !currentUser || !navigator.onLine) return false;
+    if (!client || !navigator.onLine) return false;
 
     const remoteState = await fetchRemoteState();
     if (!remoteState) return false;
 
     const applied = rehydrateFromRemote(remoteState);
     if (applied && !options.silent) {
-      setStatus("\u5df2\u53d6\u5f97\u5176\u4ed6\u88dd\u7f6e\u7684\u6700\u65b0\u8cc7\u6599", "live");
+      setStatus("已取得其他裝置的最新資料", "live");
       if (!options.skipToast) {
-        showToast("\u5df2\u540c\u6b65\u5176\u4ed6\u88dd\u7f6e\u525b\u525b\u5132\u5b58\u7684\u6700\u65b0\u5167\u5bb9", "success");
+        showToast("已同步其他裝置剛剛儲存的最新內容", "success");
       }
     }
     return applied;
@@ -312,7 +249,7 @@
 
   function startRemotePullLoop() {
     stopRemotePullLoop();
-    if (!client || !currentUser) return;
+    if (!client) return;
 
     remotePullTimer = window.setInterval(() => {
       pullRemoteState({ silent: true, skipToast: true });
@@ -321,32 +258,34 @@
 
   function setupRemoteSyncChannel() {
     teardownRemoteChannel();
-    if (!client || !currentUser?.id || typeof client.channel !== "function") return;
+    const syncCode = localStorage.getItem("voyage_sync_code");
+    if (!client || !syncCode || typeof client.channel !== "function") return;
 
     remoteChannel = client
-      .channel(`voyage-app-state:${currentUser.id}`)
+      .channel(`voyage-app-state:${syncCode}`)
       .on("postgres_changes", {
         event: "*",
         schema: "public",
         table: getTableName(),
-        filter: `user_id=eq.${currentUser.id}`
+        filter: `sync_code=eq.${syncCode}`
       }, (payload) => {
         const nextRecord = payload?.new;
         if (!nextRecord || isApplyingRemoteState) return;
 
         if (rehydrateFromRemote(nextRecord)) {
-          setStatus("\u5df2\u53d6\u5f97\u5176\u4ed6\u88dd\u7f6e\u7684\u6700\u65b0\u8cc7\u6599", "live");
+          setStatus("已取得其他裝置的最新資料", "live");
         }
       })
       .subscribe();
   }
 
   async function pushState(options = {}) {
-    if (!client || !currentUser || isApplyingRemoteState) return false;
+    const syncCode = localStorage.getItem("voyage_sync_code");
+    if (!client || !syncCode || isApplyingRemoteState) return false;
 
     const silent = Boolean(options.silent);
     const payload = {
-      user_id: currentUser.id,
+      sync_code: syncCode,
       ...serializeLocalState()
     };
 
@@ -356,7 +295,7 @@
 
     const { data, error } = await client
       .from(getTableName())
-      .upsert(payload, { onConflict: "user_id" })
+      .upsert(payload, { onConflict: "sync_code" })
       .select("updated_at")
       .single();
 
@@ -381,7 +320,7 @@
   }
 
   function scheduleSync() {
-    if (!client || !currentUser || isApplyingRemoteState || !navigator.onLine) return;
+    if (!client || isApplyingRemoteState || !navigator.onLine) return;
 
     clearTimeout(syncTimer);
     setStatus("有新變更，準備同步", "warn");
@@ -390,16 +329,49 @@
     }, 900);
   }
 
-  async function syncAfterSignIn() {
-    const remoteState = await fetchRemoteState();
+  async function linkDevice(newCode) {
+    newCode = newCode.trim().toUpperCase();
+    if (!newCode) return;
 
-    if (remoteState && rehydrateFromRemote(remoteState)) {
-      setStatus("已載入你的雲端旅程", "live");
-      showToast("已載入你的雲端旅程。", "success");
+    setStatus("正在連結裝置...", "warn");
+
+    // 1. 取得該金鑰的雲端資料
+    const { data, error } = await client
+      .from(getTableName())
+      .select("sync_code, logo_text, user_name, theme, trips, quick_notes, updated_at")
+      .eq("sync_code", newCode)
+      .maybeSingle();
+
+    if (error) {
+      showToast("連結失敗，請檢查網路或金鑰是否正確。", "error");
+      setStatus("連結失敗", "error");
       return;
     }
 
-    await pushState({ silent: true });
+    // 2. 如果雲端有這組金鑰的資料
+    if (data) {
+      const localHasData = hasAnyLocalData();
+      let confirmLink = true;
+      if (localHasData) {
+        confirmLink = confirm(`偵測到金鑰 ${newCode} 內已有旅程資料，是否要載入它並【覆蓋】目前本機的旅程資料？\n（注意：本機目前的資料將會被清除，此動作無法復原）`);
+      }
+
+      if (confirmLink) {
+        localStorage.setItem("voyage_sync_code", newCode);
+        applyRemoteState(data);
+        window.voyageApp?.rehydrateAndRender?.();
+        showToast("連結成功！已載入雲端資料。", "success");
+      }
+    } else {
+      // 3. 如果雲端沒有這組金鑰（全新金鑰），問使用者是否要把目前本機的資料用這組金鑰上傳
+      const confirmCreate = confirm(`雲端查無金鑰 ${newCode} 的資料。您是否要以此金鑰建立新備份，並將目前的旅程資料推上雲端？`);
+      if (confirmCreate) {
+        localStorage.setItem("voyage_sync_code", newCode);
+        await pushState();
+        showToast(`已成功建立金鑰 ${newCode} 並上傳本機資料！`, "success");
+      }
+    }
+    updateUi();
   }
 
   function patchLocalStorage() {
@@ -430,6 +402,9 @@
 
   function openAuthModal() {
     if (!ui) return;
+    const syncCode = localStorage.getItem("voyage_sync_code") || "";
+    ui.codeDisplay.value = syncCode;
+    ui.emailInput.value = "";
     ui.authOverlay.classList.add("is-open");
     ui.emailInput.focus();
   }
@@ -443,44 +418,17 @@
     }
 
     await ensureClient();
-
-    if (currentUser) {
-      await client.auth.signOut();
-      showToast("已登出雲端同步。", "info");
-      return;
-    }
-
     openAuthModal();
   }
 
-  async function handleEmailLogin(event) {
+  async function handleCodeSubmit(event) {
     event.preventDefault();
-
-    const email = ui.emailInput.value.trim();
-    if (!email) {
-      showToast("請先輸入 Email。", "info");
-      return;
-    }
+    const newCode = ui.emailInput.value.trim().toUpperCase();
+    if (!newCode) return;
 
     await ensureClient();
-
-    const { error } = await client.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}${window.location.pathname}`
-      }
-    });
-
-    if (error) {
-      console.warn("Email login failed:", error);
-      showToast(getReadableAuthError(error), "error");
-      return;
-    }
-
+    await linkDevice(newCode);
     closeAuthModal();
-    ui.emailForm.reset();
-    setStatus("登入信已寄出，請到信箱點擊連結完成登入", "warn");
-    showToast("登入信已寄出，請回到同一個瀏覽器完成登入。", "success");
   }
 
   async function handleInstallClick() {
@@ -502,67 +450,6 @@
     });
   }
 
-  function mountUi() {
-    if (ui || !document.querySelector(".header-actions")) return;
-
-    const headerActions = document.querySelector(".header-actions");
-    const wrapper = document.createElement("div");
-    wrapper.className = "cloud-sync-panel";
-    wrapper.innerHTML = `
-      <div class="cloud-sync-copy">
-        <span class="cloud-sync-title">雲端同步</span>
-        <span class="cloud-sync-status" id="cloud-sync-status">準備中...</span>
-      </div>
-      <div class="cloud-sync-actions">
-        <button type="button" class="btn btn-secondary cloud-sync-btn" id="cloud-auth-btn">登入同步</button>
-        <button type="button" class="btn btn-secondary cloud-sync-btn" id="cloud-sync-now-btn" hidden>立即同步</button>
-        <button type="button" class="btn btn-secondary cloud-sync-btn" id="cloud-install-btn" hidden>安裝 App</button>
-      </div>
-    `;
-    headerActions.insertBefore(wrapper, headerActions.firstChild);
-
-    const overlay = document.createElement("div");
-    overlay.className = "cloud-auth-overlay";
-    overlay.innerHTML = `
-      <div class="cloud-auth-modal glass">
-        <h3>登入雲端同步</h3>
-        <p>輸入 Email 後，我們會寄一封登入連結給你。手機上若是從 LINE 或信箱內建瀏覽器開啟，建議改用 Safari 或 Chrome 完成登入，比較不會卡住。</p>
-        <form class="cloud-auth-form" id="cloud-auth-form">
-          <input type="email" class="cloud-auth-input" id="cloud-auth-email" placeholder="you@example.com" autocomplete="email" required>
-          <div class="cloud-auth-footer">
-            <button type="button" class="btn btn-secondary" id="cloud-auth-cancel">取消</button>
-            <button type="submit" class="btn btn-primary">寄送登入連結</button>
-          </div>
-        </form>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-
-    ui = {
-      authBtn: wrapper.querySelector("#cloud-auth-btn"),
-      syncBtn: wrapper.querySelector("#cloud-sync-now-btn"),
-      installBtn: wrapper.querySelector("#cloud-install-btn"),
-      status: wrapper.querySelector("#cloud-sync-status"),
-      authOverlay: overlay,
-      emailForm: overlay.querySelector("#cloud-auth-form"),
-      emailInput: overlay.querySelector("#cloud-auth-email"),
-      cancelBtn: overlay.querySelector("#cloud-auth-cancel")
-    };
-
-    ui.authBtn.addEventListener("click", handleAuthButtonClick);
-    ui.syncBtn.addEventListener("click", () => pushState());
-    ui.installBtn.addEventListener("click", handleInstallClick);
-    ui.emailForm.addEventListener("submit", handleEmailLogin);
-    ui.cancelBtn.addEventListener("click", closeAuthModal);
-    ui.authOverlay.addEventListener("click", (event) => {
-      if (event.target === ui.authOverlay) {
-        closeAuthModal();
-      }
-    });
-
-    updateUi();
-  }
-
   function mountResponsiveUi() {
     if (ui || !document.querySelector(".header-actions")) return;
 
@@ -582,7 +469,7 @@
           <span class="cloud-sync-status" id="cloud-sync-status">準備中...</span>
         </div>
         <div class="cloud-sync-actions">
-          <button type="button" class="btn btn-secondary cloud-sync-btn" id="cloud-auth-btn">登入同步</button>
+          <button type="button" class="btn btn-secondary cloud-sync-btn" id="cloud-auth-btn">金鑰同步</button>
           <button type="button" class="btn btn-secondary cloud-sync-btn" id="cloud-sync-now-btn" hidden>立即同步</button>
           <button type="button" class="btn btn-secondary cloud-sync-btn" id="cloud-install-btn" hidden>安裝 App</button>
         </div>
@@ -593,14 +480,26 @@
     const overlay = document.createElement("div");
     overlay.className = "cloud-auth-overlay";
     overlay.innerHTML = `
-      <div class="cloud-auth-modal glass">
-        <h3>登入雲端同步</h3>
-        <p>輸入 Email 後，我們會寄一封登入連結給你。手機上若是從 LINE 或信箱內建瀏覽器開啟，建議改用 Safari 或 Chrome 完成登入，比較不會卡住。</p>
+      <div class="cloud-auth-modal glass" style="max-width: 460px;">
+        <h3>金鑰碼雲端同步</h3>
+        <p style="font-size: 0.88rem; margin-bottom: 1.25rem; color: var(--text-secondary);">不需要帳號密碼，只要輸入或複製下方金鑰，即可在多個裝置間同步您的旅遊小本本！</p>
+        
+        <div style="background: var(--bg-body); border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem; border: 1px dashed var(--accent-color);">
+          <label style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.25rem;">🔑 這台裝置的金鑰：</label>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <input type="text" class="cloud-auth-input" id="cloud-sync-code-display" readonly style="margin: 0; font-family: monospace; font-weight: bold; letter-spacing: 1px; background: rgba(0,0,0,0.05); text-align: center; font-size: 1.1rem; border-color: var(--border-color); color: var(--accent-color);">
+            <button type="button" class="btn btn-secondary" id="cloud-copy-code-btn" style="padding: 0.5rem 1rem; flex-shrink: 0;">複製</button>
+          </div>
+        </div>
+
         <form class="cloud-auth-form" id="cloud-auth-form">
-          <input type="email" class="cloud-auth-input" id="cloud-auth-email" placeholder="you@example.com" autocomplete="email" required>
-          <div class="cloud-auth-footer">
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label for="cloud-auth-code" style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 0.5rem;">🔗 連結其他裝置的金鑰：</label>
+            <input type="text" class="cloud-auth-input" id="cloud-auth-code" placeholder="例如: VOYAGE-XXXX-XXXX" autocomplete="off" required style="text-transform: uppercase; font-family: monospace; text-align: center; font-size: 1.1rem; letter-spacing: 1px;">
+          </div>
+          <div class="cloud-auth-footer" style="display: flex; gap: 0.75rem; justify-content: flex-end;">
             <button type="button" class="btn btn-secondary" id="cloud-auth-cancel">取消</button>
-            <button type="submit" class="btn btn-primary">寄送登入連結</button>
+            <button type="submit" class="btn btn-primary">確認連結</button>
           </div>
         </form>
       </div>
@@ -618,8 +517,10 @@
       status: shell.querySelector("#cloud-sync-status"),
       authOverlay: overlay,
       emailForm: overlay.querySelector("#cloud-auth-form"),
-      emailInput: overlay.querySelector("#cloud-auth-email"),
-      cancelBtn: overlay.querySelector("#cloud-auth-cancel")
+      emailInput: overlay.querySelector("#cloud-auth-code"),
+      cancelBtn: overlay.querySelector("#cloud-auth-cancel"),
+      codeDisplay: overlay.querySelector("#cloud-sync-code-display"),
+      copyBtn: overlay.querySelector("#cloud-copy-code-btn")
     };
 
     ui.toggleBtn.addEventListener("click", () => {
@@ -632,8 +533,16 @@
       pushState();
     });
     ui.installBtn.addEventListener("click", handleInstallClick);
-    ui.emailForm.addEventListener("submit", handleEmailLogin);
+    ui.emailForm.addEventListener("submit", handleCodeSubmit);
     ui.cancelBtn.addEventListener("click", closeAuthModal);
+    ui.copyBtn.addEventListener("click", () => {
+      const code = ui.codeDisplay.value;
+      navigator.clipboard.writeText(code).then(() => {
+        showToast("已複製同步金鑰至剪貼簿！", "success");
+      }).catch(() => {
+        showToast("複製失敗，請手動複製。", "warn");
+      });
+    });
     ui.authOverlay.addEventListener("click", (event) => {
       if (event.target === ui.authOverlay) {
         closeAuthModal();
@@ -676,7 +585,6 @@
       if (hasAnyLocalData()) {
         touchLocalEditAt();
       } else {
-        // 沒有任何本機資料，編輯時間設為 0 (1970)
         originalSetItem.call(localStorage, LOCAL_EDIT_AT_KEY, new Date(0).toISOString());
       }
     }
@@ -686,23 +594,14 @@
     }
 
     await ensureClient();
-    if (!currentUser) {
-      return;
-    }
 
     const remoteState = await fetchRemoteState();
     if (remoteState && shouldApplyRemoteState(remoteState)) {
       applyRemoteState(remoteState);
     } else {
-      // 如果雲端沒有資料，或者本機資料較新/觸發安全防護，則將本機資料推上雲端
       await pushState({ silent: true });
     }
   }
-
-  window.addEventListener("online", () => {
-    setStatus("已重新連線，準備同步", "warn");
-    scheduleSync();
-  });
 
   window.addEventListener("offline", () => {
     setStatus("離線中，先存本機，恢復網路後再同步", "warn");
@@ -741,7 +640,6 @@
   document.addEventListener("voyage:app-ready", () => {
     mountResponsiveUi();
     updateUi();
-    surfaceAuthCallbackError();
   });
 
   registerServiceWorker();
