@@ -1019,10 +1019,15 @@ function setupEventListeners() {
   document.getElementById("repay-modal-cancel").addEventListener("click", closeRepayModal);
   document.getElementById("repay-form").addEventListener("submit", handleRepaySubmit);
 
-  // 故事日記
-  document.getElementById("ws-diary-import-cost-btn").addEventListener("click", handleDiaryImportCost);
-  document.getElementById("ws-diary-save-btn").addEventListener("click", handleDiarySave);
-  document.getElementById("ws-diary-hashtag-add-btn").addEventListener("click", handleDiaryHashtagAdd);
+  // 故事日記 (已於 UI 移除，添加安全保護以防 null 報錯)
+  const diaryImportCostBtn = document.getElementById("ws-diary-import-cost-btn");
+  if (diaryImportCostBtn) diaryImportCostBtn.addEventListener("click", handleDiaryImportCost);
+
+  const diarySaveBtn = document.getElementById("ws-diary-save-btn");
+  if (diarySaveBtn) diarySaveBtn.addEventListener("click", handleDiarySave);
+
+  const diaryHashtagAddBtn = document.getElementById("ws-diary-hashtag-add-btn");
+  if (diaryHashtagAddBtn) diaryHashtagAddBtn.addEventListener("click", handleDiaryHashtagAdd);
 
   document.querySelectorAll(".diary-mode-btn").forEach(btn => {
     btn.addEventListener("click", () => setDiaryMode(btn.getAttribute("data-diary-mode")));
@@ -1035,12 +1040,17 @@ function setupEventListeners() {
   // 日記照片上傳
   const dPlaceholder = document.getElementById("ws-diary-upload-placeholder");
   const dFileInput = document.getElementById("ws-diary-image-file");
-  dPlaceholder.addEventListener("click", () => dFileInput.click());
-  document.getElementById("ws-diary-preview-img").addEventListener("click", () => dFileInput.click());
-  dFileInput.addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (file) handleImageUpload(file, "ws-diary-image-base64", "ws-diary-preview-img", "ws-diary-upload-placeholder");
-  });
+  if (dPlaceholder) dPlaceholder.addEventListener("click", () => dFileInput && dFileInput.click());
+  
+  const diaryPreviewImg = document.getElementById("ws-diary-preview-img");
+  if (diaryPreviewImg) diaryPreviewImg.addEventListener("click", () => dFileInput && dFileInput.click());
+  
+  if (dFileInput) {
+    dFileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) handleImageUpload(file, "ws-diary-image-base64", "ws-diary-preview-img", "ws-diary-upload-placeholder");
+    });
+  }
 
   // 日記評分星級
   document.querySelectorAll("#ws-diary-rating-stars .ws-star").forEach(star => {
@@ -1065,12 +1075,15 @@ function setupEventListeners() {
     field.addEventListener("change", updateDiaryPreview);
   });
 
-  document.getElementById("ws-diary-hashtag-input").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleDiaryHashtagAdd();
-    }
-  });
+  const diaryHashtagInput = document.getElementById("ws-diary-hashtag-input");
+  if (diaryHashtagInput) {
+    diaryHashtagInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleDiaryHashtagAdd();
+      }
+    });
+  }
 
   // 票券與備忘錄相關事件
   const wsAddVoucherBtn = document.getElementById("ws-add-voucher-btn");
