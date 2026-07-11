@@ -3052,6 +3052,7 @@ function renderWorkspaceBudget() {
   tbody.innerHTML = "";
 
   let expenseTotal = 0;
+  let subtotalTotal = 0;
   let mePaidSum = 0;
   let friendPaidSum = 0;
 
@@ -3079,9 +3080,10 @@ function renderWorkspaceBudget() {
       const qty = parseInt(item.splitCount) || 1;
       const subtotal = price; // 價格欄位為整筆總額，或小計，我們以 item.cost 作為總額
       expenseTotal += subtotal;
+      subtotalTotal += Math.round(price / qty);
 
       // 智慧備註與連結縮減處理
-      let notesHtml = escapeHTML(item.notes || '—');
+      let notesHtml = escapeHTML(item.notes || '').trim();
       const urlRegex = /(https?:\/\/[^\s]+)/g;
       const urls = item.notes ? item.notes.match(urlRegex) : null;
       let linkHtml = "";
@@ -3095,19 +3097,19 @@ function renderWorkspaceBudget() {
           }
           linkHtml += `<a href="${url}" target="_blank" class="expense-map-link" style="margin-left:6px; padding:0.2rem 0.45rem; font-size:0.75rem; border-radius:4px; background:var(--badge-bg); color:var(--accent-color); text-decoration:none; display:inline-block; vertical-align:middle; white-space:nowrap;">${btnLabel}</a>`;
         });
-      }
-      
-      if (!urls) {
-        linkHtml += `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.name)}" target="_blank" class="expense-map-link" style="margin-left:6px; font-size:0.75rem; color:var(--text-secondary); text-decoration:none; display:inline-block; vertical-align:middle; white-space:nowrap;">🔍 搜尋</a>`;
+      } else {
+        // 沒有連結，改為【➕ 新增連結】按鈕，點擊開啟編輯視窗
+        linkHtml += `<button onclick="openExpenseModal('${item.id}')" class="expense-map-link" style="margin-left:6px; border:none; background:rgba(0,0,0,0.04); color:var(--text-secondary); padding:0.2rem 0.45rem; font-size:0.75rem; border-radius:4px; cursor:pointer; font-family:inherit; display:inline-block; vertical-align:middle; white-space:nowrap;">➕ 新增連結</button>`;
       }
 
       notesHtml = notesHtml.replace(/^[\,\s—]+|[\,\s—]+$/g, '').trim();
-      if (!notesHtml) notesHtml = "—";
-
-      const fullNotesCellHtml = `<div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHTML(item.notes || '—')}">
-        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${notesHtml}</span>
-        ${linkHtml}
-      </div>`;
+      
+      let cellContentHtml = "";
+      if (notesHtml) {
+        cellContentHtml = `<span style="color:var(--text-primary); font-weight:500; font-size:0.82rem; vertical-align:middle; display:inline-block; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${notesHtml}">${notesHtml}</span>${linkHtml}`;
+      } else {
+        cellContentHtml = linkHtml;
+      }
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
@@ -3117,7 +3119,7 @@ function renderWorkspaceBudget() {
         <td style="text-align:left; font-family:'Outfit';">NT$ ${price.toLocaleString()}</td>
         <td style="text-align:center;">${qty} 人分</td>
         <td style="text-align:left; font-weight:700; color:var(--accent-color); font-family:'Outfit';">NT$ ${Math.round(price / qty).toLocaleString()}</td>
-        <td style="font-size:0.8rem;">${fullNotesCellHtml}</td>
+        <td style="font-size:0.8rem; text-align:left;">${cellContentHtml}</td>
         <td style="text-align:center;">
           <div class="card-actions" style="justify-content:center; gap:0.25rem;">
             <button class="btn-icon" onclick="openExpenseModal('${item.id}')" style="width:1.8rem; height:1.8rem; padding:0; display:inline-flex; align-items:center; justify-content:center;">
@@ -3138,7 +3140,7 @@ function renderWorkspaceBudget() {
       <td colspan="2"></td>
       <td style="text-align:left; font-family:'Outfit';">NT$ ${expenseTotal.toLocaleString()}</td>
       <td></td>
-      <td style="text-align:left; font-family:'Outfit'; color:var(--accent-color);">—</td>
+      <td style="text-align:left; font-family:'Outfit'; color:var(--accent-color); font-weight:700;">NT$ ${subtotalTotal.toLocaleString()}</td>
       <td colspan="2">（整趟行程每人預算參考）</td>
     `;
     tbody.appendChild(totalTr);
