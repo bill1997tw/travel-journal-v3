@@ -882,6 +882,15 @@ function setupEventListeners() {
   document.getElementById("trips-add-btn").addEventListener("click", () => openTripEditorModal());
   document.getElementById("trip-modal-close").addEventListener("click", closeTripEditorModal);
   document.getElementById("trip-modal-cancel").addEventListener("click", closeTripEditorModal);
+  
+  // 隨行人數變更連動輸入框
+  const travelersCountSelect = document.getElementById("t-travelers-count");
+  if (travelersCountSelect) {
+    travelersCountSelect.addEventListener("change", (e) => {
+      const count = parseInt(e.target.value) || 1;
+      renderTripMemberInputs(count);
+    });
+  }
 
   // 旅程封面照片上傳
   const tUploadZone = document.getElementById("t-upload-zone");
@@ -3216,87 +3225,103 @@ function renderWorkspaceBudget() {
     });
   }
 
-  // 4. 計算債務清算關係 (極致 N 人分帳)
-  // 設定此行旅伴人數
-  const travelersCount = parseInt(trip.travelers) || 2; 
+  // 4. 計算債務清算關係 (隨隨行成員智慧分帳)
+  const members = trip.members && trip.members.length > 0 ? trip.members.map(m => m.trim()) : ["我", "旅伴"];
+  const travelersCount = members.length;
 
-  // 我們以 advances 進行分帳：
-  // 假設群組共有 N 個人。在代墊款項中，有朋友（例如：翔翔、郁魚）和 我 墊付。
-  // 我們算「我付款」與「朋友付款」的債務抵銷。
-  // 若 User 為「我」(me)，則 User 的代墊款項為 `payer === "我" || payer === "me" || payer.toLowerCase() === "user"`
+  // 初始化每個成員的餘額為 0
+  const balances = {};
+  members.forEach(m => balances[m] = 0);
+
   let userPaidTotal = 0;
   let othersPaidTotal = 0;
-  const friendsLedger = {}; // friendName => net amount (User owes Friend if positive, Friend owes User if negative)
 
-  // 計算每個人對 Advances 的代墊貢獻
-  // 阿里山為例：翔翔代墊住宿 5400 (5人分)，郁魚代墊車票 750 (5人分)。
-  // 對翔翔代墊的 5400，每人分攤 1080。因為翔翔是 payer，其他 4 個人每人欠翔翔 1080。User 欠翔翔 1080。
-  // 對郁魚代墊的 750，每人分攤 150。User 欠郁魚 150。
-  // 若 User 代墊 A，每人分攤 A/N。朋友每人欠 User A/N。
-  
+  // 識別 "我" 對應的成員名字
+  const userMember = members.find(m => m === "我" || m.toLowerCase() === "me" || m.toLowerCase() === "user") || members[0] || "我";
+
   advances.forEach(adv => {
     const amt = parseInt(adv.amount) || 0;
     const split = parseInt(adv.splitCount) || travelersCount;
-    const share = amt / split;
     const payer = adv.payer.trim();
 
-    const isUser = payer === "我" || payer === "me" || payer.toLowerCase() === "user" || payer === "User";
-
-    if (isUser) {
+    if (payer === userMember) {
       userPaidTotal += amt;
-      // 朋友們均分這筆錢
-      // 對於 Advances 列表，若我付了 A 且由 N 人均分。則除了我以外的 (N-1) 個人，每人欠我 A/N。
-      // 我們可以用一個虛擬的好友集體（朋友）來欠我。
-      // 或者如果有具體代墊，我們把它分攤到出現在 Advances 中的朋友或設定的旅伴。
-      // 為了簡單且與 Excel 邏輯一致，我們將「我支付」的份額除了自己外，剩下的分攤給朋友。
-      // 假設主要代墊對象為 Advances 出現的其他人。
-      // 如果 Advances 中只有翔翔和郁魚，那麼債務直接抵消：
-      // User 欠翔翔 = 翔翔代墊的個人分攤額。
-      // User 欠郁魚 = 郁魚代墊的個人分攤額。
-      // 翔翔、郁魚 欠 User = User 代墊的總額 / N。
     } else {
       othersPaidTotal += amt;
-      // User 欠 payer 錢
-      friendsLedger[payer] = (friendsLedger[payer] || 0) + share;
+    }
+
+    if (balances[payer] === undefined) {
+      balances[payer] = 0;
+    }
+    balances[payer] += amt;
+
+    // 這筆錢由多少人分攤？扣除所有參與成員的分攤份額
+    const share = amt / split;
+    members.forEach((m, idx) => {
+      if (idx < split) {
+        balances[m] -= share;
+      }
+    });
+  });
+
+  // 計算債務清算 (標準多方分帳Settlement)
+  const creditors = [];
+  const debtors = [];
+  Object.entries(balances).forEach(([name, bal]) => {
+    if (bal > 0.5) {
+      creditors.push({ name, amount: bal });
+    } else if (bal < -0.5) {
+      debtors.push({ name, amount: Math.abs(bal) });
     }
   });
 
-  // 分發 User 的代墊款項給所有其他朋友 (均分)
-  const uniqueFriends = Object.keys(friendsLedger);
-  const friendsCount = uniqueFriends.length || (travelersCount - 1) || 1;
-  const userShare = userPaidTotal / travelersCount;
-  
-  uniqueFriends.forEach(friend => {
-    // 該朋友應該分攤 User 墊付的 (UserPaidTotal / TravelersCount)
-    friendsLedger[friend] -= userShare;
-  });
+  creditors.sort((a, b) => b.amount - a.amount);
+  debtors.sort((a, b) => b.amount - a.amount);
+
+  const repayments = [];
+  let cIdx = 0;
+  let dIdx = 0;
+
+  while (cIdx < creditors.length && dIdx < debtors.length) {
+    const creditor = creditors[cIdx];
+    const debtor = debtors[dIdx];
+
+    const settleAmount = Math.min(creditor.amount, debtor.amount);
+    repayments.push({
+      from: debtor.name,
+      to: creditor.name,
+      amount: Math.round(settleAmount)
+    });
+
+    creditor.amount -= settleAmount;
+    debtor.amount -= settleAmount;
+
+    if (creditor.amount < 0.5) cIdx++;
+    if (debtor.amount < 0.5) dIdx++;
+  }
 
   // 渲染債務結果
   const settlementDiv = document.getElementById("ws-ledger-settlement-render");
   settlementDiv.innerHTML = "";
 
-  // 計算累計總花費 (為 expenses 總計與 advances 總計的總和)
-  const grandTotalBudget = expenseTotal; // 以費用明細為總開銷
+  // 計算累計總花費
+  const grandTotalBudget = expenseTotal; 
   document.getElementById("ws-ledger-grand-total").innerText = `NT$ ${grandTotalBudget.toLocaleString()}`;
-  document.getElementById("ws-ledger-payer-summary").innerText = `由我支付(明細個人)：NT$ ${(expenses.filter(e=>e.splitCount === 1).reduce((s,i)=>s+i.cost,0) + userShare).toLocaleString()} | 同行代墊累計：NT$ ${(userPaidTotal + othersPaidTotal).toLocaleString()}`;
+
+  // 計算我的分攤份額
+  const userShare = userPaidTotal / travelersCount;
+  const userPersonalCost = expenses.filter(e => e.splitCount === 1).reduce((s, i) => s + i.cost, 0);
+  document.getElementById("ws-ledger-payer-summary").innerText = `由【${userMember}】支付：NT$ ${(userPersonalCost + userPaidTotal).toLocaleString()} | 旅伴分攤金額：NT$ ${userShare.toLocaleString()} | 同行代墊累計：NT$ ${(userPaidTotal + othersPaidTotal).toLocaleString()}`;
 
   let settlementHtml = "";
-  let hasDebt = false;
-
-  Object.entries(friendsLedger).forEach(([friendName, balance]) => {
-    if (Math.abs(balance) < 1) return; // 忽略極小餘額
-    hasDebt = true;
-
-    if (balance > 0) {
-      settlementHtml += `<div class="debt-highlight red" style="font-size:0.95rem; margin-bottom:0.35rem;">您需要向【${escapeHTML(friendName)}】還款：<strong>NT$ ${Math.round(balance).toLocaleString()} 元</strong></div>`;
-    } else {
-      settlementHtml += `<div class="debt-highlight green" style="font-size:0.95rem; margin-bottom:0.35rem;">【${escapeHTML(friendName)}】需要向您支付：<strong>NT$ ${Math.round(Math.abs(balance)).toLocaleString()} 元</strong></div>`;
-    }
-  });
-
-  if (!hasDebt) {
+  if (repayments.length === 0) {
     settlementDiv.innerHTML = `<div class="debt-highlight neutral" style="font-size:0.95rem;">同行代墊結算平衡，互不相欠 🤝</div>`;
   } else {
+    repayments.forEach(rep => {
+      settlementHtml += `<div class="debt-highlight red" style="font-size:0.95rem; margin-bottom:0.35rem;">
+        【${escapeHTML(rep.from)}】需要向【${escapeHTML(rep.to)}】還款：<strong>NT$ ${rep.amount.toLocaleString()} 元</strong>
+      </div>`;
+    });
     settlementDiv.innerHTML = settlementHtml;
   }
 }
@@ -3329,12 +3354,14 @@ function openExpenseModal(itemId = null) {
     const datalist = document.getElementById("payer-list");
     if (datalist) {
       datalist.innerHTML = "";
-      const existingPayers = new Set(["我", "翔翔", "郁魚"]); // 預設建議值
-      if (trip.advances) {
-        trip.advances.forEach(a => { if (a.payer) existingPayers.add(a.payer.trim()); });
-      }
-      if (trip.repayInfo) {
-        trip.repayInfo.forEach(r => { if (r.name) existingPayers.add(r.name.trim()); });
+      const existingPayers = new Set();
+      if (trip.members && trip.members.length > 0) {
+        trip.members.forEach(name => { if (name) existingPayers.add(name.trim()); });
+      } else {
+        existingPayers.add("我");
+        if (trip.advances) {
+          trip.advances.forEach(a => { if (a.payer) existingPayers.add(a.payer.trim()); });
+        }
       }
       existingPayers.forEach(name => {
         const opt = document.createElement("option");
@@ -3361,6 +3388,12 @@ function openExpenseModal(itemId = null) {
     }
   } else {
     title.innerText = "新增旅程消費支出";
+    if (trip) {
+      const travelersCount = (trip.members && trip.members.length) || parseInt(trip.travelers) || 1;
+      document.getElementById("exp-qty").value = travelersCount;
+    } else {
+      document.getElementById("exp-qty").value = 1;
+    }
   }
 
   modal.classList.add("active");
@@ -4242,6 +4275,20 @@ function formatBytes(bytes, decimals = 2) {
 
 
 // ==================== WORKSPACE F: 旅程基本資訊編輯 ====================
+function renderTripMemberInputs(count, existingNames = []) {
+  const container = document.getElementById("t-members-container");
+  if (!container) return;
+  container.innerHTML = "";
+  for (let i = 0; i < count; i++) {
+    const div = document.createElement("div");
+    const val = existingNames[i] || "";
+    div.innerHTML = `
+      <input type="text" class="form-input" id="t-member-name-${i}" placeholder="成員 ${i + 1} 名字" value="${escapeHTML(val)}" style="font-size:0.85rem; padding:0.4rem 0.6rem; margin:0;" required>
+    `;
+    container.appendChild(div);
+  }
+}
+
 function openTripEditorModal(tripId = null) {
   const modal = document.getElementById("trip-editor-modal");
   const form = document.getElementById("trip-form");
@@ -4263,7 +4310,12 @@ function openTripEditorModal(tripId = null) {
       document.getElementById("t-location").value = trip.location;
       document.getElementById("t-date").value = trip.date;
       document.getElementById("t-duration").value = trip.duration;
-      document.getElementById("t-travelers").value = trip.travelers || "5人同行";
+      
+      const members = trip.members || [];
+      const count = members.length || parseInt(trip.travelers) || 2;
+      document.getElementById("t-travelers-count").value = count;
+      renderTripMemberInputs(count, members);
+
       document.getElementById("t-luggage").value = trip.luggage || "";
       document.getElementById("t-rental").value = trip.rental || "";
       document.getElementById("t-continent").value = trip.continent || "Asia";
@@ -4280,6 +4332,8 @@ function openTripEditorModal(tripId = null) {
     title.innerText = "規劃新的冒險旅程";
     const today = new Date().toISOString().split('T')[0];
     document.getElementById("t-date").value = today;
+    document.getElementById("t-travelers-count").value = 2;
+    renderTripMemberInputs(2, ["我", "旅伴"]);
   }
 
   modal.classList.add("active");
@@ -4297,7 +4351,18 @@ function handleTripSubmit(e) {
   const location = document.getElementById("t-location").value.trim();
   const date = document.getElementById("t-date").value;
   const duration = parseInt(document.getElementById("t-duration").value) || 2;
-  const travelers = document.getElementById("t-travelers").value.trim();
+  
+  const count = parseInt(document.getElementById("t-travelers-count").value) || 2;
+  document.getElementById("t-travelers").value = count + "人同行";
+  const travelers = count + "人同行";
+
+  const memberNames = [];
+  for (let i = 0; i < count; i++) {
+    const input = document.getElementById(`t-member-name-${i}`);
+    const name = input ? input.value.trim() : "";
+    memberNames.push(name || `成員 ${i + 1}`);
+  }
+
   const luggage = document.getElementById("t-luggage").value.trim();
   const rental = document.getElementById("t-rental").value.trim();
   const continent = document.getElementById("t-continent").value;
@@ -4321,7 +4386,7 @@ function handleTripSubmit(e) {
     if (idx !== -1) {
       trips[idx] = {
         ...trips[idx],
-        title, location, date, duration, travelers, luggage, rental, continent, dateRange,
+        title, location, date, duration, travelers, members: memberNames, luggage, rental, continent, dateRange,
         image: image || trips[idx].image
       };
       showToast("旅程基本設定已更新！", "success");
@@ -4330,7 +4395,7 @@ function handleTripSubmit(e) {
     // 新增旅程
     const newTrip = {
       id: "trip-" + Date.now(),
-      title, location, date, duration, travelers, luggage, rental, continent, dateRange,
+      title, location, date, duration, travelers, members: memberNames, luggage, rental, continent, dateRange,
       image: image || "assets/paris_cafe.png",
       itinerary: null,
       alternativeSpots: { sights: [], restaurants: [] },

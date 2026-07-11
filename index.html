@@ -553,9 +553,34 @@
             <label for="t-duration">旅行天數 *</label>
             <input type="number" class="form-input" id="t-duration" min="1" placeholder="例如：2" required>
           </div>
-          <div class="form-group">
-            <label for="t-travelers">隨行人數/成員 *</label>
-            <input type="text" class="form-input" id="t-travelers" placeholder="例如：5 人、2 位男性" required>
+          <div class="form-group" style="grid-column: span 2;">
+            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; margin-bottom: 0.5rem;">
+              <div>
+                <label for="t-travelers-count">隨行人數 *</label>
+                <select class="form-select" id="t-travelers-count" required style="margin: 0;">
+                  <option value="1">1 人</option>
+                  <option value="2" selected>2 人</option>
+                  <option value="3">3 人</option>
+                  <option value="4">4 人</option>
+                  <option value="5">5 人</option>
+                  <option value="6">6 人</option>
+                  <option value="7">7 人</option>
+                  <option value="8">8 人</option>
+                  <option value="9">9 人</option>
+                  <option value="10">10 人</option>
+                </select>
+              </div>
+              <div style="display: flex; flex-direction: column; justify-content: flex-end;">
+                <label>成員姓名 (選填)</label>
+                <div style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:0.25rem;">輸入名字後分帳將直接使用</div>
+              </div>
+            </div>
+            <!-- 動態生成成員姓名輸入框容器 -->
+            <div id="t-members-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 0.5rem;">
+              <!-- JS 動態生成 input -->
+            </div>
+            <!-- 隱藏欄位，相容原有程式碼的 t-travelers -->
+            <input type="hidden" id="t-travelers" value="2">
           </div>
           <div class="form-group">
             <label for="t-luggage">行李限制規定</label>
