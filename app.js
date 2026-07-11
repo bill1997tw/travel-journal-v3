@@ -3113,13 +3113,13 @@ function renderWorkspaceBudget() {
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td style="font-weight:700; color:var(--text-primary);">${escapeHTML(item.name)}</td>
+        <td style="font-weight:700; color:var(--text-primary); text-align:center;">${escapeHTML(item.name)}</td>
         <td style="text-align:center;"><span class="iti-pill">DAY ${item.day}</span></td>
-        <td><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${CATEGORY_COLORS[item.category] || '#6b7280'}; margin-right:6px;"></span>${item.category}</td>
-        <td style="text-align:left; font-family:'Outfit';">NT$ ${price.toLocaleString()}</td>
+        <td style="text-align:center;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${CATEGORY_COLORS[item.category] || '#6b7280'}; margin-right:6px; vertical-align:middle;"></span><span style="vertical-align:middle;">${item.category}</span></td>
+        <td style="text-align:center; font-family:'Outfit';">NT$ ${price.toLocaleString()}</td>
         <td style="text-align:center;">${qty} 人分</td>
-        <td style="text-align:left; font-weight:700; color:var(--accent-color); font-family:'Outfit';">NT$ ${Math.round(price / qty).toLocaleString()}</td>
-        <td style="font-size:0.8rem; text-align:left;">${cellContentHtml}</td>
+        <td style="text-align:center; font-weight:700; color:var(--accent-color); font-family:'Outfit';">NT$ ${Math.round(price / qty).toLocaleString()}</td>
+        <td style="font-size:0.8rem; text-align:center;">${cellContentHtml}</td>
         <td style="text-align:center;">
           <div class="card-actions" style="justify-content:center; gap:0.25rem;">
             <button class="btn-icon" onclick="openExpenseModal('${item.id}')" style="width:1.8rem; height:1.8rem; padding:0; display:inline-flex; align-items:center; justify-content:center;">
@@ -3136,12 +3136,12 @@ function renderWorkspaceBudget() {
     const totalTr = document.createElement("tr");
     totalTr.className = "total-row";
     totalTr.innerHTML = `
-      <td>總預算累計</td>
+      <td style="text-align:center; font-weight:bold;">總預算累計</td>
       <td colspan="2"></td>
-      <td style="text-align:left; font-family:'Outfit';">NT$ ${expenseTotal.toLocaleString()}</td>
+      <td style="text-align:center; font-family:'Outfit';">NT$ ${expenseTotal.toLocaleString()}</td>
       <td></td>
-      <td style="text-align:left; font-family:'Outfit'; color:var(--accent-color); font-weight:700;">NT$ ${subtotalTotal.toLocaleString()}</td>
-      <td colspan="2">（整趟行程每人預算參考）</td>
+      <td style="text-align:center; font-family:'Outfit'; color:var(--accent-color); font-weight:700;">NT$ ${subtotalTotal.toLocaleString()}</td>
+      <td colspan="2" style="text-align:center; font-size:0.85rem; color:var(--text-secondary);">（整趟行程每人預算參考）</td>
     `;
     tbody.appendChild(totalTr);
   }
