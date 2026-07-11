@@ -1427,7 +1427,11 @@ function renderTripsList() {
         <div class="trip-card-details">
           <div>📍 <span>${escapeHTML(trip.location)}</span></div>
           <div>📅 <span>${trip.dateRange || trip.date} (${trip.duration}天)</span></div>
-          <div>👤 <span>旅伴: ${escapeHTML(trip.companion || '獨自冒險')}</span></div>
+          <div>👤 <span>旅伴: ${escapeHTML(
+            (trip.members && trip.members.length > 0)
+              ? `${trip.members.length}人 (${trip.members.join('、')})`
+              : (trip.companion || trip.travelers || '獨自冒險')
+          )}</span></div>
           <div>💰 <span>預算: NT$ ${tripCostSum.toLocaleString()}</span></div>
         </div>
         <div style="margin-top:auto; padding-top:0.75rem; border-top:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
@@ -1488,7 +1492,11 @@ window.enterWorkspace = function(tripId) {
   }
 
   document.getElementById("ws-trip-title").innerText = trip.title;
-  document.getElementById("ws-trip-meta").innerText = `📅 日期: ${trip.dateRange || trip.date} (${trip.duration}天) | 👤 旅伴: ${trip.companion || '無'} | 🏢 住宿: ${trip.itinerary?.stats?.[0]?.value || '未定'}`;
+  const companionText = (trip.members && trip.members.length > 0)
+    ? `${trip.members.length}人 (${trip.members.join('、')})`
+    : (trip.companion || trip.travelers || '無');
+  const hotelText = trip.hotel || (trip.itinerary?.stats?.[0]?.value) || '未定';
+  document.getElementById("ws-trip-meta").innerText = `📅 日期: ${trip.dateRange || trip.date} (${trip.duration}天) | 👤 旅伴: ${companionText} | 🏢 住宿: ${hotelText}`;
 
   // 渲染限額等 Badge
   const badgeContainer = document.getElementById("ws-trip-stats-badges");
@@ -4328,6 +4336,7 @@ function openTripEditorModal(tripId = null) {
 
       document.getElementById("t-luggage").value = trip.luggage || "";
       document.getElementById("t-rental").value = trip.rental || "";
+      document.getElementById("t-hotel").value = trip.hotel || "";
       document.getElementById("t-continent").value = trip.continent || "Asia";
 
       if (trip.image) {
@@ -4375,6 +4384,7 @@ function handleTripSubmit(e) {
 
   const luggage = document.getElementById("t-luggage").value.trim();
   const rental = document.getElementById("t-rental").value.trim();
+  const hotel = document.getElementById("t-hotel").value.trim();
   const continent = document.getElementById("t-continent").value;
   const image = document.getElementById("t-image-base64").value;
 
@@ -4396,7 +4406,7 @@ function handleTripSubmit(e) {
     if (idx !== -1) {
       trips[idx] = {
         ...trips[idx],
-        title, location, date, duration, travelers, members: memberNames, luggage, rental, continent, dateRange,
+        title, location, date, duration, travelers, members: memberNames, luggage, rental, hotel, continent, dateRange,
         image: image || trips[idx].image
       };
       showToast("旅程基本設定已更新！", "success");
@@ -4405,7 +4415,7 @@ function handleTripSubmit(e) {
     // 新增旅程
     const newTrip = {
       id: "trip-" + Date.now(),
-      title, location, date, duration, travelers, members: memberNames, luggage, rental, continent, dateRange,
+      title, location, date, duration, travelers, members: memberNames, luggage, rental, hotel, continent, dateRange,
       image: image || "assets/paris_cafe.png",
       itinerary: null,
       alternativeSpots: { sights: [], restaurants: [] },
