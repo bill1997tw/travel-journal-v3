@@ -1085,6 +1085,12 @@ function setupEventListeners() {
     });
   }
 
+  // 記帳排序篩選事件
+  const sortSelect = document.getElementById("ws-expense-sort-select");
+  if (sortSelect) {
+    sortSelect.addEventListener("change", renderWorkspaceBudget);
+  }
+
   // 票券與備忘錄相關事件
   const wsAddVoucherBtn = document.getElementById("ws-add-voucher-btn");
   if (wsAddVoucherBtn) {
@@ -3049,40 +3055,75 @@ function renderWorkspaceBudget() {
   let mePaidSum = 0;
   let friendPaidSum = 0;
 
-  if (expenses.length === 0) {
+  // 排序處理
+  const sortBy = document.getElementById("ws-expense-sort-select")?.value || "default";
+  let renderedExpenses = [...expenses];
+
+  if (sortBy === "day") {
+    renderedExpenses.sort((a, b) => (parseInt(a.day) || 1) - (parseInt(b.day) || 1));
+  } else if (sortBy === "category") {
+    renderedExpenses.sort((a, b) => (a.category || "").localeCompare(b.category || "", "zh-Hant"));
+  } else if (sortBy === "price-asc") {
+    renderedExpenses.sort((a, b) => (parseInt(a.cost) || 0) - (parseInt(b.cost) || 0));
+  } else if (sortBy === "price-desc") {
+    renderedExpenses.sort((a, b) => (parseInt(b.cost) || 0) - (parseInt(a.cost) || 0));
+  } else if (sortBy === "name") {
+    renderedExpenses.sort((a, b) => (a.name || "").localeCompare(b.name || "", "zh-Hant"));
+  }
+
+  if (renderedExpenses.length === 0) {
     tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-secondary);">尚未記錄任何消費，點擊右上方「新增支出」！</td></tr>`;
   } else {
-    expenses.forEach(item => {
+    renderedExpenses.forEach(item => {
       const price = parseInt(item.cost) || 0;
       const qty = parseInt(item.splitCount) || 1;
       const subtotal = price; // 價格欄位為整筆總額，或小計，我們以 item.cost 作為總額
       expenseTotal += subtotal;
 
-      // 檢查備註中是否有 google maps 連結
+      // 智慧備註與連結縮減處理
       let notesHtml = escapeHTML(item.notes || '—');
-      const mapUrlMatch = item.notes ? item.notes.match(/https:\/\/maps\.[^\s]+/g) : null;
-      if (mapUrlMatch) {
-        notesHtml = notesHtml.replace(mapUrlMatch[0], `<a href="${mapUrlMatch[0]}" target="_blank" class="expense-map-link">🗺️ 查看地圖</a>`);
-      } else {
-        // 如果沒有填地圖連結，但有地標名稱，預設給搜尋連結
-        notesHtml += ` <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.name)}" target="_blank" class="expense-map-link" style="font-size:0.75rem;">🗺️ 搜尋</a>`;
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      const urls = item.notes ? item.notes.match(urlRegex) : null;
+      let linkHtml = "";
+
+      if (urls) {
+        urls.forEach(url => {
+          notesHtml = notesHtml.replace(url, ""); // 移除網址字串以縮小顯示
+          let btnLabel = "🔗 連結";
+          if (url.includes("maps") || url.includes("goo.gl")) {
+            btnLabel = "🗺️ 地圖";
+          }
+          linkHtml += `<a href="${url}" target="_blank" class="expense-map-link" style="margin-left:6px; padding:0.2rem 0.45rem; font-size:0.75rem; border-radius:4px; background:var(--badge-bg); color:var(--accent-color); text-decoration:none; display:inline-block; vertical-align:middle; white-space:nowrap;">${btnLabel}</a>`;
+        });
       }
+      
+      if (!urls) {
+        linkHtml += `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.name)}" target="_blank" class="expense-map-link" style="margin-left:6px; font-size:0.75rem; color:var(--text-secondary); text-decoration:none; display:inline-block; vertical-align:middle; white-space:nowrap;">🔍 搜尋</a>`;
+      }
+
+      notesHtml = notesHtml.replace(/^[\,\s—]+|[\,\s—]+$/g, '').trim();
+      if (!notesHtml) notesHtml = "—";
+
+      const fullNotesCellHtml = `<div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHTML(item.notes || '—')}">
+        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${notesHtml}</span>
+        ${linkHtml}
+      </div>`;
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td style="font-weight:700; color:var(--text-primary);">${escapeHTML(item.name)}</td>
         <td style="text-align:center;"><span class="iti-pill">DAY ${item.day}</span></td>
         <td><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:${CATEGORY_COLORS[item.category] || '#6b7280'}; margin-right:6px;"></span>${item.category}</td>
-        <td style="text-align:right; font-family:'Outfit';">NT$ ${price.toLocaleString()}</td>
+        <td style="text-align:left; font-family:'Outfit';">NT$ ${price.toLocaleString()}</td>
         <td style="text-align:center;">${qty} 人分</td>
-        <td style="text-align:right; font-weight:700; color:var(--accent-color); font-family:'Outfit';">NT$ ${Math.round(price / qty).toLocaleString()}</td>
-        <td style="font-size:0.8rem;">${notesHtml}</td>
+        <td style="text-align:left; font-weight:700; color:var(--accent-color); font-family:'Outfit';">NT$ ${Math.round(price / qty).toLocaleString()}</td>
+        <td style="font-size:0.8rem;">${fullNotesCellHtml}</td>
         <td style="text-align:center;">
           <div class="card-actions" style="justify-content:center; gap:0.25rem;">
-            <button class="btn-icon" onclick="openExpenseModal('${item.id}')" style="width:1.8rem; height:1.8rem; padding:0;">
+            <button class="btn-icon" onclick="openExpenseModal('${item.id}')" style="width:1.8rem; height:1.8rem; padding:0; display:inline-flex; align-items:center; justify-content:center;">
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
             </button>
-            <button class="btn-icon" onclick="deleteExpenseItem('${item.id}')" style="width:1.8rem; height:1.8rem; padding:0; color:var(--danger); border-color:transparent;">✕</button>
+            <button class="btn-icon" onclick="deleteExpenseItem('${item.id}')" style="width:1.8rem; height:1.8rem; padding:0; color:var(--danger); border-color:transparent; display:inline-flex; align-items:center; justify-content:center;">✕</button>
           </div>
         </td>
       `;
@@ -3095,9 +3136,9 @@ function renderWorkspaceBudget() {
     totalTr.innerHTML = `
       <td>總預算累計</td>
       <td colspan="2"></td>
-      <td style="text-align:right; font-family:'Outfit';">NT$ ${expenseTotal.toLocaleString()}</td>
+      <td style="text-align:left; font-family:'Outfit';">NT$ ${expenseTotal.toLocaleString()}</td>
       <td></td>
-      <td style="text-align:right; font-family:'Outfit'; color:var(--accent-color);">—</td>
+      <td style="text-align:left; font-family:'Outfit'; color:var(--accent-color);">—</td>
       <td colspan="2">（整趟行程每人預算參考）</td>
     `;
     tbody.appendChild(totalTr);

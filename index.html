@@ -357,20 +357,31 @@
               </div>
 
               <!-- 費用明細表 -->
-              <div class="panel-section-header" style="margin-top:2rem;">
+              <div class="panel-section-header" style="margin-top:2rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
                 <h2>📊 旅程費用明細表 (預算試算)</h2>
-                <button class="btn btn-primary" id="ws-add-expense-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">➕ 新增支出</button>
+                <div style="display:flex; gap:0.65rem; align-items:center;">
+                  <span style="font-size:0.82rem; color:var(--text-secondary); white-space:nowrap;">排序分類：</span>
+                  <select class="form-select" id="ws-expense-sort-select" style="font-size:0.8rem; padding:0.35rem 1.8rem 0.35rem 0.65rem; width:auto; border-radius:8px; height:auto; margin:0;">
+                    <option value="default">預設排序</option>
+                    <option value="day">日程 (DAY 1-N)</option>
+                    <option value="category">分類</option>
+                    <option value="price-asc">價格: 從低到高</option>
+                    <option value="price-desc">價格: 從高到低</option>
+                    <option value="name">花費項目 (筆劃)</option>
+                  </select>
+                  <button class="btn btn-primary" id="ws-add-expense-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem; margin:0;">➕ 新增支出</button>
+                </div>
               </div>
               <div style="overflow-x: auto; margin-top:0.5rem;" class="table-container">
                 <table class="excel-table" id="ws-expense-table">
                   <thead>
                     <tr>
                       <th>花費項目</th>
-                      <th>日程</th>
+                      <th style="text-align:center;">日程</th>
                       <th>分類</th>
-                      <th style="text-align:right;">價格</th>
+                      <th style="text-align:left;">價格</th>
                       <th style="text-align:center;">每人/數量</th>
-                      <th style="text-align:right;">小計</th>
+                      <th style="text-align:left;">小計</th>
                       <th>備註 / 地圖連結</th>
                       <th style="text-align:center; width:80px;">操作</th>
                     </tr>
