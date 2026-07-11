@@ -785,6 +785,11 @@
             <input type="number" class="form-input" id="exp-qty" min="1" value="1" required>
           </div>
           <div class="form-group">
+            <label for="exp-payer">是誰代墊的？ (選填，無代墊請留空)</label>
+            <input type="text" class="form-input" id="exp-payer" placeholder="例如：我、翔翔、郁魚" list="payer-list">
+            <datalist id="payer-list"></datalist>
+          </div>
+          <div class="form-group">
             <label for="exp-notes">消費明細備忘 (可附帶 Google 地圖網址)</label>
             <input type="text" class="form-input" id="exp-notes" placeholder="備註或輸入地圖連結 https://maps...">
           </div>

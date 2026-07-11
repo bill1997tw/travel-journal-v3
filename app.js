@@ -3122,19 +3122,28 @@ function renderWorkspaceBudget() {
       const payerKey = item.payer.trim();
       payersPaid[payerKey] = (payersPaid[payerKey] || 0) + amount;
 
+      const isLinked = !!item.expenseId;
+      const editAction = isLinked ? `openExpenseModal('${item.expenseId}')` : `openAdvanceModal('${item.id}')`;
+      const deleteAction = isLinked ? `deleteExpenseItem('${item.expenseId}')` : `deleteAdvanceItem('${item.id}')`;
+      const editTitle = isLinked ? "此筆由記帳明細自動生成，點擊編輯記帳" : "修改代墊款項";
+      const deleteTitle = isLinked ? "此筆由記帳明細自動生成，點擊刪除記帳" : "刪除代墊款項";
+      const linkedBadgeHtml = isLinked ? ` <span class="iti-pill" style="font-size:0.65rem; background:var(--badge-bg); color:var(--accent-color); padding:0.15rem 0.35rem; display:inline-block; border-radius:4px; margin-left:4px;">🔗 連結記帳</span>` : "";
+
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td style="font-weight:700;">${escapeHTML(item.payer)}</td>
         <td>${escapeHTML(item.date || '—')}</td>
-        <td>${escapeHTML(item.item)}</td>
+        <td>${escapeHTML(item.item)}${linkedBadgeHtml}</td>
         <td style="text-align:right; font-family:'Outfit';">NT$ ${amount.toLocaleString()}</td>
         <td style="text-align:center;">${count} 人</td>
         <td style="text-align:right; font-weight:700; font-family:'Outfit';">NT$ ${share.toLocaleString()}</td>
         <td style="font-size:0.8rem;">${escapeHTML(item.notes || '—')}</td>
         <td style="text-align:center;">
           <div class="card-actions" style="justify-content:center; gap:0.25rem;">
-            <button class="btn-icon" onclick="openAdvanceModal('${item.id}')" style="width:1.6rem; height:1.6rem; padding:0;">✕</button>
-            <button class="btn-icon" onclick="deleteAdvanceItem('${item.id}')" style="width:1.6rem; height:1.6rem; padding:0; color:var(--danger); border-color:transparent;">✕</button>
+            <button class="btn-icon" onclick="${editAction}" title="${editTitle}" style="width:1.6rem; height:1.6rem; padding:0; display:inline-flex; align-items:center; justify-content:center;">
+              <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+            </button>
+            <button class="btn-icon" onclick="${deleteAction}" title="${deleteTitle}" style="width:1.6rem; height:1.6rem; padding:0; color:var(--danger); border-color:transparent; display:inline-flex; align-items:center; justify-content:center;">✕</button>
           </div>
         </td>
       `;
@@ -3257,6 +3266,8 @@ function openExpenseModal(itemId = null) {
   
   form.reset();
   document.getElementById("exp-id").value = "";
+  const payerInput = document.getElementById("exp-payer");
+  if (payerInput) payerInput.value = "";
 
   // 載入天數下拉選單
   const select = document.getElementById("exp-day");
@@ -3269,6 +3280,24 @@ function openExpenseModal(itemId = null) {
       opt.value = i;
       opt.innerText = `DAY ${i}`;
       select.appendChild(opt);
+    }
+
+    // 動態生成代墊人建議選項 (payer-list)
+    const datalist = document.getElementById("payer-list");
+    if (datalist) {
+      datalist.innerHTML = "";
+      const existingPayers = new Set(["我", "翔翔", "郁魚"]); // 預設建議值
+      if (trip.advances) {
+        trip.advances.forEach(a => { if (a.payer) existingPayers.add(a.payer.trim()); });
+      }
+      if (trip.repayInfo) {
+        trip.repayInfo.forEach(r => { if (r.name) existingPayers.add(r.name.trim()); });
+      }
+      existingPayers.forEach(name => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        datalist.appendChild(opt);
+      });
     }
   }
 
@@ -3284,6 +3313,7 @@ function openExpenseModal(itemId = null) {
         document.getElementById("exp-price").value = item.cost;
         document.getElementById("exp-qty").value = item.splitCount;
         document.getElementById("exp-notes").value = item.notes || "";
+        if (payerInput) payerInput.value = item.payer || "";
       }
     }
   } else {
@@ -3309,21 +3339,52 @@ function handleExpenseSubmit(e) {
   const cost = parseInt(document.getElementById("exp-price").value) || 0;
   const splitCount = parseInt(document.getElementById("exp-qty").value) || 1;
   const notes = document.getElementById("exp-notes").value.trim();
+  const payerInput = document.getElementById("exp-payer");
+  const payer = payerInput ? payerInput.value.trim() : "";
 
   if (!trip.ledger) trip.ledger = [];
+  if (!trip.advances) trip.advances = [];
+
+  let savedExpenseId = id;
 
   if (id) {
     const idx = trip.ledger.findIndex(item => item.id === id);
     if (idx !== -1) {
-      trip.ledger[idx] = { id, name, day, category, cost, splitCount, notes };
+      trip.ledger[idx] = { id, name, day, category, cost, splitCount, notes, payer };
     }
     showToast("帳目明細已修改！", "success");
   } else {
+    savedExpenseId = "exp-" + Date.now();
     trip.ledger.push({
-      id: "exp-" + Date.now(),
-      name, day, category, cost, splitCount, notes
+      id: savedExpenseId,
+      name, day, category, cost, splitCount, notes, payer
     });
     showToast("記帳成功！", "success");
+  }
+
+  // 自動處理連結的代墊款項
+  if (payer) {
+    const advIdx = trip.advances.findIndex(adv => adv.expenseId === savedExpenseId);
+    const advPayload = {
+      expenseId: savedExpenseId,
+      payer,
+      date: day ? `DAY ${day}` : "",
+      item: name,
+      amount: cost,
+      splitCount,
+      notes: notes || ""
+    };
+    if (advIdx !== -1) {
+      trip.advances[advIdx] = { id: trip.advances[advIdx].id, ...advPayload };
+    } else {
+      trip.advances.push({
+        id: "adv-" + Date.now(),
+        ...advPayload
+      });
+    }
+  } else {
+    // 若代墊人為空，則清除可能存在的連結代墊
+    trip.advances = trip.advances.filter(adv => adv.expenseId !== savedExpenseId);
   }
 
   localStorage.setItem("voyage_trips", JSON.stringify(trips));
@@ -3337,6 +3398,9 @@ window.deleteExpenseItem = function(itemId) {
     const trip = trips.find(t => t.id === activeTripId);
     if (trip && trip.ledger) {
       trip.ledger = trip.ledger.filter(item => item.id !== itemId);
+      if (trip.advances) {
+        trip.advances = trip.advances.filter(adv => adv.expenseId !== itemId);
+      }
       localStorage.setItem("voyage_trips", JSON.stringify(trips));
       renderWorkspaceBudget();
       renderBudgetCharts();
