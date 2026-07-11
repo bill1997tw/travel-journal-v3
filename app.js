@@ -4280,12 +4280,22 @@ function renderTripMemberInputs(count, existingNames = []) {
   if (!container) return;
   container.innerHTML = "";
   for (let i = 0; i < count; i++) {
-    const div = document.createElement("div");
     const val = existingNames[i] || "";
-    div.innerHTML = `
-      <input type="text" class="form-input" id="t-member-name-${i}" placeholder="成員 ${i + 1} 名字" value="${escapeHTML(val)}" style="font-size:0.85rem; padding:0.4rem 0.6rem; margin:0;" required>
-    `;
-    container.appendChild(div);
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "form-input";
+    input.id = `t-member-name-${i}`;
+    input.placeholder = `成員 ${i + 1} 名字`;
+    input.value = val;
+    input.style.fontSize = "0.85rem";
+    input.style.padding = "0.4rem 0.6rem";
+    input.style.margin = "0";
+    input.style.flex = "1 1 120px";
+    input.style.minWidth = "120px";
+    input.style.width = "auto";
+    input.style.boxSizing = "border-box";
+    input.required = true;
+    container.appendChild(input);
   }
 }
 
