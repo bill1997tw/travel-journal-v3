@@ -6,6 +6,8 @@
     client: null,
     session: null,
     trips: [],
+    preview: null,
+    lastImportReceipt: null,
     mounted: false,
     busy: false
   };
@@ -19,11 +21,15 @@
     return config.publishableKey || config.anonKey || "";
   }
 
+  function getImportApi() {
+    return window.VoyageCloudImport || null;
+  }
+
   function refreshAccountCloudStyles() {
     const stylesheet = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
       .find((link) => link.getAttribute("href")?.split("?")[0] === "cloud-sync.css");
     if (!stylesheet) return;
-    stylesheet.href = "cloud-sync.css?v=account_cloud_v1";
+    stylesheet.href = "cloud-sync.css?v=account_cloud_v3";
   }
 
   function escapeHtml(value) {
@@ -98,9 +104,111 @@
           <strong>${escapeHtml(trip.title)}</strong>
           <span>${escapeHtml(trip.destination || "未設定目的地")}</span>
         </div>
-        <span class="account-cloud-role" data-role="${escapeHtml(role)}">${escapeHtml(roleLabel(role))}</span>
+        <div class="account-cloud-trip-actions">
+          <span class="account-cloud-role" data-role="${escapeHtml(role)}">${escapeHtml(roleLabel(role))}</span>
+          <button type="button" class="btn btn-secondary account-cloud-preview" data-trip-id="${escapeHtml(trip.id)}">
+            預覽匯入
+          </button>
+        </div>
       `;
       ui.tripList.appendChild(item);
+    }
+
+    for (const button of ui.tripList.querySelectorAll(".account-cloud-preview")) {
+      button.addEventListener("click", () => previewTrip(button.dataset.tripId));
+    }
+  }
+
+  function closePreview() {
+    state.preview = null;
+    if (!ui) return;
+    ui.preview.hidden = true;
+    ui.previewContent.replaceChildren();
+  }
+
+  function renderPreview(result) {
+    const { summary, warnings } = result;
+    ui.previewContent.innerHTML = `
+      <dl class="account-cloud-preview-grid">
+        <div><dt>旅程</dt><dd>${escapeHtml(summary.title)}</dd></div>
+        <div><dt>目的地</dt><dd>${escapeHtml(summary.location || "未設定")}</dd></div>
+        <div><dt>行程天數</dt><dd>${summary.itineraryDays}</dd></div>
+        <div><dt>支出筆數</dt><dd>${summary.expenses}</dd></div>
+        <div><dt>代墊筆數</dt><dd>${summary.advances}</dd></div>
+        <div><dt>雲端版本</dt><dd>revision ${summary.revision}</dd></div>
+      </dl>
+      ${warnings.map((warning) => `<p class="account-cloud-warning">${escapeHtml(warning)}</p>`).join("")}
+      <p class="account-cloud-import-note">
+        確認後會先備份目前的本機旅程，再把這趟旅程新增到本機；不會覆蓋既有旅程。
+      </p>
+    `;
+    ui.preview.hidden = false;
+  }
+
+  async function previewTrip(tripId) {
+    const trip = state.trips.find((item) => item.id === tripId);
+    const importApi = getImportApi();
+    if (!trip || !importApi || state.busy) return;
+    setBusy(true);
+    setMessage("");
+    closePreview();
+    try {
+      const { data, error } = await state.client
+        .from("trip_documents")
+        .select("trip_id, schema_version, revision, state, updated_at")
+        .eq("trip_id", tripId)
+        .single();
+      if (error) throw error;
+      state.preview = importApi.normalizeCandidate(trip, data);
+      renderPreview(state.preview);
+    } catch (error) {
+      setMessage(error.message || "無法讀取這趟旅程的雲端內容。", true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function importPreview() {
+    const importApi = getImportApi();
+    if (!state.preview || !importApi || state.busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      state.lastImportReceipt = importApi.importCandidate(
+        localStorage,
+        state.preview.candidate
+      );
+      window.voyageApp?.rehydrateAndRender?.();
+      ui.undoButton.hidden = false;
+      closePreview();
+      setMessage(`已安全新增旅程；本機備份：${state.lastImportReceipt.backupKey}`);
+    } catch (error) {
+      if (error.name === "DuplicateCloudTripError") {
+        setMessage("這趟雲端旅程已匯入過；為避免覆蓋，本次沒有變更資料。", true);
+      } else if (error.name === "QuotaExceededError") {
+        setMessage("本機儲存空間不足，無法先建立備份，因此已取消匯入。", true);
+      } else {
+        setMessage(error.message || "匯入失敗，本機資料沒有變更。", true);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function undoLastImport() {
+    const importApi = getImportApi();
+    if (!state.lastImportReceipt || !importApi || state.busy) return;
+    setBusy(true);
+    try {
+      importApi.restoreImport(localStorage, state.lastImportReceipt);
+      window.voyageApp?.rehydrateAndRender?.();
+      state.lastImportReceipt = null;
+      ui.undoButton.hidden = true;
+      setMessage("已從最近備份還原，恢復到匯入前的本機旅程。");
+    } catch (error) {
+      setMessage(error.message || "撤銷失敗，請保留備份並停止繼續操作。", true);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -147,6 +255,7 @@
     ui.overlay.classList.add("is-open");
     ui.overlay.setAttribute("aria-hidden", "false");
     setMessage("");
+    closePreview();
     if (state.session) {
       loadTrips().catch((error) => setMessage(error.message, true));
     } else {
@@ -191,6 +300,7 @@
       if (error) throw error;
       state.session = null;
       state.trips = [];
+      state.preview = null;
       renderSession();
     } catch (error) {
       setMessage(error.message || "登出失敗，請稍後再試。", true);
@@ -253,6 +363,15 @@
         </div>
         <div class="account-cloud-message" role="alert"></div>
         <div class="account-cloud-trip-list"></div>
+        <section class="account-cloud-import-preview" hidden>
+          <div class="account-cloud-preview-heading">
+            <h4>匯入前預覽</h4>
+            <button type="button" class="account-cloud-preview-close" aria-label="關閉匯入預覽">✕</button>
+          </div>
+          <div class="account-cloud-preview-content"></div>
+          <button type="button" class="btn btn-primary account-cloud-import-confirm">建立備份並新增到本機</button>
+        </section>
+        <button type="button" class="btn btn-secondary account-cloud-undo" hidden>還原最近一次匯入前備份</button>
       </section>
     `;
     document.body.appendChild(overlay);
@@ -271,7 +390,12 @@
       refreshButton: overlay.querySelector(".account-cloud-refresh"),
       signOutButton: overlay.querySelector(".account-cloud-signout"),
       message: overlay.querySelector(".account-cloud-message"),
-      tripList: overlay.querySelector(".account-cloud-trip-list")
+      tripList: overlay.querySelector(".account-cloud-trip-list"),
+      preview: overlay.querySelector(".account-cloud-import-preview"),
+      previewContent: overlay.querySelector(".account-cloud-preview-content"),
+      previewCloseButton: overlay.querySelector(".account-cloud-preview-close"),
+      importButton: overlay.querySelector(".account-cloud-import-confirm"),
+      undoButton: overlay.querySelector(".account-cloud-undo")
     };
 
     ui.authButton.addEventListener("click", openPanel);
@@ -282,6 +406,9 @@
       loadTrips().catch((error) => setMessage(error.message, true));
     });
     ui.signOutButton.addEventListener("click", signOut);
+    ui.previewCloseButton.addEventListener("click", closePreview);
+    ui.importButton.addEventListener("click", importPreview);
+    ui.undoButton.addEventListener("click", undoLastImport);
     ui.overlay.addEventListener("click", (event) => {
       if (event.target === ui.overlay) closePanel();
     });
@@ -292,6 +419,8 @@
   async function initialize() {
     refreshAccountCloudStyles();
     mount();
+    state.lastImportReceipt = getImportApi()?.getLatestBackupReceipt(localStorage) || null;
+    ui.undoButton.hidden = !state.lastImportReceipt;
     const client = ensureClient();
     if (!client) {
       setStatus("雲端設定未完成", "error");

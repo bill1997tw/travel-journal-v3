@@ -361,6 +361,90 @@
   font-size: 0.78rem;
 }
 
+.account-cloud-trip-actions {
+  display: flex !important;
+  align-items: center;
+  gap: 0.45rem !important;
+}
+
+.account-cloud-preview {
+  padding: 0.38rem 0.55rem !important;
+  font-size: 0.75rem !important;
+}
+
+.account-cloud-import-preview {
+  margin-top: 0.9rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-body);
+}
+
+.account-cloud-import-preview[hidden],
+.account-cloud-undo[hidden] {
+  display: none !important;
+}
+
+.account-cloud-preview-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.account-cloud-preview-heading h4 {
+  margin: 0;
+}
+
+.account-cloud-preview-close {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.account-cloud-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0.75rem 0;
+}
+
+.account-cloud-preview-grid div {
+  padding: 0.55rem;
+  border-radius: 8px;
+  background: var(--bg-card);
+}
+
+.account-cloud-preview-grid dt {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.account-cloud-preview-grid dd {
+  margin: 0.15rem 0 0;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.account-cloud-warning,
+.account-cloud-import-note {
+  font-size: 0.79rem;
+  line-height: 1.5;
+}
+
+.account-cloud-warning {
+  color: #9a5b16;
+}
+
+.account-cloud-import-note {
+  color: var(--text-secondary);
+}
+
+.account-cloud-undo {
+  width: 100%;
+  margin-top: 0.7rem;
+}
+
 .account-cloud-role {
   flex: 0 0 auto;
   padding: 0.25rem 0.5rem;
@@ -383,5 +467,9 @@
   .account-cloud-account {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .account-cloud-preview-grid {
+    grid-template-columns: 1fr;
   }
 }

@@ -1,14 +1,24 @@
 (function () {
   const bootstrapConfig = window.VOYAGE_SUPABASE_CONFIG || {};
   if (bootstrapConfig.cloudMode === "account") {
-    const accountScript = document.createElement("script");
-    accountScript.src = bootstrapConfig.accountCloudScript || "account-cloud.js";
-    accountScript.defer = true;
-    accountScript.dataset.voyageCloudMode = "account";
-    accountScript.addEventListener("error", () => {
+    const loadAccountCloud = () => {
+      const accountScript = document.createElement("script");
+      accountScript.src = bootstrapConfig.accountCloudScript || "account-cloud.js";
+      accountScript.defer = true;
+      accountScript.dataset.voyageCloudMode = "account";
+      accountScript.addEventListener("error", () => {
+        console.error("Account cloud module could not be loaded; local mode remains available.");
+      });
+      document.head.appendChild(accountScript);
+    };
+    const importScript = document.createElement("script");
+    importScript.src = bootstrapConfig.accountCloudImportScript || "account-cloud-import.js";
+    importScript.defer = true;
+    importScript.addEventListener("load", loadAccountCloud, { once: true });
+    importScript.addEventListener("error", () => {
       console.error("Account cloud module could not be loaded; local mode remains available.");
     });
-    document.head.appendChild(accountScript);
+    document.head.appendChild(importScript);
     return;
   }
 
