@@ -260,6 +260,122 @@
     return true;
   }
 
+  function compareTripStates(localTrip, remoteCandidate) {
+    if (!isObject(localTrip) || !isObject(remoteCandidate)) {
+      throw new TypeError("trip_objects_required_for_comparison");
+    }
+
+    const localRev = Number(localTrip._cloud?.revision) || 0;
+    const remoteRev = Number(remoteCandidate._cloud?.revision) || 0;
+
+    const localItineraryCount = Array.isArray(localTrip.itinerary?.days)
+      ? localTrip.itinerary.days.reduce((acc, d) => acc + (d.items?.length || 0), 0)
+      : 0;
+    const remoteItineraryCount = Array.isArray(remoteCandidate.itinerary?.days)
+      ? remoteCandidate.itinerary.days.reduce((acc, d) => acc + (d.items?.length || 0), 0)
+      : 0;
+
+    const localLedgerCount = asArray(localTrip.ledger).length;
+    const remoteLedgerCount = asArray(remoteCandidate.ledger).length;
+
+    const localLedgerTotal = asArray(localTrip.ledger).reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
+    const remoteLedgerTotal = asArray(remoteCandidate.ledger).reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
+
+    const localAdvancesCount = asArray(localTrip.advances).length;
+    const remoteAdvancesCount = asArray(remoteCandidate.advances).length;
+
+    const localRepaymentsCount = asArray(localTrip.repayInfo).length;
+    const remoteRepaymentsCount = asArray(remoteCandidate.repayInfo).length;
+
+    const localPackingCount = asArray(localTrip.packingList).length + asArray(localTrip.todoList).length;
+    const remotePackingCount = asArray(remoteCandidate.packingList).length + asArray(remoteCandidate.todoList).length;
+
+    const localHasDiary = Boolean(localTrip.diary?.content || localTrip.diary?.cost);
+    const remoteHasDiary = Boolean(remoteCandidate.diary?.content || remoteCandidate.diary?.cost);
+
+    return {
+      revisions: {
+        local: localRev,
+        remote: remoteRev
+      },
+      sections: [
+        {
+          key: "basicInfo",
+          label: "基本資料",
+          local: `${localTrip.title || "未命名"} (${localTrip.location || "未設定地點"})`,
+          remote: `${remoteCandidate.title || "未命名"} (${remoteCandidate.location || "未設定地點"})`,
+          hasDiff: localTrip.title !== remoteCandidate.title || localTrip.location !== remoteCandidate.location
+        },
+        {
+          key: "itinerary",
+          label: "詳細行程",
+          local: `${localTrip.itinerary?.days?.length || 0} 天 (${localItineraryCount} 個項目)`,
+          remote: `${remoteCandidate.itinerary?.days?.length || 0} 天 (${remoteItineraryCount} 個項目)`,
+          hasDiff: localItineraryCount !== remoteItineraryCount || (localTrip.itinerary?.days?.length || 0) !== (remoteCandidate.itinerary?.days?.length || 0)
+        },
+        {
+          key: "ledger",
+          label: "帳單費用",
+          local: `${localLedgerCount} 筆 (總額 NT$ ${localLedgerTotal.toLocaleString()})`,
+          remote: `${remoteLedgerCount} 筆 (總額 NT$ ${remoteLedgerTotal.toLocaleString()})`,
+          hasDiff: localLedgerCount !== remoteLedgerCount || localLedgerTotal !== remoteLedgerTotal
+        },
+        {
+          key: "advances",
+          label: "代墊款項",
+          local: `${localAdvancesCount} 筆代墊`,
+          remote: `${remoteAdvancesCount} 筆代墊`,
+          hasDiff: localAdvancesCount !== remoteAdvancesCount
+        },
+        {
+          key: "repayments",
+          label: "還款資訊",
+          local: `${localRepaymentsCount} 筆還款`,
+          remote: `${remoteRepaymentsCount} 筆還款`,
+          hasDiff: localRepaymentsCount !== remoteRepaymentsCount
+        },
+        {
+          key: "packing",
+          label: "打包與待辦",
+          local: `${localPackingCount} 個項目`,
+          remote: `${remotePackingCount} 個項目`,
+          hasDiff: localPackingCount !== remotePackingCount
+        },
+        {
+          key: "diary",
+          label: "筆記與日記",
+          local: localHasDiary ? "已撰寫內容" : "無內容",
+          remote: remoteHasDiary ? "已撰寫內容" : "無內容",
+          hasDiff: localHasDiary !== remoteHasDiary || (localTrip.diary?.content !== remoteCandidate.diary?.content)
+        }
+      ]
+    };
+  }
+
+  function importRemoteAsCopy(storage, remoteCandidate, now = new Date()) {
+    if (!isObject(remoteCandidate) || !remoteCandidate._cloud?.tripId) {
+      throw new TypeError("import_candidate_invalid");
+    }
+    const copyCandidate = clone(remoteCandidate);
+    copyCandidate.id = `local-copy-${Date.now()}`;
+    copyCandidate.title = `${copyCandidate.title} (雲端 rev ${copyCandidate._cloud.revision} 副本)`;
+    delete copyCandidate._cloud;
+
+    const previousRaw = storage.getItem("voyage_trips") || "[]";
+    const trips = parseLocalTrips(previousRaw);
+
+    const backupKey = makeBackupKey(now);
+    storage.setItem(backupKey, previousRaw);
+    storage.setItem(LATEST_BACKUP_KEY, backupKey);
+    storage.setItem("voyage_trips", JSON.stringify([copyCandidate, ...trips]));
+
+    return {
+      backupKey,
+      copyTripId: copyCandidate.id,
+      copyTitle: copyCandidate.title
+    };
+  }
+
   return {
     normalizeCandidate,
     parseLocalTrips,
@@ -270,6 +386,8 @@
     getLatestBackupReceipt,
     prepareCloudSave,
     commitSavedRevision,
-    assertStorageWritable
+    assertStorageWritable,
+    compareTripStates,
+    importRemoteAsCopy
   };
 });

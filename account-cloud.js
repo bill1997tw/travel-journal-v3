@@ -237,6 +237,118 @@
     }
   }
 
+  function downloadLocalDraft(localTrip) {
+    if (!localTrip) return;
+    const blob = new Blob([JSON.stringify(localTrip, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `local-draft-${localTrip.title || "trip"}-rev${localTrip._cloud?.revision || 0}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setMessage("已下載本機草稿 JSON 備份。");
+  }
+
+  async function openConflictComparison(tripId, localTrip) {
+    const importApi = getImportApi();
+    const trip = state.trips.find((item) => item.id === tripId);
+    if (!importApi || !trip) return;
+
+    try {
+      const { data: remoteDoc, error } = await state.client
+        .from("trip_documents")
+        .select("trip_id, schema_version, revision, state, updated_at")
+        .eq("trip_id", tripId)
+        .single();
+      if (error) throw error;
+
+      const remoteCandidateResult = importApi.normalizeCandidate(trip, remoteDoc);
+      const remoteCandidate = remoteCandidateResult.candidate;
+      const comparison = importApi.compareTripStates(localTrip, remoteCandidate);
+
+      if (!ui || !ui.conflictModal) return;
+
+      ui.conflictContent.innerHTML = `
+        <div class="account-cloud-conflict-header">
+          <div class="account-cloud-conflict-badge">⚠️ 雲端已有新版本</div>
+          <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.35rem;">
+            本機版本: <strong>revision ${comparison.revisions.local}</strong> ｜ <strong>revision ${comparison.revisions.remote}</strong>
+          </p>
+          <p style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.25rem;">
+            為保護雙方資料不被覆蓋，請參閱下方 7 大區塊差異摘要。您可匯出本機草稿，或將雲端最新版存為獨立副本。
+          </p>
+        </div>
+
+        <table class="account-cloud-conflict-table">
+          <thead>
+            <tr>
+              <th>主要區塊</th>
+              <th>本機修改草稿 (rev ${comparison.revisions.local})</th>
+              <th>雲端最新紀錄 (rev ${comparison.revisions.remote})</th>
+              <th>狀態</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${comparison.sections.map(section => `
+              <tr class="${section.hasDiff ? 'has-diff' : ''}">
+                <td><strong>${escapeHtml(section.label)}</strong></td>
+                <td>${escapeHtml(section.local)}</td>
+                <td>${escapeHtml(section.remote)}</td>
+                <td>
+                  ${section.hasDiff ? `<span class="diff-tag diff">差異</span>` : `<span class="diff-tag same">一致</span>`}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div class="account-cloud-conflict-actions">
+          <button type="button" class="btn btn-secondary account-cloud-export-draft">
+            💾 匯出本機草稿 (JSON)
+          </button>
+          <button type="button" class="btn btn-primary account-cloud-import-remote-copy">
+            📥 將雲端最新版存為獨立副本
+          </button>
+          <button type="button" class="btn btn-secondary account-cloud-conflict-close">
+            ✕ 關閉並繼續在本地工作
+          </button>
+        </div>
+      `;
+
+      ui.conflictModal.hidden = false;
+
+      const exportBtn = ui.conflictContent.querySelector(".account-cloud-export-draft");
+      const importRemoteBtn = ui.conflictContent.querySelector(".account-cloud-import-remote-copy");
+      const closeBtn = ui.conflictContent.querySelector(".account-cloud-conflict-close");
+
+      if (exportBtn) {
+        exportBtn.addEventListener("click", () => downloadLocalDraft(localTrip));
+      }
+      if (importRemoteBtn) {
+        importRemoteBtn.addEventListener("click", () => {
+          try {
+            const receipt = importApi.importRemoteAsCopy(localStorage, remoteCandidate);
+            window.voyageApp?.rehydrateAndRender?.();
+            renderTrips();
+            ui.conflictModal.hidden = true;
+            setMessage(`已將雲端最新版成功新增為獨立副本：「${receipt.copyTitle}」！`);
+          } catch (err) {
+            setMessage(err.message || "建立雲端副本失敗。", true);
+          }
+        });
+      }
+      if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+          ui.conflictModal.hidden = true;
+          setMessage("衝突視窗已關閉；本機草稿保持不變，可隨時繼續編輯。");
+        });
+      }
+
+    } catch (error) {
+      setMessage(`讀取雲端最新版本失敗: ${error.message}`, true);
+    }
+  }
+
   async function saveImportedTrip(tripId) {
     const importApi = getImportApi();
     const trip = state.trips.find((item) => item.id === tripId);
@@ -272,10 +384,14 @@
       setMessage(`已安全儲存到雲端 revision ${savedRevision}。`);
     } catch (error) {
       if (error.message?.includes("trip_revision_conflict")) {
+        const localTrip = findImportedTrip(tripId);
         setMessage(
-          "雲端已有其他成員的新版本，本次沒有覆蓋。本機修改仍保留，請先預覽最新雲端內容。",
+          "雲端已有其他成員的新版本，本次沒有覆蓋。本機修改已安全保留，已為您開啟版本比對。",
           true
         );
+        if (localTrip) {
+          openConflictComparison(tripId, localTrip);
+        }
       } else if (error.name === "QuotaExceededError") {
         setMessage("本機儲存空間不足，為避免版本失聯，本次沒有送出雲端修改。", true);
       } else {
@@ -445,6 +561,9 @@
           <div class="account-cloud-preview-content"></div>
           <button type="button" class="btn btn-primary account-cloud-import-confirm">建立備份並新增到本機</button>
         </section>
+        <section class="account-cloud-conflict-comparison" hidden>
+          <div class="account-cloud-conflict-content"></div>
+        </section>
         <button type="button" class="btn btn-secondary account-cloud-undo" hidden>還原最近一次匯入前備份</button>
       </section>
     `;
@@ -469,6 +588,8 @@
       previewContent: overlay.querySelector(".account-cloud-preview-content"),
       previewCloseButton: overlay.querySelector(".account-cloud-preview-close"),
       importButton: overlay.querySelector(".account-cloud-import-confirm"),
+      conflictModal: overlay.querySelector(".account-cloud-conflict-comparison"),
+      conflictContent: overlay.querySelector(".account-cloud-conflict-content"),
       undoButton: overlay.querySelector(".account-cloud-undo")
     };
 

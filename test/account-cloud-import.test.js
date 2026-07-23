@@ -134,3 +134,65 @@ test("prepares a revision-guarded save and commits the returned revision", () =>
   assert.equal(updated._cloud.revision, 5);
   assert.equal(updated._cloud.lastSavedAt, "2026-07-23T13:00:00.000Z");
 });
+
+test("compares local and remote trip states across 7 major sections", () => {
+  const { compareTripStates } = require("../account-cloud-import.js");
+  const localTrip = {
+    title: "東京之旅 (本機)",
+    location: "日本，東京",
+    itinerary: { days: [{ items: [{ id: "item-1" }] }] },
+    ledger: [{ cost: 1000 }],
+    advances: [],
+    repayInfo: [],
+    packingList: ["相機"],
+    todoList: [],
+    diary: { content: "本機日記" },
+    _cloud: { revision: 2 }
+  };
+  const remoteCandidate = {
+    title: "東京之旅 (雲端)",
+    location: "日本，東京",
+    itinerary: { days: [{ items: [{ id: "item-1" }, { id: "item-2" }] }] },
+    ledger: [{ cost: 1000 }, { cost: 500 }],
+    advances: [{ id: "adv-1" }],
+    repayInfo: [],
+    packingList: ["相機", "護照"],
+    todoList: [],
+    diary: { content: "雲端最新日記" },
+    _cloud: { revision: 3 }
+  };
+
+  const diff = compareTripStates(localTrip, remoteCandidate);
+  assert.equal(diff.revisions.local, 2);
+  assert.equal(diff.revisions.remote, 3);
+  assert.equal(diff.sections.length, 7);
+  assert.equal(diff.sections.find(s => s.key === "itinerary").hasDiff, true);
+  assert.equal(diff.sections.find(s => s.key === "ledger").hasDiff, true);
+});
+
+test("imports remote candidate as a separate local copy without overwriting local draft", () => {
+  const { importRemoteAsCopy } = require("../account-cloud-import.js");
+  const localDraft = {
+    id: "cloud-trip-cloud-1",
+    title: "本機編輯中的草稿",
+    _cloud: { tripId: "trip-cloud-1", revision: 2 }
+  };
+  const storage = createStorage({
+    voyage_trips: JSON.stringify([localDraft])
+  });
+
+  const remoteCandidate = {
+    id: "cloud-trip-cloud-1",
+    title: "雲端最新版",
+    _cloud: { tripId: "trip-cloud-1", revision: 3 }
+  };
+
+  const receipt = importRemoteAsCopy(storage, remoteCandidate);
+  const updatedTrips = JSON.parse(storage.getItem("voyage_trips"));
+
+  assert.equal(updatedTrips.length, 2);
+  assert.equal(updatedTrips[0].title, "雲端最新版 (雲端 rev 3 副本)");
+  assert.equal(updatedTrips[0]._cloud, undefined); // Local standalone copy
+  assert.equal(updatedTrips[1].title, "本機編輯中的草稿"); // Local draft byte-for-byte preserved
+  assert.equal(updatedTrips[1]._cloud.revision, 2);
+});

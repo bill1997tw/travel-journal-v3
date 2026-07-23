@@ -478,3 +478,77 @@
     grid-template-columns: 1fr;
   }
 }
+
+.account-cloud-conflict-comparison {
+  margin-top: 1rem;
+  padding: 1.2rem;
+  border-radius: 16px;
+  background: var(--bg-card);
+  border: 1px solid rgba(200, 92, 50, 0.25);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+.account-cloud-conflict-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 99px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: rgba(169, 74, 66, 0.12);
+  color: var(--danger);
+  border: 1px solid rgba(169, 74, 66, 0.25);
+}
+
+.account-cloud-conflict-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.82rem;
+}
+
+.account-cloud-conflict-table th,
+.account-cloud-conflict-table td {
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.account-cloud-conflict-table th {
+  background: var(--input-bg);
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.account-cloud-conflict-table tr.has-diff {
+  background: rgba(200, 92, 50, 0.05);
+}
+
+.diff-tag {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.diff-tag.diff {
+  background: rgba(200, 92, 50, 0.15);
+  color: var(--accent-color);
+}
+
+.diff-tag.same {
+  background: rgba(47, 125, 85, 0.15);
+  color: #2f7d55;
+}
+
+.account-cloud-conflict-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.account-cloud-conflict-actions .btn {
+  width: 100%;
+  font-size: 0.85rem;
+}
