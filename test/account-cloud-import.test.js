@@ -4,7 +4,9 @@ const {
   normalizeCandidate,
   importCandidate,
   restoreImport,
-  getLatestBackupReceipt
+  getLatestBackupReceipt,
+  prepareCloudSave,
+  commitSavedRevision
 } = require("../account-cloud-import.js");
 
 function createStorage(initial = {}) {
@@ -100,4 +102,35 @@ test("import creates a backup, blocks duplicates, and can be restored", () => {
   restoreImport(storage, receipt);
   assert.deepEqual(JSON.parse(storage.getItem("voyage_trips")), previousTrips);
   assert.equal(getLatestBackupReceipt(storage), null);
+});
+
+test("prepares a revision-guarded save and commits the returned revision", () => {
+  const importedTrip = {
+    id: "cloud-trip-cloud-1",
+    title: "大阪本機修改",
+    ledger: [{ id: "expense-1", name: "章魚燒", cost: 700 }],
+    _cloud: {
+      tripId: "trip-cloud-1",
+      revision: 4,
+      schemaVersion: 1
+    }
+  };
+  const storage = createStorage({
+    voyage_trips: JSON.stringify([importedTrip])
+  });
+
+  const payload = prepareCloudSave(storage, "trip-cloud-1");
+  assert.equal(payload.expectedRevision, 4);
+  assert.equal(payload.state.source, "voyage-local-storage-v1");
+  assert.equal(payload.state.trip.title, "大阪本機修改");
+  assert.equal(payload.state.trip._cloud, undefined);
+
+  const updated = commitSavedRevision(
+    storage,
+    "trip-cloud-1",
+    5,
+    new Date("2026-07-23T13:00:00.000Z")
+  );
+  assert.equal(updated._cloud.revision, 5);
+  assert.equal(updated._cloud.lastSavedAt, "2026-07-23T13:00:00.000Z");
 });

@@ -372,6 +372,11 @@
   font-size: 0.75rem !important;
 }
 
+.account-cloud-save {
+  padding: 0.38rem 0.55rem !important;
+  font-size: 0.75rem !important;
+}
+
 .account-cloud-import-preview {
   margin-top: 0.9rem;
   padding: 0.9rem;

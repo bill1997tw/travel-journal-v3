@@ -29,7 +29,7 @@
     const stylesheet = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
       .find((link) => link.getAttribute("href")?.split("?")[0] === "cloud-sync.css");
     if (!stylesheet) return;
-    stylesheet.href = "cloud-sync.css?v=account_cloud_v3";
+    stylesheet.href = "cloud-sync.css?v=account_cloud_v5";
   }
 
   function escapeHtml(value) {
@@ -81,6 +81,19 @@
     }[role] || "成員";
   }
 
+  function findImportedTrip(tripId) {
+    const importApi = getImportApi();
+    if (!importApi) return null;
+    try {
+      return importApi
+        .parseLocalTrips(localStorage.getItem("voyage_trips") || "[]")
+        .find((trip) => trip?._cloud?.tripId === tripId) || null;
+    } catch (error) {
+      console.warn("Could not inspect local cloud trips.", error);
+      return null;
+    }
+  }
+
   function renderTrips() {
     if (!ui) return;
     ui.tripList.replaceChildren();
@@ -97,6 +110,8 @@
 
     for (const trip of state.trips) {
       const role = getRole(trip);
+      const importedTrip = findImportedTrip(trip.id);
+      const canSave = Boolean(importedTrip && (role === "owner" || role === "editor"));
       const item = document.createElement("article");
       item.className = "account-cloud-trip";
       item.innerHTML = `
@@ -109,6 +124,11 @@
           <button type="button" class="btn btn-secondary account-cloud-preview" data-trip-id="${escapeHtml(trip.id)}">
             預覽匯入
           </button>
+          ${canSave ? `
+            <button type="button" class="btn btn-primary account-cloud-save" data-trip-id="${escapeHtml(trip.id)}">
+              儲存本機修改
+            </button>
+          ` : ""}
         </div>
       `;
       ui.tripList.appendChild(item);
@@ -116,6 +136,9 @@
 
     for (const button of ui.tripList.querySelectorAll(".account-cloud-preview")) {
       button.addEventListener("click", () => previewTrip(button.dataset.tripId));
+    }
+    for (const button of ui.tripList.querySelectorAll(".account-cloud-save")) {
+      button.addEventListener("click", () => saveImportedTrip(button.dataset.tripId));
     }
   }
 
@@ -181,6 +204,7 @@
       window.voyageApp?.rehydrateAndRender?.();
       ui.undoButton.hidden = false;
       closePreview();
+      renderTrips();
       setMessage(`已安全新增旅程；本機備份：${state.lastImportReceipt.backupKey}`);
     } catch (error) {
       if (error.name === "DuplicateCloudTripError") {
@@ -204,9 +228,59 @@
       window.voyageApp?.rehydrateAndRender?.();
       state.lastImportReceipt = null;
       ui.undoButton.hidden = true;
+      renderTrips();
       setMessage("已從最近備份還原，恢復到匯入前的本機旅程。");
     } catch (error) {
       setMessage(error.message || "撤銷失敗，請保留備份並停止繼續操作。", true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveImportedTrip(tripId) {
+    const importApi = getImportApi();
+    const trip = state.trips.find((item) => item.id === tripId);
+    const role = getRole(trip);
+    if (!importApi || !trip || state.busy) return;
+    if (role !== "owner" && role !== "editor") {
+      setMessage("目前帳號沒有修改這趟旅程的權限。", true);
+      return;
+    }
+    if (!navigator.onLine) {
+      setMessage("目前處於離線狀態；本機修改仍保留，恢復網路後再手動儲存。", true);
+      return;
+    }
+
+    setBusy(true);
+    setMessage("");
+    try {
+      importApi.assertStorageWritable(localStorage);
+      const payload = importApi.prepareCloudSave(localStorage, tripId);
+      const { data, error } = await state.client.rpc("save_trip_document", {
+        target_trip_id: payload.tripId,
+        expected_revision: payload.expectedRevision,
+        next_schema_version: payload.schemaVersion,
+        next_state: payload.state,
+        change_action: "update"
+      });
+      if (error) throw error;
+
+      const savedRevision = Number(data?.revision);
+      importApi.commitSavedRevision(localStorage, tripId, savedRevision);
+      window.voyageApp?.rehydrateAndRender?.();
+      renderTrips();
+      setMessage(`已安全儲存到雲端 revision ${savedRevision}。`);
+    } catch (error) {
+      if (error.message?.includes("trip_revision_conflict")) {
+        setMessage(
+          "雲端已有其他成員的新版本，本次沒有覆蓋。本機修改仍保留，請先預覽最新雲端內容。",
+          true
+        );
+      } else if (error.name === "QuotaExceededError") {
+        setMessage("本機儲存空間不足，為避免版本失聯，本次沒有送出雲端修改。", true);
+      } else {
+        setMessage(error.message || "雲端儲存失敗，本機修改仍保留。", true);
+      }
     } finally {
       setBusy(false);
     }

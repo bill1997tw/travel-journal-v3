@@ -202,6 +202,64 @@
     return { backupKey };
   }
 
+  function prepareCloudSave(storage, cloudTripId) {
+    if (!storage || typeof storage.getItem !== "function") {
+      throw new TypeError("storage_required");
+    }
+    if (!cloudTripId) {
+      throw new TypeError("cloud_trip_id_required");
+    }
+    const trips = parseLocalTrips(storage.getItem("voyage_trips") || "[]");
+    const localTrip = trips.find((trip) => trip?._cloud?.tripId === cloudTripId);
+    if (!localTrip) {
+      throw new TypeError("imported_cloud_trip_not_found");
+    }
+    const expectedRevision = Number(localTrip._cloud.revision);
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+      throw new TypeError("cloud_revision_invalid");
+    }
+
+    const cloudTrip = clone(localTrip);
+    delete cloudTrip._cloud;
+    return {
+      tripId: cloudTripId,
+      expectedRevision,
+      schemaVersion: Number(localTrip._cloud.schemaVersion) || 1,
+      state: {
+        source: "voyage-local-storage-v1",
+        savedAt: new Date().toISOString(),
+        trip: cloudTrip
+      }
+    };
+  }
+
+  function commitSavedRevision(storage, cloudTripId, revision, savedAt = new Date()) {
+    if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function") {
+      throw new TypeError("storage_required");
+    }
+    if (!Number.isSafeInteger(Number(revision)) || Number(revision) < 0) {
+      throw new TypeError("saved_revision_invalid");
+    }
+
+    const trips = parseLocalTrips(storage.getItem("voyage_trips") || "[]");
+    const index = trips.findIndex((trip) => trip?._cloud?.tripId === cloudTripId);
+    if (index < 0) {
+      throw new TypeError("imported_cloud_trip_not_found");
+    }
+    trips[index] = clone(trips[index]);
+    trips[index]._cloud.revision = Number(revision);
+    trips[index]._cloud.lastSavedAt = savedAt.toISOString();
+    storage.setItem("voyage_trips", JSON.stringify(trips));
+    return clone(trips[index]);
+  }
+
+  function assertStorageWritable(storage) {
+    const key = "voyage_cloud_write_probe";
+    storage.setItem(key, "1");
+    storage.removeItem(key);
+    return true;
+  }
+
   return {
     normalizeCandidate,
     parseLocalTrips,
@@ -209,6 +267,9 @@
     makeBackupKey,
     importCandidate,
     restoreImport,
-    getLatestBackupReceipt
+    getLatestBackupReceipt,
+    prepareCloudSave,
+    commitSavedRevision,
+    assertStorageWritable
   };
 });
