@@ -210,3 +210,178 @@
     min-width: 0;
   }
 }
+.account-cloud-shell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.account-cloud-status {
+  max-width: 13rem;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+}
+
+.account-cloud-status[data-tone="live"] {
+  color: #2f7d55;
+}
+
+.account-cloud-status[data-tone="error"] {
+  color: var(--danger);
+}
+
+.account-cloud-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(24, 28, 25, 0.48);
+  backdrop-filter: blur(8px);
+}
+
+.account-cloud-overlay.is-open {
+  display: flex;
+}
+
+.account-cloud-modal {
+  width: min(34rem, 100%);
+  max-height: min(44rem, 92vh);
+  overflow-y: auto;
+  padding: 1.35rem;
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: var(--bg-card);
+}
+
+.account-cloud-heading,
+.account-cloud-account,
+.account-cloud-account-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.account-cloud-auth[hidden],
+.account-cloud-account[hidden] {
+  display: none !important;
+}
+
+.account-cloud-heading p,
+.account-cloud-heading h3,
+.account-cloud-account span,
+.account-cloud-account strong {
+  margin: 0;
+}
+
+.account-cloud-heading p,
+.account-cloud-account span {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.account-cloud-close {
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.account-cloud-safety {
+  margin: 1rem 0;
+  padding: 0.8rem;
+  border-radius: 10px;
+  background: rgba(47, 125, 85, 0.09);
+  color: #2f6e4c;
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.account-cloud-auth {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.account-cloud-auth label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.account-cloud-auth input {
+  width: 100%;
+  padding: 0.72rem 0.8rem;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  background: var(--bg-body);
+  color: var(--text-primary);
+}
+
+.account-cloud-message {
+  min-height: 1.25rem;
+  margin: 0.8rem 0 0.35rem;
+  color: #2f7d55;
+  font-size: 0.82rem;
+}
+
+.account-cloud-message[data-error="true"] {
+  color: var(--danger);
+}
+
+.account-cloud-trip-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.account-cloud-trip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: 11px;
+  background: var(--bg-body);
+}
+
+.account-cloud-trip div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.account-cloud-trip span,
+.account-cloud-empty {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.account-cloud-role {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: var(--accent-light);
+  color: var(--accent-color) !important;
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .account-cloud-shell {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .account-cloud-status {
+    display: none;
+  }
+
+  .account-cloud-account {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
