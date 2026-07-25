@@ -67,6 +67,34 @@
     return "transient";
   }
 
+  function isOfflineMode(environment = {}) {
+    if (environment.online === false) return true;
+    const hostname = String(environment.hostname || "").toLowerCase();
+    const isLocalHost = hostname === "127.0.0.1" || hostname === "localhost";
+    if (!isLocalHost) return false;
+    const params = new URLSearchParams(String(environment.search || ""));
+    return params.get("cloudTestOffline") === "1";
+  }
+
+  function resolveQueuedBaseRevision(baseRevision, environment = {}) {
+    const revision = Number(baseRevision);
+    const hostname = String(environment.hostname || "").toLowerCase();
+    const isLocalHost = hostname === "127.0.0.1" || hostname === "localhost";
+    if (!isLocalHost) return revision;
+    const params = new URLSearchParams(String(environment.search || ""));
+    return params.get("cloudTestStaleRevision") === "1"
+      ? Math.max(0, revision - 1)
+      : revision;
+  }
+
+  function shouldAutoConfirmDiscard(environment = {}) {
+    const hostname = String(environment.hostname || "").toLowerCase();
+    const isLocalHost = hostname === "127.0.0.1" || hostname === "localhost";
+    if (!isLocalHost) return false;
+    const params = new URLSearchParams(String(environment.search || ""));
+    return params.get("cloudTestAutoConfirmDiscard") === "1";
+  }
+
   function openDatabase(indexedDb = globalThis.indexedDB) {
     if (!indexedDb || typeof indexedDb.open !== "function") {
       return Promise.reject(new Error("indexeddb_unavailable"));
@@ -156,6 +184,9 @@
   return {
     normalizeQueueRecord,
     classifySaveError,
+    isOfflineMode,
+    resolveQueuedBaseRevision,
+    shouldAutoConfirmDiscard,
     openDatabase,
     putDraft,
     getDraft,

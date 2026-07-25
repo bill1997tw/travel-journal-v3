@@ -38,3 +38,9 @@ Never use `git add .`. Stage only explicit task files.
 
 Do not enable automatic synchronization yet. Follow the ordered next steps and
 acceptance cases in `GEMINI_HANDOFF.md`.
+
+Step B's durable offline queue browser acceptance passed on 2026-07-25.
+Localhost-only query switches exist for deterministic regression checks:
+`cloudTestOffline=1`, `cloudTestStaleRevision=1`, and
+`cloudTestAutoConfirmDiscard=1`. They must remain ignored on deployed hosts.
+The next ordered task is Step C, visible local/cloud state indicators.

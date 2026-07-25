@@ -30,6 +30,16 @@
     return window.VoyageCloudQueue || null;
   }
 
+  function isCloudOffline() {
+    const queueApi = getQueueApi();
+    if (!queueApi?.isOfflineMode) return !navigator.onLine;
+    return queueApi.isOfflineMode({
+      online: navigator.onLine,
+      hostname: window.location.hostname,
+      search: window.location.search
+    });
+  }
+
   function refreshAccountCloudStyles() {
     const stylesheet = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
       .find((link) => link.getAttribute("href")?.split("?")[0] === "cloud-sync.css");
@@ -151,10 +161,16 @@
       throw new Error("offline_queue_unavailable");
     }
     const payload = importApi.prepareCloudSave(localStorage, tripId);
+    const baseRevision = queueApi.resolveQueuedBaseRevision
+      ? queueApi.resolveQueuedBaseRevision(payload.expectedRevision, {
+        hostname: window.location.hostname,
+        search: window.location.search
+      })
+      : payload.expectedRevision;
     await queueApi.putDraft({
       tripId,
       title: cloudTrip.title,
-      baseRevision: payload.expectedRevision,
+      baseRevision,
       schemaVersion: payload.schemaVersion,
       state: payload.state,
       status: "pending",
@@ -169,7 +185,7 @@
     const importApi = getImportApi();
     const draft = state.queuedDrafts.find((item) => item.tripId === tripId);
     if (!queueApi || !importApi || !draft || state.busy) return;
-    if (!navigator.onLine) {
+    if (isCloudOffline()) {
       setMessage("目前仍為離線狀態，草稿會繼續保留。", true);
       return;
     }
@@ -222,7 +238,10 @@
     const queueApi = getQueueApi();
     const draft = state.queuedDrafts.find((item) => item.tripId === tripId);
     if (!queueApi || !draft || state.busy) return;
-    const confirmed = window.confirm(
+    const confirmed = queueApi.shouldAutoConfirmDiscard?.({
+      hostname: window.location.hostname,
+      search: window.location.search
+    }) || window.confirm(
       `確定捨棄「${draft.title}」的離線同步草稿嗎？本機旅程本身不會被刪除。`
     );
     if (!confirmed) return;
@@ -515,7 +534,7 @@
       setMessage("目前帳號沒有修改這趟旅程的權限。", true);
       return;
     }
-    if (!navigator.onLine) {
+    if (isCloudOffline()) {
       try {
         await queueImportedTrip(tripId, "offline");
       } catch (error) {
