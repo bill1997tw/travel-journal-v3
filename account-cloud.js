@@ -12,6 +12,7 @@
     savingTripIds: new Set(),
     ledgerTripId: null,
     ledgerSnapshot: null,
+    ledgerTestMode: false,
     preview: null,
     lastImportReceipt: null,
     mounted: false,
@@ -591,7 +592,8 @@
       : "<li class=\"account-cloud-ledger-empty\">目前沒有帳本紀錄。</li>";
 
     ui.ledgerTitle.textContent = `${trip?.title || "雲端旅程"}的唯讀帳本`;
-    ui.ledgerRevision.textContent = `revision ${view.revision}`;
+    const isTestMode = ui.ledgerSection.dataset.testMode === "true";
+    ui.ledgerRevision.textContent = `revision ${view.revision}${isTestMode ? "｜本機測試資料" : ""}`;
     ui.ledgerContent.innerHTML = `
       <div class="account-cloud-ledger-block">
         <h5>目前結算</h5>
@@ -620,8 +622,15 @@
     ui.ledgerRevision.textContent = "";
     ui.ledgerContent.innerHTML = '<p class="account-cloud-ledger-empty">讀取中，尚未修改任何資料。</p>';
     try {
-      const repository = ledgerApi.createRepository(state.client);
-      state.ledgerSnapshot = await repository.getSnapshot(tripId);
+      const testSnapshot = ledgerApi.getLocalhostTestSnapshot?.(window.location);
+      if (testSnapshot) {
+        state.ledgerSnapshot = testSnapshot;
+        state.ledgerTripId = tripId;
+      } else {
+        const repository = ledgerApi.createRepository(state.client);
+        state.ledgerSnapshot = await repository.getSnapshot(tripId);
+      }
+      ui.ledgerSection.dataset.testMode = testSnapshot ? "true" : "false";
       renderLedgerSnapshot();
     } catch (error) {
       state.ledgerSnapshot = null;
@@ -927,6 +936,10 @@
   }
 
   async function loadTrips() {
+    if (state.ledgerTestMode) {
+      renderTrips();
+      return;
+    }
     if (!state.client || !state.session) {
       state.trips = [];
       renderTrips();
@@ -1182,6 +1195,28 @@
       const { data, error } = await client.auth.getSession();
       if (error) throw error;
       state.session = data.session;
+      const testSnapshot = getLedgerApi()?.getLocalhostTestSnapshot?.(window.location);
+      if (!state.session && testSnapshot) {
+        state.ledgerTestMode = true;
+        state.session = {
+          user: {
+            id: testSnapshot.members[0].memberId,
+            email: "localhost-ledger-test@example.invalid"
+          }
+        };
+        state.trips = [{
+          id: testSnapshot.tripId,
+          title: "完整帳本驗收旅程",
+          destination: "localhost 測試資料",
+          base_currency: "TWD",
+          trip_members: [{
+            role: "owner",
+            user_id: testSnapshot.members[0].memberId
+          }]
+        }];
+        renderSession();
+        return;
+      }
       if (state.session) {
         await loadTrips();
         startRealtimeUpdates();

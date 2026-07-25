@@ -4,7 +4,8 @@ const {
   normalizeSnapshot,
   formatMoney,
   buildViewModel,
-  createRepository
+  createRepository,
+  getLocalhostTestSnapshot
 } = require("../account-cloud-ledger.js");
 
 function rawSnapshot() {
@@ -93,4 +94,33 @@ test("repository reads only through get_ledger_snapshot", async () => {
     args: { target_trip_id: "trip-1" }
   }]);
   assert.equal(snapshot.entries.length, 3);
+});
+
+test("localhost fixture covers expense, borrowing, repayment, and settlement", () => {
+  const snapshot = getLocalhostTestSnapshot({
+    hostname: "127.0.0.1",
+    search: "?cloudTestLedger=1"
+  });
+  const view = buildViewModel(snapshot);
+  assert.equal(view.revision, 3);
+  assert.deepEqual(view.entries.map((entry) => entry.kind), [
+    "expense",
+    "borrowing",
+    "repayment"
+  ]);
+  assert.equal(view.entries[1].summary, "小明 → 跟 小華 借 TWD 4,000.00");
+  assert.equal(view.entries[2].summary, "小明 → 還款 TWD 5,000.00 給 小華");
+  assert.equal(view.settlements[0].summary, "小明 → 小華");
+  assert.equal(view.settlements[0].amountLabel, "TWD 9,000.00");
+});
+
+test("ledger fixture switch is ignored outside localhost", () => {
+  assert.equal(getLocalhostTestSnapshot({
+    hostname: "travel.example.com",
+    search: "?cloudTestLedger=1"
+  }), null);
+  assert.equal(getLocalhostTestSnapshot({
+    hostname: "localhost",
+    search: ""
+  }), null);
 });

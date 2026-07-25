@@ -138,6 +138,62 @@
     });
   }
 
+  function getLocalhostTestSnapshot(locationLike) {
+    const hostname = String(locationLike?.hostname || "").toLowerCase();
+    const search = String(locationLike?.search || "");
+    if (!["localhost", "127.0.0.1", "::1"].includes(hostname)) return null;
+    if (new URLSearchParams(search).get("cloudTestLedger") !== "1") return null;
+    return normalizeSnapshot({
+      trip_id: "00000000-0000-0000-0000-000000000001",
+      ledger_revision: "3",
+      members: [
+        { member_id: "member-a", display_name: "小明", role: "owner" },
+        { member_id: "member-b", display_name: "小華", role: "viewer" }
+      ],
+      entries: [
+        {
+          entry_id: "expense-1",
+          kind: "expense",
+          amount_minor: "1000000",
+          currency: "TWD",
+          occurred_at: "2026-07-26T10:00:00.000Z",
+          payer_id: "member-b",
+          title: "小八玩偶",
+          shares: [
+            { member_id: "member-a", amount_minor: "1000000" },
+            { member_id: "member-b", amount_minor: "0" }
+          ]
+        },
+        {
+          entry_id: "borrowing-1",
+          kind: "borrowing",
+          amount_minor: "400000",
+          currency: "TWD",
+          occurred_at: "2026-07-26T10:01:00.000Z",
+          borrower_id: "member-a",
+          lender_id: "member-b"
+        },
+        {
+          entry_id: "repayment-1",
+          kind: "repayment",
+          amount_minor: "500000",
+          currency: "TWD",
+          occurred_at: "2026-07-26T10:02:00.000Z",
+          payer_id: "member-a",
+          receiver_id: "member-b"
+        }
+      ],
+      settlements: [
+        {
+          payer_id: "member-a",
+          receiver_id: "member-b",
+          amount_minor: "900000",
+          currency: "TWD"
+        }
+      ]
+    });
+  }
+
   function createRepository(client) {
     if (!client || typeof client.rpc !== "function") {
       throw new TypeError("supabase_client_required");
@@ -157,6 +213,7 @@
     normalizeSnapshot,
     formatMoney,
     buildViewModel,
+    getLocalhostTestSnapshot,
     createRepository
   });
 });
