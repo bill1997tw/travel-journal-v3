@@ -22,6 +22,24 @@
     return Array.isArray(value) ? clone(value) : [];
   }
 
+  function stableSerialize(value) {
+    if (Array.isArray(value)) {
+      return `[${value.map(stableSerialize).join(",")}]`;
+    }
+    if (isObject(value)) {
+      return `{${Object.keys(value)
+        .sort()
+        .map((key) => `${JSON.stringify(key)}:${stableSerialize(value[key])}`)
+        .join(",")}}`;
+    }
+    if (value === undefined) return "null";
+    return JSON.stringify(value);
+  }
+
+  function sectionChanged(localValue, remoteValue) {
+    return stableSerialize(localValue) !== stableSerialize(remoteValue);
+  }
+
   function mapSimpleExpenses(expenses) {
     if (!Array.isArray(expenses)) return [];
     return expenses.map((expense, index) => ({
@@ -275,23 +293,75 @@
       ? remoteCandidate.itinerary.days.reduce((acc, d) => acc + (d.items?.length || 0), 0)
       : 0;
 
-    const localLedgerCount = asArray(localTrip.ledger).length;
-    const remoteLedgerCount = asArray(remoteCandidate.ledger).length;
+    const localLedger = asArray(localTrip.ledger);
+    const remoteLedger = asArray(remoteCandidate.ledger);
+    const localLedgerCount = localLedger.length;
+    const remoteLedgerCount = remoteLedger.length;
 
-    const localLedgerTotal = asArray(localTrip.ledger).reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
-    const remoteLedgerTotal = asArray(remoteCandidate.ledger).reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
+    const localLedgerTotal = localLedger.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
+    const remoteLedgerTotal = remoteLedger.reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
 
-    const localAdvancesCount = asArray(localTrip.advances).length;
-    const remoteAdvancesCount = asArray(remoteCandidate.advances).length;
+    const localAdvances = asArray(localTrip.advances);
+    const remoteAdvances = asArray(remoteCandidate.advances);
+    const localAdvancesCount = localAdvances.length;
+    const remoteAdvancesCount = remoteAdvances.length;
 
-    const localRepaymentsCount = asArray(localTrip.repayInfo).length;
-    const remoteRepaymentsCount = asArray(remoteCandidate.repayInfo).length;
+    const localRepayments = asArray(localTrip.repayInfo);
+    const remoteRepayments = asArray(remoteCandidate.repayInfo);
+    const localRepaymentsCount = localRepayments.length;
+    const remoteRepaymentsCount = remoteRepayments.length;
 
-    const localPackingCount = asArray(localTrip.packingList).length + asArray(localTrip.todoList).length;
-    const remotePackingCount = asArray(remoteCandidate.packingList).length + asArray(remoteCandidate.todoList).length;
+    const localPacking = {
+      packingList: asArray(localTrip.packingList),
+      todoList: asArray(localTrip.todoList)
+    };
+    const remotePacking = {
+      packingList: asArray(remoteCandidate.packingList),
+      todoList: asArray(remoteCandidate.todoList)
+    };
+    const localPackingCount = localPacking.packingList.length + localPacking.todoList.length;
+    const remotePackingCount = remotePacking.packingList.length + remotePacking.todoList.length;
 
     const localHasDiary = Boolean(localTrip.diary?.content || localTrip.diary?.cost);
     const remoteHasDiary = Boolean(remoteCandidate.diary?.content || remoteCandidate.diary?.cost);
+    const localBasicInfo = {
+      title: localTrip.title,
+      location: localTrip.location,
+      date: localTrip.date,
+      dateRange: localTrip.dateRange,
+      duration: localTrip.duration,
+      companion: localTrip.companion,
+      travelers: localTrip.travelers,
+      luggage: localTrip.luggage,
+      rental: localTrip.rental,
+      hotel: localTrip.hotel,
+      continent: localTrip.continent
+    };
+    const remoteBasicInfo = {
+      title: remoteCandidate.title,
+      location: remoteCandidate.location,
+      date: remoteCandidate.date,
+      dateRange: remoteCandidate.dateRange,
+      duration: remoteCandidate.duration,
+      companion: remoteCandidate.companion,
+      travelers: remoteCandidate.travelers,
+      luggage: remoteCandidate.luggage,
+      rental: remoteCandidate.rental,
+      hotel: remoteCandidate.hotel,
+      continent: remoteCandidate.continent
+    };
+    const localNotes = {
+      notes: localTrip.notes,
+      quickNotes: localTrip.quickNotes,
+      wishlist: asArray(localTrip.wishlist),
+      alternativeSpots: localTrip.alternativeSpots || {}
+    };
+    const remoteNotes = {
+      notes: remoteCandidate.notes,
+      quickNotes: remoteCandidate.quickNotes,
+      wishlist: asArray(remoteCandidate.wishlist),
+      alternativeSpots: remoteCandidate.alternativeSpots || {}
+    };
 
     return {
       revisions: {
@@ -304,60 +374,70 @@
           label: "基本資料",
           local: `${localTrip.title || "未命名"} (${localTrip.location || "未設定地點"})`,
           remote: `${remoteCandidate.title || "未命名"} (${remoteCandidate.location || "未設定地點"})`,
-          hasDiff: localTrip.title !== remoteCandidate.title || localTrip.location !== remoteCandidate.location
+          hasDiff: sectionChanged(localBasicInfo, remoteBasicInfo)
         },
         {
           key: "itinerary",
           label: "詳細行程",
           local: `${localTrip.itinerary?.days?.length || 0} 天 (${localItineraryCount} 個項目)`,
           remote: `${remoteCandidate.itinerary?.days?.length || 0} 天 (${remoteItineraryCount} 個項目)`,
-          hasDiff: localItineraryCount !== remoteItineraryCount || (localTrip.itinerary?.days?.length || 0) !== (remoteCandidate.itinerary?.days?.length || 0)
+          hasDiff: sectionChanged(localTrip.itinerary || {}, remoteCandidate.itinerary || {})
         },
         {
           key: "ledger",
           label: "帳單費用",
           local: `${localLedgerCount} 筆 (總額 NT$ ${localLedgerTotal.toLocaleString()})`,
           remote: `${remoteLedgerCount} 筆 (總額 NT$ ${remoteLedgerTotal.toLocaleString()})`,
-          hasDiff: localLedgerCount !== remoteLedgerCount || localLedgerTotal !== remoteLedgerTotal
+          hasDiff: sectionChanged(localLedger, remoteLedger)
         },
         {
           key: "advances",
           label: "代墊款項",
           local: `${localAdvancesCount} 筆代墊`,
           remote: `${remoteAdvancesCount} 筆代墊`,
-          hasDiff: localAdvancesCount !== remoteAdvancesCount
+          hasDiff: sectionChanged(localAdvances, remoteAdvances)
         },
         {
           key: "repayments",
           label: "還款資訊",
           local: `${localRepaymentsCount} 筆還款`,
           remote: `${remoteRepaymentsCount} 筆還款`,
-          hasDiff: localRepaymentsCount !== remoteRepaymentsCount
+          hasDiff: sectionChanged(localRepayments, remoteRepayments)
         },
         {
           key: "packing",
           label: "打包與待辦",
           local: `${localPackingCount} 個項目`,
           remote: `${remotePackingCount} 個項目`,
-          hasDiff: localPackingCount !== remotePackingCount
+          hasDiff: sectionChanged(localPacking, remotePacking)
+        },
+        {
+          key: "notes",
+          label: "備註與收藏",
+          local: `${localNotes.wishlist.length} 個願望項目`,
+          remote: `${remoteNotes.wishlist.length} 個願望項目`,
+          hasDiff: sectionChanged(localNotes, remoteNotes)
         },
         {
           key: "diary",
           label: "筆記與日記",
           local: localHasDiary ? "已撰寫內容" : "無內容",
           remote: remoteHasDiary ? "已撰寫內容" : "無內容",
-          hasDiff: localHasDiary !== remoteHasDiary || (localTrip.diary?.content !== remoteCandidate.diary?.content)
+          hasDiff: sectionChanged(localTrip.diary || {}, remoteCandidate.diary || {})
         }
       ]
     };
   }
 
   function importRemoteAsCopy(storage, remoteCandidate, now = new Date()) {
+    if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function") {
+      throw new TypeError("storage_required");
+    }
     if (!isObject(remoteCandidate) || !remoteCandidate._cloud?.tripId) {
       throw new TypeError("import_candidate_invalid");
     }
     const copyCandidate = clone(remoteCandidate);
-    copyCandidate.id = `local-copy-${Date.now()}`;
+    copyCandidate.id = `local-copy-${now.getTime()}`;
     copyCandidate.title = `${copyCandidate.title} (雲端 rev ${copyCandidate._cloud.revision} 副本)`;
     delete copyCandidate._cloud;
 
@@ -365,9 +445,20 @@
     const trips = parseLocalTrips(previousRaw);
 
     const backupKey = makeBackupKey(now);
+    const previousLatestBackupKey = storage.getItem(LATEST_BACKUP_KEY);
     storage.setItem(backupKey, previousRaw);
-    storage.setItem(LATEST_BACKUP_KEY, backupKey);
-    storage.setItem("voyage_trips", JSON.stringify([copyCandidate, ...trips]));
+    try {
+      storage.setItem(LATEST_BACKUP_KEY, backupKey);
+      storage.setItem("voyage_trips", JSON.stringify([copyCandidate, ...trips]));
+    } catch (error) {
+      storage.removeItem(backupKey);
+      if (previousLatestBackupKey) {
+        storage.setItem(LATEST_BACKUP_KEY, previousLatestBackupKey);
+      } else {
+        storage.removeItem(LATEST_BACKUP_KEY);
+      }
+      throw error;
+    }
 
     return {
       backupKey,

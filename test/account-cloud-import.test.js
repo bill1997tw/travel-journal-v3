@@ -135,7 +135,7 @@ test("prepares a revision-guarded save and commits the returned revision", () =>
   assert.equal(updated._cloud.lastSavedAt, "2026-07-23T13:00:00.000Z");
 });
 
-test("compares local and remote trip states across 7 major sections", () => {
+test("compares local and remote trip states across 8 major sections", () => {
   const { compareTripStates } = require("../account-cloud-import.js");
   const localTrip = {
     title: "東京之旅 (本機)",
@@ -165,9 +165,39 @@ test("compares local and remote trip states across 7 major sections", () => {
   const diff = compareTripStates(localTrip, remoteCandidate);
   assert.equal(diff.revisions.local, 2);
   assert.equal(diff.revisions.remote, 3);
-  assert.equal(diff.sections.length, 7);
+  assert.equal(diff.sections.length, 8);
   assert.equal(diff.sections.find(s => s.key === "itinerary").hasDiff, true);
   assert.equal(diff.sections.find(s => s.key === "ledger").hasDiff, true);
+});
+
+test("detects content changes even when counts and money totals are unchanged", () => {
+  const { compareTripStates } = require("../account-cloud-import.js");
+  const localTrip = {
+    title: "東京",
+    itinerary: { days: [{ items: [{ id: "item-1", title: "淺草" }] }] },
+    ledger: [{ id: "expense-1", name: "午餐", cost: 1000 }],
+    advances: [{ id: "advance-1", payer: "小明", amount: 500 }],
+    repayInfo: [],
+    packingList: [{ id: "pack-1", name: "護照" }],
+    todoList: [],
+    wishlist: [],
+    diary: {},
+    _cloud: { revision: 2 }
+  };
+  const remoteTrip = {
+    ...localTrip,
+    itinerary: { days: [{ items: [{ id: "item-1", title: "晴空塔" }] }] },
+    ledger: [{ id: "expense-1", name: "晚餐", cost: 1000 }],
+    advances: [{ id: "advance-1", payer: "小華", amount: 500 }],
+    packingList: [{ id: "pack-1", name: "雨傘" }],
+    _cloud: { revision: 3 }
+  };
+
+  const sections = compareTripStates(localTrip, remoteTrip).sections;
+  assert.equal(sections.find(s => s.key === "itinerary").hasDiff, true);
+  assert.equal(sections.find(s => s.key === "ledger").hasDiff, true);
+  assert.equal(sections.find(s => s.key === "advances").hasDiff, true);
+  assert.equal(sections.find(s => s.key === "packing").hasDiff, true);
 });
 
 test("imports remote candidate as a separate local copy without overwriting local draft", () => {
@@ -195,4 +225,37 @@ test("imports remote candidate as a separate local copy without overwriting loca
   assert.equal(updatedTrips[0]._cloud, undefined); // Local standalone copy
   assert.equal(updatedTrips[1].title, "本機編輯中的草稿"); // Local draft byte-for-byte preserved
   assert.equal(updatedTrips[1]._cloud.revision, 2);
+});
+
+test("remote-copy import restores the previous backup marker when storage write fails", () => {
+  const {
+    importRemoteAsCopy,
+    getLatestBackupReceipt
+  } = require("../account-cloud-import.js");
+  const storage = createStorage({
+    voyage_trips: JSON.stringify([{ id: "local-trip", title: "本機旅程" }]),
+    voyage_cloud_latest_backup_key: "older-backup",
+    "older-backup": "[]"
+  });
+  const originalSetItem = storage.setItem.bind(storage);
+  storage.setItem = (key, value) => {
+    if (key === "voyage_trips") {
+      const error = new Error("quota");
+      error.name = "QuotaExceededError";
+      throw error;
+    }
+    originalSetItem(key, value);
+  };
+
+  assert.throws(
+    () => importRemoteAsCopy(storage, {
+      id: "cloud-trip",
+      title: "雲端旅程",
+      _cloud: { tripId: "trip-cloud-1", revision: 3 }
+    }, new Date("2026-07-25T10:00:00.000Z")),
+    { name: "QuotaExceededError" }
+  );
+  assert.deepEqual(getLatestBackupReceipt(storage), {
+    backupKey: "older-backup"
+  });
 });

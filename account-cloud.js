@@ -6,6 +6,7 @@
     client: null,
     session: null,
     trips: [],
+    queuedDrafts: [],
     preview: null,
     lastImportReceipt: null,
     mounted: false,
@@ -23,6 +24,10 @@
 
   function getImportApi() {
     return window.VoyageCloudImport || null;
+  }
+
+  function getQueueApi() {
+    return window.VoyageCloudQueue || null;
   }
 
   function refreshAccountCloudStyles() {
@@ -79,6 +84,158 @@
       editor: "可編輯",
       viewer: "僅查看"
     }[role] || "成員";
+  }
+
+  function queueStatusLabel(status) {
+    return {
+      pending: "等待同步",
+      syncing: "同步中",
+      conflict: "版本衝突",
+      failed: "同步失敗"
+    }[status] || status;
+  }
+
+  function renderQueue() {
+    if (!ui) return;
+    ui.queueSection.hidden = state.queuedDrafts.length === 0;
+    ui.queueList.replaceChildren();
+    for (const draft of state.queuedDrafts) {
+      const item = document.createElement("article");
+      item.className = "account-cloud-queue-item";
+      item.innerHTML = `
+        <div>
+          <strong>${escapeHtml(draft.title)}</strong>
+          <span>base revision ${draft.baseRevision} · ${escapeHtml(queueStatusLabel(draft.status))}</span>
+          ${draft.lastError ? `<small>${escapeHtml(draft.lastError)}</small>` : ""}
+        </div>
+        <div class="account-cloud-queue-actions">
+          <button type="button" class="btn btn-primary account-cloud-queue-retry" data-trip-id="${escapeHtml(draft.tripId)}">
+            立即重試
+          </button>
+          <button type="button" class="btn btn-secondary account-cloud-queue-discard" data-trip-id="${escapeHtml(draft.tripId)}">
+            捨棄佇列草稿
+          </button>
+        </div>
+      `;
+      ui.queueList.appendChild(item);
+    }
+    for (const button of ui.queueList.querySelectorAll(".account-cloud-queue-retry")) {
+      button.addEventListener("click", () => retryQueuedDraft(button.dataset.tripId));
+    }
+    for (const button of ui.queueList.querySelectorAll(".account-cloud-queue-discard")) {
+      button.addEventListener("click", () => discardQueuedDraft(button.dataset.tripId));
+    }
+  }
+
+  async function refreshQueue() {
+    const queueApi = getQueueApi();
+    if (!queueApi) {
+      state.queuedDrafts = [];
+      renderQueue();
+      return;
+    }
+    try {
+      state.queuedDrafts = await queueApi.listDrafts();
+    } catch (error) {
+      console.warn("Could not read offline draft queue.", error);
+      setMessage("無法讀取離線草稿佇列；請先不要清除瀏覽器資料。", true);
+    }
+    renderQueue();
+  }
+
+  async function queueImportedTrip(tripId, reason) {
+    const importApi = getImportApi();
+    const queueApi = getQueueApi();
+    const cloudTrip = state.trips.find((trip) => trip.id === tripId);
+    if (!importApi || !queueApi || !cloudTrip) {
+      throw new Error("offline_queue_unavailable");
+    }
+    const payload = importApi.prepareCloudSave(localStorage, tripId);
+    await queueApi.putDraft({
+      tripId,
+      title: cloudTrip.title,
+      baseRevision: payload.expectedRevision,
+      schemaVersion: payload.schemaVersion,
+      state: payload.state,
+      status: "pending",
+      lastError: reason || null
+    });
+    await refreshQueue();
+    setMessage("本機修改已存入離線草稿佇列；不會自動覆蓋雲端，請恢復網路後手動重試。");
+  }
+
+  async function retryQueuedDraft(tripId) {
+    const queueApi = getQueueApi();
+    const importApi = getImportApi();
+    const draft = state.queuedDrafts.find((item) => item.tripId === tripId);
+    if (!queueApi || !importApi || !draft || state.busy) return;
+    if (!navigator.onLine) {
+      setMessage("目前仍為離線狀態，草稿會繼續保留。", true);
+      return;
+    }
+
+    setBusy(true);
+    setMessage("");
+    try {
+      await queueApi.updateDraftStatus(tripId, "syncing", {
+        retryCount: draft.retryCount,
+        lastError: null
+      });
+      await refreshQueue();
+      const { data, error } = await state.client.rpc("save_trip_document", {
+        target_trip_id: tripId,
+        expected_revision: draft.baseRevision,
+        next_schema_version: draft.schemaVersion,
+        next_state: draft.state,
+        change_action: "update"
+      });
+      if (error) throw error;
+
+      const savedRevision = Number(data?.revision);
+      importApi.commitSavedRevision(localStorage, tripId, savedRevision);
+      await queueApi.deleteDraft(tripId);
+      window.voyageApp?.rehydrateAndRender?.();
+      renderTrips();
+      await refreshQueue();
+      setMessage(`離線草稿已安全同步到雲端 revision ${savedRevision}。`);
+    } catch (error) {
+      const classification = queueApi.classifySaveError(error);
+      const status = classification === "conflict" ? "conflict" : "failed";
+      await queueApi.updateDraftStatus(tripId, status, {
+        retryCount: draft.retryCount + 1,
+        lastError: error.message || "sync_failed"
+      }).catch(() => {});
+      await refreshQueue();
+      if (classification === "conflict") {
+        setMessage("離線草稿的 base revision 已過期；草稿仍保留，請使用版本比較。", true);
+        const localTrip = findImportedTrip(tripId);
+        if (localTrip) openConflictComparison(tripId, localTrip);
+      } else {
+        setMessage("離線草稿同步失敗，草稿仍保留，可稍後手動重試。", true);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function discardQueuedDraft(tripId) {
+    const queueApi = getQueueApi();
+    const draft = state.queuedDrafts.find((item) => item.tripId === tripId);
+    if (!queueApi || !draft || state.busy) return;
+    const confirmed = window.confirm(
+      `確定捨棄「${draft.title}」的離線同步草稿嗎？本機旅程本身不會被刪除。`
+    );
+    if (!confirmed) return;
+    setBusy(true);
+    try {
+      await queueApi.deleteDraft(tripId);
+      await refreshQueue();
+      setMessage("已捨棄離線同步草稿；本機旅程仍完整保留。");
+    } catch (error) {
+      setMessage(error.message || "無法捨棄離線草稿。", true);
+    } finally {
+      setBusy(false);
+    }
   }
 
   function findImportedTrip(tripId) {
@@ -275,7 +432,7 @@
             本機版本: <strong>revision ${comparison.revisions.local}</strong> ｜ <strong>revision ${comparison.revisions.remote}</strong>
           </p>
           <p style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.25rem;">
-            為保護雙方資料不被覆蓋，請參閱下方 7 大區塊差異摘要。您可匯出本機草稿，或將雲端最新版存為獨立副本。
+            為保護雙方資料不被覆蓋，請參閱下方 8 大區塊差異摘要。您可匯出本機草稿，或將雲端最新版存為獨立副本。
           </p>
         </div>
 
@@ -359,7 +516,11 @@
       return;
     }
     if (!navigator.onLine) {
-      setMessage("目前處於離線狀態；本機修改仍保留，恢復網路後再手動儲存。", true);
+      try {
+        await queueImportedTrip(tripId, "offline");
+      } catch (error) {
+        setMessage("目前離線且無法建立持久草稿；本機修改仍保留，請勿清除瀏覽器資料。", true);
+      }
       return;
     }
 
@@ -379,8 +540,10 @@
 
       const savedRevision = Number(data?.revision);
       importApi.commitSavedRevision(localStorage, tripId, savedRevision);
+      await getQueueApi()?.deleteDraft(tripId).catch(() => {});
       window.voyageApp?.rehydrateAndRender?.();
       renderTrips();
+      await refreshQueue();
       setMessage(`已安全儲存到雲端 revision ${savedRevision}。`);
     } catch (error) {
       if (error.message?.includes("trip_revision_conflict")) {
@@ -395,7 +558,16 @@
       } else if (error.name === "QuotaExceededError") {
         setMessage("本機儲存空間不足，為避免版本失聯，本次沒有送出雲端修改。", true);
       } else {
-        setMessage(error.message || "雲端儲存失敗，本機修改仍保留。", true);
+        const classification = getQueueApi()?.classifySaveError(error);
+        if (classification === "transient") {
+          try {
+            await queueImportedTrip(tripId, error.message || "network_error");
+          } catch (queueError) {
+            setMessage("雲端儲存失敗，且無法建立離線佇列；本機修改仍保留。", true);
+          }
+        } else {
+          setMessage(error.message || "雲端儲存失敗，本機修改仍保留。", true);
+        }
       }
     } finally {
       setBusy(false);
@@ -552,6 +724,15 @@
           </div>
         </div>
         <div class="account-cloud-message" role="alert"></div>
+        <section class="account-cloud-queue" hidden>
+          <div class="account-cloud-queue-heading">
+            <div>
+              <p>持久離線草稿</p>
+              <h4>等待處理的雲端修改</h4>
+            </div>
+          </div>
+          <div class="account-cloud-queue-list"></div>
+        </section>
         <div class="account-cloud-trip-list"></div>
         <section class="account-cloud-import-preview" hidden>
           <div class="account-cloud-preview-heading">
@@ -583,6 +764,8 @@
       refreshButton: overlay.querySelector(".account-cloud-refresh"),
       signOutButton: overlay.querySelector(".account-cloud-signout"),
       message: overlay.querySelector(".account-cloud-message"),
+      queueSection: overlay.querySelector(".account-cloud-queue"),
+      queueList: overlay.querySelector(".account-cloud-queue-list"),
       tripList: overlay.querySelector(".account-cloud-trip-list"),
       preview: overlay.querySelector(".account-cloud-import-preview"),
       previewContent: overlay.querySelector(".account-cloud-preview-content"),
@@ -616,6 +799,7 @@
     mount();
     state.lastImportReceipt = getImportApi()?.getLatestBackupReceipt(localStorage) || null;
     ui.undoButton.hidden = !state.lastImportReceipt;
+    await refreshQueue();
     const client = ensureClient();
     if (!client) {
       setStatus("雲端設定未完成", "error");
@@ -646,5 +830,12 @@
     refresh: loadTrips,
     getSession: () => state.session,
     getTrips: () => state.trips.map((trip) => ({ ...trip }))
+  });
+
+  window.addEventListener("online", () => {
+    refreshQueue();
+    if (state.queuedDrafts.length > 0) {
+      setMessage("網路已恢復；離線草稿仍保留，請確認後手動重試。");
+    }
   });
 })();

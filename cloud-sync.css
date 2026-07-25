@@ -552,3 +552,71 @@
   width: 100%;
   font-size: 0.85rem;
 }
+
+.account-cloud-queue {
+  margin: 0.85rem 0;
+  padding: 0.85rem;
+  border: 1px solid rgba(154, 91, 22, 0.25);
+  border-radius: 12px;
+  background: rgba(154, 91, 22, 0.06);
+}
+
+.account-cloud-queue[hidden] {
+  display: none !important;
+}
+
+.account-cloud-queue-heading p,
+.account-cloud-queue-heading h4 {
+  margin: 0;
+}
+
+.account-cloud-queue-heading p {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.account-cloud-queue-list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+}
+
+.account-cloud-queue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.65rem;
+  border-radius: 9px;
+  background: var(--bg-card);
+}
+
+.account-cloud-queue-item div:first-child {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.account-cloud-queue-item span,
+.account-cloud-queue-item small {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.account-cloud-queue-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.4rem;
+}
+
+.account-cloud-queue-actions .btn {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 768px) {
+  .account-cloud-queue-item,
+  .account-cloud-queue-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

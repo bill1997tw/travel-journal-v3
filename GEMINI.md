@@ -29,10 +29,12 @@ Never use `git add .`. Stage only explicit task files.
 
 - `account-cloud.js`
 - `account-cloud-import.js`
+- `account-cloud-queue.js`
 - `cloud-sync.js`
 - `cloud-sync.css`
 - `supabase-config.js`
 - `test/account-cloud-import.test.js`
+- `test/account-cloud-queue.test.js`
 
 Do not enable automatic synchronization yet. Follow the ordered next steps and
 acceptance cases in `GEMINI_HANDOFF.md`.

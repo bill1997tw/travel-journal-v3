@@ -11,10 +11,21 @@
       });
       document.head.appendChild(accountScript);
     };
+    const loadQueueModule = () => {
+      const queueScript = document.createElement("script");
+      queueScript.src = bootstrapConfig.accountCloudQueueScript || "account-cloud-queue.js";
+      queueScript.defer = true;
+      queueScript.addEventListener("load", loadAccountCloud, { once: true });
+      queueScript.addEventListener("error", () => {
+        console.error("Offline queue module could not be loaded; account cloud will remain manual-only.");
+        loadAccountCloud();
+      }, { once: true });
+      document.head.appendChild(queueScript);
+    };
     const importScript = document.createElement("script");
     importScript.src = bootstrapConfig.accountCloudImportScript || "account-cloud-import.js";
     importScript.defer = true;
-    importScript.addEventListener("load", loadAccountCloud, { once: true });
+    importScript.addEventListener("load", loadQueueModule, { once: true });
     importScript.addEventListener("error", () => {
       console.error("Account cloud module could not be loaded; local mode remains available.");
     });
