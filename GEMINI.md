@@ -44,5 +44,15 @@ Localhost-only query switches exist for deterministic regression checks:
 `cloudTestOffline=1`, `cloudTestStaleRevision=1`, and
 `cloudTestAutoConfirmDiscard=1`. They must remain ignored on deployed hosts.
 Step C's deterministic local/cloud state indicators and signed-in browser
-acceptance passed on 2026-07-25. The next ordered task is Step D, realtime
-remote-update notices that never overwrite local edits.
+acceptance passed on 2026-07-25.
+
+Step D's Supabase Realtime notice flow and signed-in browser acceptance passed
+on 2026-07-25. Clean local copies require an explicit
+`載入雲端最新版`; edited or queued copies preserve local data and offer
+`比較版本`. `cloudTestRealtime=1` is localhost-only and must remain ignored
+on deployed hosts. The acceptance run restored the original two local trips.
+
+Steps A-D are complete. Automatic synchronization remains disabled. Before
+adding background writes, re-evaluate that requirement at an architecture
+checkpoint; the planned next product layer is `packages/ledger-core` in the
+cloud platform repository.

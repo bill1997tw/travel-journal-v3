@@ -95,6 +95,14 @@
     return params.get("cloudTestAutoConfirmDiscard") === "1";
   }
 
+  function isRealtimeTestMode(environment = {}) {
+    const hostname = String(environment.hostname || "").toLowerCase();
+    const isLocalHost = hostname === "127.0.0.1" || hostname === "localhost";
+    if (!isLocalHost) return false;
+    const params = new URLSearchParams(String(environment.search || ""));
+    return params.get("cloudTestRealtime") === "1";
+  }
+
   function openDatabase(indexedDb = globalThis.indexedDB) {
     if (!indexedDb || typeof indexedDb.open !== "function") {
       return Promise.reject(new Error("indexeddb_unavailable"));
@@ -187,6 +195,7 @@
     isOfflineMode,
     resolveQueuedBaseRevision,
     shouldAutoConfirmDiscard,
+    isRealtimeTestMode,
     openDatabase,
     putDraft,
     getDraft,

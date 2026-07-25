@@ -7,6 +7,9 @@
     session: null,
     trips: [],
     queuedDrafts: [],
+    remoteUpdates: {},
+    realtimeChannel: null,
+    savingTripIds: new Set(),
     preview: null,
     lastImportReceipt: null,
     mounted: false,
@@ -40,11 +43,18 @@
     });
   }
 
+  function isRealtimeTestMode() {
+    return Boolean(getQueueApi()?.isRealtimeTestMode?.({
+      hostname: window.location.hostname,
+      search: window.location.search
+    }));
+  }
+
   function refreshAccountCloudStyles() {
     const stylesheet = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
       .find((link) => link.getAttribute("href")?.split("?")[0] === "cloud-sync.css");
     if (!stylesheet) return;
-    stylesheet.href = "cloud-sync.css?v=account_cloud_v6";
+    stylesheet.href = "cloud-sync.css?v=account_cloud_v7";
   }
 
   function escapeHtml(value) {
@@ -113,7 +123,9 @@
       unsaved: { label: "本機有未儲存修改", tone: "unsaved" },
       queued: { label: "離線草稿等待同步", tone: "queued" },
       conflict: { label: "版本衝突", tone: "conflict" },
-      failed: { label: "同步失敗", tone: "failed" }
+      failed: { label: "同步失敗", tone: "failed" },
+      refresh_available: { label: "雲端有新版本", tone: "remote" },
+      compare_required: { label: "遠端更新待比較", tone: "conflict" }
     }[status] || { label: status, tone: "neutral" };
   }
 
@@ -204,6 +216,7 @@
     }
 
     setBusy(true);
+    state.savingTripIds.add(tripId);
     setMessage("");
     try {
       await queueApi.updateDraftStatus(tripId, "syncing", {
@@ -222,6 +235,7 @@
 
       const savedRevision = Number(data?.revision);
       importApi.commitSavedRevision(localStorage, tripId, savedRevision);
+      delete state.remoteUpdates[tripId];
       await queueApi.deleteDraft(tripId);
       window.voyageApp?.rehydrateAndRender?.();
       renderTrips();
@@ -243,6 +257,7 @@
         setMessage("離線草稿同步失敗，草稿仍保留，可稍後手動重試。", true);
       }
     } finally {
+      state.savingTripIds.delete(tripId);
       setBusy(false);
     }
   }
@@ -283,6 +298,157 @@
     }
   }
 
+  function clearRemoteUpdate(tripId) {
+    if (!state.remoteUpdates[tripId]) return;
+    delete state.remoteUpdates[tripId];
+    renderTrips();
+  }
+
+  function handleRealtimeDocumentChange(payload) {
+    const importApi = getImportApi();
+    const documentRecord = payload?.new;
+    const tripId = documentRecord?.trip_id;
+    const remoteRevision = Number(documentRecord?.revision);
+    if (!importApi || !tripId || state.savingTripIds.has(tripId)) return;
+    if (!state.trips.some((trip) => trip.id === tripId)) return;
+
+    const localTrip = findImportedTrip(tripId);
+    const queuedDraft = state.queuedDrafts.find((draft) => draft.tripId === tripId) || null;
+    const mode = importApi.classifyRemoteUpdate(localTrip, queuedDraft, remoteRevision);
+    if (mode === "ignore") return;
+
+    const previous = state.remoteUpdates[tripId];
+    if (previous && previous.revision >= remoteRevision) return;
+    state.remoteUpdates[tripId] = { revision: remoteRevision, mode };
+    renderTrips();
+    setMessage(
+      mode === "refresh_available"
+        ? "雲端已有新版本；本機沒有未儲存修改，可由您決定是否重新載入。"
+        : "雲端已有新版本，但本機也有修改；請先比較版本，不會自動覆蓋。",
+      mode === "compare_required"
+    );
+  }
+
+  function stopRealtimeUpdates() {
+    if (!state.client || !state.realtimeChannel) return;
+    state.client.removeChannel(state.realtimeChannel);
+    state.realtimeChannel = null;
+  }
+
+  function startRealtimeUpdates() {
+    stopRealtimeUpdates();
+    if (!state.client || !state.session) return;
+    state.realtimeChannel = state.client
+      .channel(`account-trip-documents:${state.session.user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "trip_documents"
+        },
+        handleRealtimeDocumentChange
+      )
+      .subscribe();
+  }
+
+  async function fetchRemoteCandidate(tripId) {
+    const importApi = getImportApi();
+    const trip = state.trips.find((item) => item.id === tripId);
+    if (!importApi || !trip) throw new Error("cloud_trip_not_found");
+    const { data: remoteDoc, error } = await state.client
+      .from("trip_documents")
+      .select("trip_id, schema_version, revision, state, updated_at")
+      .eq("trip_id", tripId)
+      .single();
+    if (error) throw error;
+    return importApi.normalizeCandidate(trip, remoteDoc).candidate;
+  }
+
+  async function triggerRealtimeTestUpdate(tripId) {
+    if (!isRealtimeTestMode() || state.busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const { data: remoteDoc, error: readError } = await state.client
+        .from("trip_documents")
+        .select("trip_id, schema_version, revision, state")
+        .eq("trip_id", tripId)
+        .single();
+      if (readError) throw readError;
+      const { error: saveError } = await state.client.rpc("save_trip_document", {
+        target_trip_id: tripId,
+        expected_revision: remoteDoc.revision,
+        next_schema_version: remoteDoc.schema_version,
+        next_state: remoteDoc.state,
+        change_action: "update"
+      });
+      if (saveError) throw saveError;
+      setMessage("已送出 localhost 即時通知測試；本機版本刻意保持不變。");
+    } catch (error) {
+      setMessage(error.message || "即時通知測試失敗。", true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRemoteUpdateAction(tripId) {
+    const importApi = getImportApi();
+    const notice = state.remoteUpdates[tripId];
+    const localTrip = findImportedTrip(tripId);
+    if (!importApi || !notice || !localTrip || state.busy) return;
+
+    const queuedDraft = state.queuedDrafts.find((draft) => draft.tripId === tripId) || null;
+    const currentMode = importApi.classifyRemoteUpdate(localTrip, queuedDraft, notice.revision);
+    if (currentMode === "ignore") {
+      clearRemoteUpdate(tripId);
+      return;
+    }
+    if (currentMode === "compare_required") {
+      state.remoteUpdates[tripId].mode = "compare_required";
+      renderTrips();
+      await openConflictComparison(tripId, localTrip);
+      return;
+    }
+
+    setBusy(true);
+    state.savingTripIds.add(tripId);
+    setMessage("");
+    try {
+      const remoteCandidate = await fetchRemoteCandidate(tripId);
+      const latestMode = importApi.classifyRemoteUpdate(
+        findImportedTrip(tripId),
+        state.queuedDrafts.find((draft) => draft.tripId === tripId) || null,
+        remoteCandidate._cloud.revision
+      );
+      if (latestMode !== "refresh_available") {
+        state.remoteUpdates[tripId] = {
+          revision: remoteCandidate._cloud.revision,
+          mode: latestMode
+        };
+        renderTrips();
+        if (latestMode === "compare_required") {
+          await openConflictComparison(tripId, findImportedTrip(tripId));
+        }
+        return;
+      }
+      state.lastImportReceipt = importApi.replaceImportedCandidate(
+        localStorage,
+        remoteCandidate
+      );
+      delete state.remoteUpdates[tripId];
+      ui.undoButton.hidden = false;
+      window.voyageApp?.rehydrateAndRender?.();
+      renderTrips();
+      setMessage(`已載入雲端 revision ${remoteCandidate._cloud.revision}；載入前本機版本已備份。`);
+    } catch (error) {
+      setMessage(error.message || "無法載入雲端最新版，本機資料未變更。", true);
+    } finally {
+      state.savingTripIds.delete(tripId);
+      setBusy(false);
+    }
+  }
+
   function renderTrips() {
     if (!ui) return;
     ui.tripList.replaceChildren();
@@ -309,7 +475,10 @@
       const role = getRole(trip);
       const importedTrip = findImportedTrip(trip.id);
       const queuedDraft = state.queuedDrafts.find((draft) => draft.tripId === trip.id) || null;
-      const cloudState = importApi?.getCloudTripState(importedTrip, queuedDraft) || "cloud_only";
+      const remoteNotice = state.remoteUpdates[trip.id] || null;
+      const cloudState = remoteNotice?.mode
+        || importApi?.getCloudTripState(importedTrip, queuedDraft)
+        || "cloud_only";
       const stateMeta = cloudStateMeta(cloudState);
       const canSave = Boolean(importedTrip && (role === "owner" || role === "editor"));
       const item = document.createElement("article");
@@ -328,6 +497,16 @@
           ${canSave ? `
             <button type="button" class="btn btn-primary account-cloud-save" data-trip-id="${escapeHtml(trip.id)}">
               儲存本機修改
+            </button>
+          ` : ""}
+          ${remoteNotice ? `
+            <button type="button" class="btn btn-secondary account-cloud-remote-action" data-trip-id="${escapeHtml(trip.id)}">
+              ${remoteNotice.mode === "refresh_available" ? "載入雲端最新版" : "比較版本"}
+            </button>
+          ` : ""}
+          ${canSave && isRealtimeTestMode() ? `
+            <button type="button" class="btn btn-secondary account-cloud-realtime-test" data-trip-id="${escapeHtml(trip.id)}">
+              觸發即時測試更新
             </button>
           ` : ""}
         </div>
@@ -356,6 +535,12 @@
     }
     for (const button of ui.tripList.querySelectorAll(".account-cloud-save")) {
       button.addEventListener("click", () => saveImportedTrip(button.dataset.tripId));
+    }
+    for (const button of ui.tripList.querySelectorAll(".account-cloud-remote-action")) {
+      button.addEventListener("click", () => handleRemoteUpdateAction(button.dataset.tripId));
+    }
+    for (const button of ui.tripList.querySelectorAll(".account-cloud-realtime-test")) {
+      button.addEventListener("click", () => triggerRealtimeTestUpdate(button.dataset.tripId));
     }
   }
 
@@ -418,6 +603,7 @@
         localStorage,
         state.preview.candidate
       );
+      delete state.remoteUpdates[state.lastImportReceipt.cloudTripId];
       window.voyageApp?.rehydrateAndRender?.();
       ui.undoButton.hidden = false;
       closePreview();
@@ -441,10 +627,14 @@
     if (!state.lastImportReceipt || !importApi || state.busy) return;
     setBusy(true);
     try {
+      const restoredCloudTripId = state.lastImportReceipt.cloudTripId;
       importApi.restoreImport(localStorage, state.lastImportReceipt);
       window.voyageApp?.rehydrateAndRender?.();
-      state.lastImportReceipt = null;
-      ui.undoButton.hidden = true;
+      state.lastImportReceipt = importApi.getLatestBackupReceipt(localStorage)
+        || importApi.getRecoverableImportBackupReceipt(localStorage)
+        || null;
+      if (restoredCloudTripId) delete state.remoteUpdates[restoredCloudTripId];
+      ui.undoButton.hidden = !state.lastImportReceipt;
       renderTrips();
       setMessage("已從最近備份還原，恢復到匯入前的本機旅程。");
     } catch (error) {
@@ -585,6 +775,7 @@
     }
 
     setBusy(true);
+    state.savingTripIds.add(tripId);
     setMessage("");
     try {
       importApi.assertStorageWritable(localStorage);
@@ -600,6 +791,7 @@
 
       const savedRevision = Number(data?.revision);
       importApi.commitSavedRevision(localStorage, tripId, savedRevision);
+      delete state.remoteUpdates[tripId];
       await getQueueApi()?.deleteDraft(tripId).catch(() => {});
       window.voyageApp?.rehydrateAndRender?.();
       renderTrips();
@@ -630,6 +822,7 @@
         }
       }
     } finally {
+      state.savingTripIds.delete(tripId);
       setBusy(false);
     }
   }
@@ -705,6 +898,7 @@
       state.session = data.session;
       ui.password.value = "";
       await loadTrips();
+      startRealtimeUpdates();
       renderSession();
     } catch (error) {
       setMessage(error.message || "登入失敗，請稍後再試。", true);
@@ -720,8 +914,10 @@
     try {
       const { error } = await state.client.auth.signOut();
       if (error) throw error;
+      stopRealtimeUpdates();
       state.session = null;
       state.trips = [];
+      state.remoteUpdates = {};
       state.preview = null;
       renderSession();
     } catch (error) {
@@ -857,7 +1053,9 @@
   async function initialize() {
     refreshAccountCloudStyles();
     mount();
-    state.lastImportReceipt = getImportApi()?.getLatestBackupReceipt(localStorage) || null;
+    state.lastImportReceipt = getImportApi()?.getLatestBackupReceipt(localStorage)
+      || getImportApi()?.getRecoverableImportBackupReceipt(localStorage)
+      || null;
     ui.undoButton.hidden = !state.lastImportReceipt;
     await refreshQueue();
     const client = ensureClient();
@@ -870,7 +1068,10 @@
       const { data, error } = await client.auth.getSession();
       if (error) throw error;
       state.session = data.session;
-      if (state.session) await loadTrips();
+      if (state.session) {
+        await loadTrips();
+        startRealtimeUpdates();
+      }
       renderSession();
     } catch (error) {
       console.warn("Account cloud initialization failed; local mode remains available.", error);

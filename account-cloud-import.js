@@ -53,6 +53,16 @@
     return fingerprintTrip(localTrip) === savedFingerprint ? "current" : "unsaved";
   }
 
+  function classifyRemoteUpdate(localTrip, queuedDraft, remoteRevision) {
+    if (!isObject(localTrip) || !localTrip._cloud?.tripId) return "ignore";
+    const nextRevision = Number(remoteRevision);
+    const localRevision = Number(localTrip._cloud.revision);
+    if (!Number.isSafeInteger(nextRevision) || nextRevision <= localRevision) return "ignore";
+    return getCloudTripState(localTrip, queuedDraft) === "current"
+      ? "refresh_available"
+      : "compare_required";
+  }
+
   function isObject(value) {
     return Boolean(value) && typeof value === "object" && !Array.isArray(value);
   }
@@ -250,9 +260,58 @@
     }
     storage.setItem("voyage_trips", previousRaw);
     if (storage.getItem(LATEST_BACKUP_KEY) === receipt.backupKey) {
-      storage.removeItem(LATEST_BACKUP_KEY);
+      if (
+        receipt.previousLatestBackupKey
+        && typeof storage.getItem(receipt.previousLatestBackupKey) === "string"
+      ) {
+        storage.setItem(LATEST_BACKUP_KEY, receipt.previousLatestBackupKey);
+      } else {
+        storage.removeItem(LATEST_BACKUP_KEY);
+      }
     }
     return true;
+  }
+
+  function replaceImportedCandidate(storage, candidate, now = new Date()) {
+    if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function") {
+      throw new TypeError("storage_required");
+    }
+    if (!isObject(candidate) || !candidate?._cloud?.tripId) {
+      throw new TypeError("import_candidate_invalid");
+    }
+
+    const previousRaw = storage.getItem("voyage_trips") || "[]";
+    const trips = parseLocalTrips(previousRaw);
+    const index = trips.findIndex((trip) => trip?._cloud?.tripId === candidate._cloud.tripId);
+    if (index < 0) throw new TypeError("imported_cloud_trip_not_found");
+
+    const backupKey = makeBackupKey(now);
+    const previousLatestBackupKey = storage.getItem(LATEST_BACKUP_KEY);
+    const replacement = clone(candidate);
+    replacement._cloud.savedFingerprint = fingerprintTrip(replacement);
+    trips[index] = replacement;
+
+    storage.setItem(backupKey, previousRaw);
+    storage.setItem(LATEST_BACKUP_KEY, backupKey);
+    try {
+      storage.setItem("voyage_trips", JSON.stringify(trips));
+    } catch (error) {
+      storage.removeItem(backupKey);
+      if (previousLatestBackupKey) {
+        storage.setItem(LATEST_BACKUP_KEY, previousLatestBackupKey);
+      } else {
+        storage.removeItem(LATEST_BACKUP_KEY);
+      }
+      throw error;
+    }
+
+    return {
+      backupKey,
+      previousLatestBackupKey,
+      previousRaw,
+      importedTripId: replacement.id,
+      cloudTripId: replacement._cloud.tripId
+    };
   }
 
   function getLatestBackupReceipt(storage) {
@@ -260,6 +319,46 @@
     const backupKey = storage.getItem(LATEST_BACKUP_KEY);
     if (!backupKey || typeof storage.getItem(backupKey) !== "string") return null;
     return { backupKey };
+  }
+
+  function getRecoverableImportBackupReceipt(storage) {
+    if (
+      !storage
+      || typeof storage.getItem !== "function"
+      || typeof storage.key !== "function"
+      || !Number.isSafeInteger(Number(storage.length))
+    ) {
+      return null;
+    }
+    let currentTrips;
+    try {
+      currentTrips = parseLocalTrips(storage.getItem("voyage_trips") || "[]");
+    } catch (error) {
+      return null;
+    }
+    const currentCloudIds = new Set(
+      currentTrips.map((trip) => trip?._cloud?.tripId).filter(Boolean)
+    );
+    if (currentCloudIds.size === 0) return null;
+
+    const candidates = [];
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (!key?.startsWith("voyage_cloud_backup_")) continue;
+      try {
+        const backupTrips = parseLocalTrips(storage.getItem(key));
+        const backupCloudIds = new Set(
+          backupTrips.map((trip) => trip?._cloud?.tripId).filter(Boolean)
+        );
+        const isStrictSubset = backupCloudIds.size < currentCloudIds.size
+          && [...backupCloudIds].every((id) => currentCloudIds.has(id));
+        if (isStrictSubset) candidates.push(key);
+      } catch (error) {
+        // Ignore malformed or unrelated backup records.
+      }
+    }
+    candidates.sort().reverse();
+    return candidates[0] ? { backupKey: candidates[0] } : null;
   }
 
   function prepareCloudSave(storage, cloudTripId) {
@@ -515,11 +614,14 @@
     parseLocalTrips,
     fingerprintTrip,
     getCloudTripState,
+    classifyRemoteUpdate,
     hasImportedTrip,
     makeBackupKey,
     importCandidate,
     restoreImport,
+    replaceImportedCandidate,
     getLatestBackupReceipt,
+    getRecoverableImportBackupReceipt,
     prepareCloudSave,
     commitSavedRevision,
     assertStorageWritable,

@@ -5,15 +5,24 @@ const {
   importCandidate,
   restoreImport,
   getLatestBackupReceipt,
+  getRecoverableImportBackupReceipt,
   prepareCloudSave,
   commitSavedRevision,
   fingerprintTrip,
-  getCloudTripState
+  getCloudTripState,
+  classifyRemoteUpdate,
+  replaceImportedCandidate
 } = require("../account-cloud-import.js");
 
 function createStorage(initial = {}) {
   const values = new Map(Object.entries(initial));
   return {
+    get length() {
+      return values.size;
+    },
+    key(index) {
+      return [...values.keys()][index] || null;
+    },
     getItem(key) {
       return values.has(key) ? values.get(key) : null;
     },
@@ -190,6 +199,81 @@ test("queue status takes precedence and local-only trips remain distinct", () =>
   assert.equal(getCloudTripState(cloudTrip, { status: "pending" }), "queued");
   assert.equal(getCloudTripState(cloudTrip, { status: "conflict" }), "conflict");
   assert.equal(getCloudTripState(cloudTrip, { status: "failed" }), "failed");
+});
+
+test("classifies newer remote revisions without overwriting local state", () => {
+  const currentTrip = {
+    id: "cloud-trip-cloud-1",
+    title: "共享旅程",
+    _cloud: { tripId: "trip-cloud-1", revision: 4 }
+  };
+  currentTrip._cloud.savedFingerprint = fingerprintTrip(currentTrip);
+
+  assert.equal(classifyRemoteUpdate(currentTrip, null, 4), "ignore");
+  assert.equal(classifyRemoteUpdate(currentTrip, null, 5), "refresh_available");
+
+  const changedTrip = structuredClone(currentTrip);
+  changedTrip.title = "本機草稿";
+  assert.equal(classifyRemoteUpdate(changedTrip, null, 5), "compare_required");
+  assert.equal(
+    classifyRemoteUpdate(currentTrip, { status: "pending" }, 5),
+    "compare_required"
+  );
+});
+
+test("refreshing a current trip creates a restorable backup", () => {
+  const localTrip = {
+    id: "cloud-trip-cloud-1",
+    title: "revision 4",
+    _cloud: { tripId: "trip-cloud-1", revision: 4 }
+  };
+  localTrip._cloud.savedFingerprint = fingerprintTrip(localTrip);
+  const storage = createStorage({
+    voyage_trips: JSON.stringify([localTrip]),
+    voyage_cloud_latest_backup_key: "voyage_cloud_backup_before_import",
+    voyage_cloud_backup_before_import: JSON.stringify([{ id: "local-only" }])
+  });
+  const remoteTrip = {
+    id: "cloud-trip-cloud-1",
+    title: "revision 5",
+    _cloud: { tripId: "trip-cloud-1", revision: 5 }
+  };
+
+  const receipt = replaceImportedCandidate(
+    storage,
+    remoteTrip,
+    new Date("2026-07-25T15:00:00.000Z")
+  );
+  const refreshed = JSON.parse(storage.getItem("voyage_trips"))[0];
+  assert.equal(refreshed.title, "revision 5");
+  assert.equal(refreshed._cloud.revision, 5);
+  assert.equal(getCloudTripState(refreshed), "current");
+
+  restoreImport(storage, receipt);
+  assert.deepEqual(JSON.parse(storage.getItem("voyage_trips")), [localTrip]);
+  assert.deepEqual(getLatestBackupReceipt(storage), {
+    backupKey: "voyage_cloud_backup_before_import"
+  });
+});
+
+test("finds the latest backup that removes an imported cloud trip", () => {
+  const imported = {
+    id: "cloud-trip-cloud-1",
+    title: "共享旅程",
+    _cloud: { tripId: "trip-cloud-1", revision: 6 }
+  };
+  const storage = createStorage({
+    voyage_trips: JSON.stringify([{ id: "local-1" }, imported]),
+    "voyage_cloud_backup_2026-07-25T10-00-00-000Z": JSON.stringify([{ id: "local-1" }]),
+    "voyage_cloud_backup_2026-07-25T11-00-00-000Z": JSON.stringify([
+      { id: "local-1" },
+      { ...imported, _cloud: { ...imported._cloud, revision: 5 } }
+    ])
+  });
+
+  assert.deepEqual(getRecoverableImportBackupReceipt(storage), {
+    backupKey: "voyage_cloud_backup_2026-07-25T10-00-00-000Z"
+  });
 });
 
 test("compares local and remote trip states across 8 major sections", () => {

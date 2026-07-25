@@ -5,7 +5,8 @@ const {
   classifySaveError,
   isOfflineMode,
   resolveQueuedBaseRevision,
-  shouldAutoConfirmDiscard
+  shouldAutoConfirmDiscard,
+  isRealtimeTestMode
 } = require("../account-cloud-queue.js");
 
 test("normalizes one durable draft per trip with stable creation time", () => {
@@ -92,5 +93,16 @@ test("allows discard auto-confirm only on localhost", () => {
   assert.equal(shouldAutoConfirmDiscard({
     hostname: "voyage.example.com",
     search: "?cloudTestAutoConfirmDiscard=1"
+  }), false);
+});
+
+test("allows realtime test updates only on localhost", () => {
+  assert.equal(isRealtimeTestMode({
+    hostname: "127.0.0.1",
+    search: "?cloudTestRealtime=1"
+  }), true);
+  assert.equal(isRealtimeTestMode({
+    hostname: "voyage.example.com",
+    search: "?cloudTestRealtime=1"
   }), false);
 });

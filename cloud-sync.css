@@ -477,7 +477,8 @@
 }
 
 .account-cloud-trip-state[data-state="unsaved"],
-.account-cloud-trip-state[data-state="queued"] {
+.account-cloud-trip-state[data-state="queued"],
+.account-cloud-trip-state[data-state="remote"] {
   border-color: rgba(154, 91, 22, 0.3);
   background: rgba(154, 91, 22, 0.1);
   color: #9a5b16 !important;
