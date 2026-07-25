@@ -10,6 +10,8 @@
     remoteUpdates: {},
     realtimeChannel: null,
     savingTripIds: new Set(),
+    ledgerTripId: null,
+    ledgerSnapshot: null,
     preview: null,
     lastImportReceipt: null,
     mounted: false,
@@ -31,6 +33,10 @@
 
   function getQueueApi() {
     return window.VoyageCloudQueue || null;
+  }
+
+  function getLedgerApi() {
+    return window.VoyageCloudLedger || null;
   }
 
   function isCloudOffline() {
@@ -494,6 +500,9 @@
           <button type="button" class="btn btn-secondary account-cloud-preview" data-trip-id="${escapeHtml(trip.id)}">
             預覽匯入
           </button>
+          <button type="button" class="btn btn-secondary account-cloud-ledger-open" data-trip-id="${escapeHtml(trip.id)}">
+            查看帳本
+          </button>
           ${canSave ? `
             <button type="button" class="btn btn-primary account-cloud-save" data-trip-id="${escapeHtml(trip.id)}">
               儲存本機修改
@@ -536,11 +545,90 @@
     for (const button of ui.tripList.querySelectorAll(".account-cloud-save")) {
       button.addEventListener("click", () => saveImportedTrip(button.dataset.tripId));
     }
+    for (const button of ui.tripList.querySelectorAll(".account-cloud-ledger-open")) {
+      button.addEventListener("click", () => loadLedgerSnapshot(button.dataset.tripId));
+    }
     for (const button of ui.tripList.querySelectorAll(".account-cloud-remote-action")) {
       button.addEventListener("click", () => handleRemoteUpdateAction(button.dataset.tripId));
     }
     for (const button of ui.tripList.querySelectorAll(".account-cloud-realtime-test")) {
       button.addEventListener("click", () => triggerRealtimeTestUpdate(button.dataset.tripId));
+    }
+  }
+
+  function closeLedgerSnapshot() {
+    state.ledgerTripId = null;
+    state.ledgerSnapshot = null;
+    if (!ui) return;
+    ui.ledgerSection.hidden = true;
+    ui.ledgerContent.replaceChildren();
+  }
+
+  function renderLedgerSnapshot() {
+    if (!ui || !state.ledgerSnapshot) return;
+    const ledgerApi = getLedgerApi();
+    const trip = state.trips.find((item) => item.id === state.ledgerTripId);
+    const view = ledgerApi.buildViewModel(state.ledgerSnapshot);
+    const settlementHtml = view.settlements.length
+      ? view.settlements.map((settlement) => `
+        <li>
+          <strong>${escapeHtml(settlement.summary)}</strong>
+          <span>${escapeHtml(settlement.amountLabel)}</span>
+        </li>
+      `).join("")
+      : "<li class=\"account-cloud-ledger-empty\">目前已結清，沒有待還款項。</li>";
+    const entryHtml = view.entries.length
+      ? view.entries.map((entry) => `
+        <li class="${entry.voided ? "is-voided" : ""}">
+          <span class="account-cloud-ledger-kind" data-kind="${escapeHtml(entry.kind)}">${escapeHtml(entry.kindLabel)}</span>
+          <div>
+            <strong>${escapeHtml(entry.summary)}</strong>
+            <small>${escapeHtml(new Date(entry.occurredAt).toLocaleString("zh-TW"))}${entry.voided ? "｜已作廢" : ""}</small>
+          </div>
+          <span>${escapeHtml(entry.amountLabel)}</span>
+        </li>
+      `).join("")
+      : "<li class=\"account-cloud-ledger-empty\">目前沒有帳本紀錄。</li>";
+
+    ui.ledgerTitle.textContent = `${trip?.title || "雲端旅程"}的唯讀帳本`;
+    ui.ledgerRevision.textContent = `revision ${view.revision}`;
+    ui.ledgerContent.innerHTML = `
+      <div class="account-cloud-ledger-block">
+        <h5>目前結算</h5>
+        <ul class="account-cloud-ledger-settlements">${settlementHtml}</ul>
+      </div>
+      <div class="account-cloud-ledger-block">
+        <h5>帳本紀錄</h5>
+        <ul class="account-cloud-ledger-entries">${entryHtml}</ul>
+      </div>
+      <p class="account-cloud-ledger-note">此區只會讀取雲端帳本，不會修改旅遊小本本或雲端資料。</p>
+    `;
+    ui.ledgerSection.hidden = false;
+  }
+
+  async function loadLedgerSnapshot(tripId) {
+    const ledgerApi = getLedgerApi();
+    if (!ledgerApi || !state.client || !state.session || state.busy) {
+      setMessage("唯讀帳本模組尚未就緒，請重新整理頁面後再試。", true);
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    state.ledgerTripId = tripId;
+    ui.ledgerSection.hidden = false;
+    ui.ledgerTitle.textContent = "正在讀取唯讀帳本…";
+    ui.ledgerRevision.textContent = "";
+    ui.ledgerContent.innerHTML = '<p class="account-cloud-ledger-empty">讀取中，尚未修改任何資料。</p>';
+    try {
+      const repository = ledgerApi.createRepository(state.client);
+      state.ledgerSnapshot = await repository.getSnapshot(tripId);
+      renderLedgerSnapshot();
+    } catch (error) {
+      state.ledgerSnapshot = null;
+      ui.ledgerContent.innerHTML = '<p class="account-cloud-ledger-empty">無法讀取帳本，其他本機資料不受影響。</p>';
+      setMessage(error.message || "唯讀帳本讀取失敗。", true);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -871,6 +959,7 @@
     ui.overlay.setAttribute("aria-hidden", "false");
     setMessage("");
     closePreview();
+    closeLedgerSnapshot();
     if (state.session) {
       loadTrips().catch((error) => setMessage(error.message, true));
     } else {
@@ -919,6 +1008,7 @@
       state.trips = [];
       state.remoteUpdates = {};
       state.preview = null;
+      closeLedgerSnapshot();
       renderSession();
     } catch (error) {
       setMessage(error.message || "登出失敗，請稍後再試。", true);
@@ -990,6 +1080,20 @@
           <div class="account-cloud-queue-list"></div>
         </section>
         <div class="account-cloud-trip-list"></div>
+        <section class="account-cloud-ledger" hidden>
+          <div class="account-cloud-ledger-heading">
+            <div>
+              <p>小二算帳連動</p>
+              <h4 class="account-cloud-ledger-title">唯讀帳本</h4>
+            </div>
+            <div class="account-cloud-ledger-heading-actions">
+              <span class="account-cloud-ledger-revision"></span>
+              <button type="button" class="btn btn-secondary account-cloud-ledger-refresh">重新整理帳本</button>
+              <button type="button" class="account-cloud-ledger-close" aria-label="關閉唯讀帳本">✕</button>
+            </div>
+          </div>
+          <div class="account-cloud-ledger-content"></div>
+        </section>
         <section class="account-cloud-import-preview" hidden>
           <div class="account-cloud-preview-heading">
             <h4>匯入前預覽</h4>
@@ -1023,6 +1127,12 @@
       queueSection: overlay.querySelector(".account-cloud-queue"),
       queueList: overlay.querySelector(".account-cloud-queue-list"),
       tripList: overlay.querySelector(".account-cloud-trip-list"),
+      ledgerSection: overlay.querySelector(".account-cloud-ledger"),
+      ledgerTitle: overlay.querySelector(".account-cloud-ledger-title"),
+      ledgerRevision: overlay.querySelector(".account-cloud-ledger-revision"),
+      ledgerContent: overlay.querySelector(".account-cloud-ledger-content"),
+      ledgerRefreshButton: overlay.querySelector(".account-cloud-ledger-refresh"),
+      ledgerCloseButton: overlay.querySelector(".account-cloud-ledger-close"),
       preview: overlay.querySelector(".account-cloud-import-preview"),
       previewContent: overlay.querySelector(".account-cloud-preview-content"),
       previewCloseButton: overlay.querySelector(".account-cloud-preview-close"),
@@ -1042,6 +1152,10 @@
     ui.signOutButton.addEventListener("click", signOut);
     ui.previewCloseButton.addEventListener("click", closePreview);
     ui.importButton.addEventListener("click", importPreview);
+    ui.ledgerRefreshButton.addEventListener("click", () => {
+      if (state.ledgerTripId) loadLedgerSnapshot(state.ledgerTripId);
+    });
+    ui.ledgerCloseButton.addEventListener("click", closeLedgerSnapshot);
     ui.undoButton.addEventListener("click", undoLastImport);
     ui.overlay.addEventListener("click", (event) => {
       if (event.target === ui.overlay) closePanel();

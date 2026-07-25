@@ -11,14 +11,25 @@
       });
       document.head.appendChild(accountScript);
     };
+    const loadLedgerModule = () => {
+      const ledgerScript = document.createElement("script");
+      ledgerScript.src = bootstrapConfig.accountCloudLedgerScript || "account-cloud-ledger.js";
+      ledgerScript.defer = true;
+      ledgerScript.addEventListener("load", loadAccountCloud, { once: true });
+      ledgerScript.addEventListener("error", () => {
+        console.error("Read-only ledger module could not be loaded; account cloud remains available.");
+        loadAccountCloud();
+      }, { once: true });
+      document.head.appendChild(ledgerScript);
+    };
     const loadQueueModule = () => {
       const queueScript = document.createElement("script");
       queueScript.src = bootstrapConfig.accountCloudQueueScript || "account-cloud-queue.js";
       queueScript.defer = true;
-      queueScript.addEventListener("load", loadAccountCloud, { once: true });
+      queueScript.addEventListener("load", loadLedgerModule, { once: true });
       queueScript.addEventListener("error", () => {
         console.error("Offline queue module could not be loaded; account cloud will remain manual-only.");
-        loadAccountCloud();
+        loadLedgerModule();
       }, { once: true });
       document.head.appendChild(queueScript);
     };
