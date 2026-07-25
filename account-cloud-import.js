@@ -14,6 +14,45 @@
     return JSON.parse(JSON.stringify(value));
   }
 
+  function stableSerialize(value) {
+    if (Array.isArray(value)) {
+      return `[${value.map(stableSerialize).join(",")}]`;
+    }
+    if (isObject(value)) {
+      return `{${Object.keys(value)
+        .sort()
+        .map((key) => `${JSON.stringify(key)}:${stableSerialize(value[key])}`)
+        .join(",")}}`;
+    }
+    return JSON.stringify(value);
+  }
+
+  function fingerprintTrip(trip) {
+    if (!isObject(trip)) throw new TypeError("trip_fingerprint_object_required");
+    const snapshot = clone(trip);
+    delete snapshot._cloud;
+    const serialized = stableSerialize(snapshot);
+    let hash = 2166136261;
+    for (let index = 0; index < serialized.length; index += 1) {
+      hash ^= serialized.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return `fnv1a32:${(hash >>> 0).toString(16).padStart(8, "0")}`;
+  }
+
+  function getCloudTripState(localTrip, queuedDraft = null) {
+    if (!isObject(localTrip)) return "cloud_only";
+    if (!localTrip._cloud?.tripId) return "local_only";
+    if (queuedDraft) {
+      if (queuedDraft.status === "conflict") return "conflict";
+      if (queuedDraft.status === "failed") return "failed";
+      return "queued";
+    }
+    const savedFingerprint = localTrip._cloud.savedFingerprint;
+    if (!savedFingerprint) return "unsaved";
+    return fingerprintTrip(localTrip) === savedFingerprint ? "current" : "unsaved";
+  }
+
   function isObject(value) {
     return Boolean(value) && typeof value === "object" && !Array.isArray(value);
   }
@@ -120,6 +159,7 @@
       importedAt: new Date().toISOString(),
       sourceFormat
     };
+    candidate._cloud.savedFingerprint = fingerprintTrip(candidate);
 
     if (!candidate.title) {
       throw new TypeError("cloud_trip_title_required");
@@ -180,8 +220,10 @@
     const backupKey = makeBackupKey(now);
     storage.setItem(backupKey, previousRaw);
     storage.setItem(LATEST_BACKUP_KEY, backupKey);
+    const importedCandidate = clone(candidate);
+    importedCandidate._cloud.savedFingerprint = fingerprintTrip(importedCandidate);
     try {
-      storage.setItem("voyage_trips", JSON.stringify([clone(candidate), ...trips]));
+      storage.setItem("voyage_trips", JSON.stringify([importedCandidate, ...trips]));
     } catch (error) {
       storage.removeItem(backupKey);
       storage.removeItem(LATEST_BACKUP_KEY);
@@ -267,6 +309,7 @@
     trips[index] = clone(trips[index]);
     trips[index]._cloud.revision = Number(revision);
     trips[index]._cloud.lastSavedAt = savedAt.toISOString();
+    trips[index]._cloud.savedFingerprint = fingerprintTrip(trips[index]);
     storage.setItem("voyage_trips", JSON.stringify(trips));
     return clone(trips[index]);
   }
@@ -470,6 +513,8 @@
   return {
     normalizeCandidate,
     parseLocalTrips,
+    fingerprintTrip,
+    getCloudTripState,
     hasImportedTrip,
     makeBackupKey,
     importCandidate,

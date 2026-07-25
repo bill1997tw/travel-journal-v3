@@ -459,6 +459,41 @@
   font-weight: 700;
 }
 
+.account-cloud-trip-state {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--input-bg);
+  color: var(--text-secondary) !important;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.account-cloud-trip-state[data-state="current"] {
+  border-color: rgba(47, 125, 85, 0.3);
+  background: rgba(47, 125, 85, 0.1);
+  color: #2f7d55 !important;
+}
+
+.account-cloud-trip-state[data-state="unsaved"],
+.account-cloud-trip-state[data-state="queued"] {
+  border-color: rgba(154, 91, 22, 0.3);
+  background: rgba(154, 91, 22, 0.1);
+  color: #9a5b16 !important;
+}
+
+.account-cloud-trip-state[data-state="conflict"],
+.account-cloud-trip-state[data-state="failed"] {
+  border-color: rgba(169, 74, 66, 0.3);
+  background: rgba(169, 74, 66, 0.1);
+  color: var(--danger) !important;
+}
+
+.account-cloud-trip-local-only {
+  border-style: dashed;
+}
+
 @media (max-width: 768px) {
   .account-cloud-shell {
     width: 100%;

@@ -43,4 +43,6 @@ Step B's durable offline queue browser acceptance passed on 2026-07-25.
 Localhost-only query switches exist for deterministic regression checks:
 `cloudTestOffline=1`, `cloudTestStaleRevision=1`, and
 `cloudTestAutoConfirmDiscard=1`. They must remain ignored on deployed hosts.
-The next ordered task is Step C, visible local/cloud state indicators.
+Step C's deterministic local/cloud state indicators and signed-in browser
+acceptance passed on 2026-07-25. The next ordered task is Step D, realtime
+remote-update notices that never overwrite local edits.

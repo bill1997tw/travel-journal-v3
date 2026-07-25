@@ -44,7 +44,7 @@
     const stylesheet = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
       .find((link) => link.getAttribute("href")?.split("?")[0] === "cloud-sync.css");
     if (!stylesheet) return;
-    stylesheet.href = "cloud-sync.css?v=account_cloud_v5";
+    stylesheet.href = "cloud-sync.css?v=account_cloud_v6";
   }
 
   function escapeHtml(value) {
@@ -105,6 +105,18 @@
     }[status] || status;
   }
 
+  function cloudStateMeta(status) {
+    return {
+      local_only: { label: "僅本機", tone: "neutral" },
+      cloud_only: { label: "僅雲端", tone: "neutral" },
+      current: { label: "已同步", tone: "current" },
+      unsaved: { label: "本機有未儲存修改", tone: "unsaved" },
+      queued: { label: "離線草稿等待同步", tone: "queued" },
+      conflict: { label: "版本衝突", tone: "conflict" },
+      failed: { label: "同步失敗", tone: "failed" }
+    }[status] || { label: status, tone: "neutral" };
+  }
+
   function renderQueue() {
     if (!ui) return;
     ui.queueSection.hidden = state.queuedDrafts.length === 0;
@@ -151,6 +163,7 @@
       setMessage("無法讀取離線草稿佇列；請先不要清除瀏覽器資料。", true);
     }
     renderQueue();
+    renderTrips();
   }
 
   async function queueImportedTrip(tripId, reason) {
@@ -273,13 +286,21 @@
   function renderTrips() {
     if (!ui) return;
     ui.tripList.replaceChildren();
+    const importApi = getImportApi();
+    let localTrips = [];
+    try {
+      localTrips = importApi?.parseLocalTrips(localStorage.getItem("voyage_trips") || "[]") || [];
+    } catch (error) {
+      console.warn("Could not inspect local trips for cloud state.", error);
+    }
+    const localOnlyTrips = localTrips.filter((trip) => !trip?._cloud?.tripId);
 
     if (!state.session) {
       ui.tripList.innerHTML = '<p class="account-cloud-empty">登入後才會讀取您的雲端旅程；目前本機資料不受影響。</p>';
       return;
     }
 
-    if (state.trips.length === 0) {
+    if (state.trips.length === 0 && localOnlyTrips.length === 0) {
       ui.tripList.innerHTML = '<p class="account-cloud-empty">這個帳號目前沒有可存取的雲端旅程。</p>';
       return;
     }
@@ -287,6 +308,9 @@
     for (const trip of state.trips) {
       const role = getRole(trip);
       const importedTrip = findImportedTrip(trip.id);
+      const queuedDraft = state.queuedDrafts.find((draft) => draft.tripId === trip.id) || null;
+      const cloudState = importApi?.getCloudTripState(importedTrip, queuedDraft) || "cloud_only";
+      const stateMeta = cloudStateMeta(cloudState);
       const canSave = Boolean(importedTrip && (role === "owner" || role === "editor"));
       const item = document.createElement("article");
       item.className = "account-cloud-trip";
@@ -296,6 +320,7 @@
           <span>${escapeHtml(trip.destination || "未設定目的地")}</span>
         </div>
         <div class="account-cloud-trip-actions">
+          <span class="account-cloud-trip-state" data-state="${escapeHtml(stateMeta.tone)}">${escapeHtml(stateMeta.label)}</span>
           <span class="account-cloud-role" data-role="${escapeHtml(role)}">${escapeHtml(roleLabel(role))}</span>
           <button type="button" class="btn btn-secondary account-cloud-preview" data-trip-id="${escapeHtml(trip.id)}">
             預覽匯入
@@ -305,6 +330,22 @@
               儲存本機修改
             </button>
           ` : ""}
+        </div>
+      `;
+      ui.tripList.appendChild(item);
+    }
+
+    for (const trip of localOnlyTrips) {
+      const stateMeta = cloudStateMeta("local_only");
+      const item = document.createElement("article");
+      item.className = "account-cloud-trip account-cloud-trip-local-only";
+      item.innerHTML = `
+        <div>
+          <strong>${escapeHtml(trip.title || "未命名旅程")}</strong>
+          <span>${escapeHtml(trip.location || "尚未設定目的地")}</span>
+        </div>
+        <div class="account-cloud-trip-actions">
+          <span class="account-cloud-trip-state" data-state="${escapeHtml(stateMeta.tone)}">${escapeHtml(stateMeta.label)}</span>
         </div>
       `;
       ui.tripList.appendChild(item);

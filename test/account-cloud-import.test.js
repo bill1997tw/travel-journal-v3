@@ -6,7 +6,9 @@ const {
   restoreImport,
   getLatestBackupReceipt,
   prepareCloudSave,
-  commitSavedRevision
+  commitSavedRevision,
+  fingerprintTrip,
+  getCloudTripState
 } = require("../account-cloud-import.js");
 
 function createStorage(initial = {}) {
@@ -133,6 +135,61 @@ test("prepares a revision-guarded save and commits the returned revision", () =>
   );
   assert.equal(updated._cloud.revision, 5);
   assert.equal(updated._cloud.lastSavedAt, "2026-07-23T13:00:00.000Z");
+  assert.equal(updated._cloud.savedFingerprint, fingerprintTrip(updated));
+  assert.equal(getCloudTripState(updated), "current");
+});
+
+test("tracks current and unsaved state with a deterministic trip fingerprint", () => {
+  const baseline = {
+    id: "cloud-trip-cloud-1",
+    title: "共享旅程",
+    location: "日本，大阪",
+    itinerary: { days: [{ items: [{ id: "item-1", title: "早餐" }] }] },
+    ledger: [{ id: "expense-1", cost: 600 }],
+    advances: [{ id: "advance-1", amount: 100 }],
+    repayInfo: [{ id: "repay-1", amount: 50 }],
+    packingList: [{ id: "packing-1", name: "護照" }],
+    todoList: [{ id: "todo-1", name: "訂票" }],
+    wishlist: [{ id: "wish-1", name: "大阪城" }],
+    diary: { content: "第一天" },
+    _cloud: { tripId: "trip-cloud-1", revision: 4 }
+  };
+  baseline._cloud.savedFingerprint = fingerprintTrip(baseline);
+
+  assert.equal(getCloudTripState(baseline), "current");
+  const mutations = [
+    (trip) => { trip.title = "共享旅程更新"; },
+    (trip) => { trip.itinerary.days[0].items[0].title = "午餐"; },
+    (trip) => { trip.ledger[0].cost = 700; },
+    (trip) => { trip.advances[0].amount = 200; },
+    (trip) => { trip.repayInfo[0].amount = 60; },
+    (trip) => { trip.packingList[0].name = "雨傘"; },
+    (trip) => { trip.wishlist[0].name = "通天閣"; },
+    (trip) => { trip.diary.content = "第二天"; }
+  ];
+  for (const mutate of mutations) {
+    const changed = structuredClone(baseline);
+    mutate(changed);
+    assert.equal(getCloudTripState(changed), "unsaved");
+  }
+});
+
+test("queue status takes precedence and local-only trips remain distinct", () => {
+  const cloudTrip = {
+    id: "cloud-trip-cloud-1",
+    title: "共享旅程",
+    _cloud: {
+      tripId: "trip-cloud-1",
+      revision: 4,
+      savedFingerprint: fingerprintTrip({ id: "cloud-trip-cloud-1", title: "共享旅程" })
+    }
+  };
+
+  assert.equal(getCloudTripState({ id: "local-1", title: "本機旅程" }), "local_only");
+  assert.equal(getCloudTripState(null), "cloud_only");
+  assert.equal(getCloudTripState(cloudTrip, { status: "pending" }), "queued");
+  assert.equal(getCloudTripState(cloudTrip, { status: "conflict" }), "conflict");
+  assert.equal(getCloudTripState(cloudTrip, { status: "failed" }), "failed");
 });
 
 test("compares local and remote trip states across 8 major sections", () => {
