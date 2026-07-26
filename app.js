@@ -2404,7 +2404,7 @@ function renderAlternativeSpots() {
           <a href="${spot.mapsUrl}" target="_blank" class="expense-map-link" style="font-size:0.8rem;">🗺️ 查看 Google 地圖</a>
           <div style="display:flex; gap:0.25rem;">
             <button class="btn btn-secondary" onclick="openAddToScheduleModal('${escapeHTML(spot.name)}', '${escapeHTML(spot.notes)}', 'sight')" style="font-size:0.75rem; padding:0.3rem 0.6rem;">➕ 加到行程</button>
-            <button class="btn-icon" onclick="openAltSpotModal('${spot.id}', 'sights')" style="width:1.8rem; height:1.8rem; padding:0;" title="編輯備案">✏️</button>
+            <button class="btn-icon" onclick="openAlternativeModal('sights', '${spot.id}')" style="width:1.8rem; height:1.8rem; padding:0;" title="編輯備案">✏️</button>
             <button class="btn-icon" onclick="deleteAlternative('${spot.id}', 'sights')" style="width:1.8rem; height:1.8rem; padding:0; color:var(--danger); border-color:transparent;" title="刪除">✕</button>
           </div>
         </div>
@@ -2447,7 +2447,7 @@ function renderAlternativeSpots() {
           <a href="${spot.mapsUrl}" target="_blank" class="expense-map-link" style="font-size:0.8rem;">🗺️ 查看 Google 地圖</a>
           <div style="display:flex; gap:0.25rem;">
             <button class="btn btn-secondary" onclick="openAddToScheduleModal('${escapeHTML(spot.name)}', '${escapeHTML(spot.notes)}', 'food')" style="font-size:0.75rem; padding:0.3rem 0.6rem;">➕ 加到行程</button>
-            <button class="btn-icon" onclick="openAltSpotModal('${spot.id}', 'restaurants')" style="width:1.8rem; height:1.8rem; padding:0;" title="編輯備案">✏️</button>
+            <button class="btn-icon" onclick="openAlternativeModal('restaurants', '${spot.id}')" style="width:1.8rem; height:1.8rem; padding:0;" title="編輯備案">✏️</button>
             <button class="btn-icon" onclick="deleteAlternative('${spot.id}', 'restaurants')" style="width:1.8rem; height:1.8rem; padding:0; color:var(--danger); border-color:transparent;" title="刪除">✕</button>
           </div>
         </div>
@@ -2799,7 +2799,7 @@ function handleUndoItineraryStep() {
 }
 
 // 備案庫 CRUD
-function openAlternativeModal(typeGroup) {
+function openAlternativeModal(typeGroup, spotId = null) {
   const modal = document.getElementById("alternative-modal");
   const form = document.getElementById("alt-form");
   const title = document.getElementById("alt-modal-title");
@@ -2807,13 +2807,48 @@ function openAlternativeModal(typeGroup) {
   form.reset();
   document.getElementById("alt-id").value = "";
   document.getElementById("alt-type-group").value = typeGroup;
+  document.querySelectorAll('input[name="a-offdays"]').forEach(c => c.checked = false);
 
-  title.innerText = typeGroup === "sights" ? "新增景點備案庫卡片" : "新增餐廳推薦備案卡片";
   syncAlternativeFieldCopy(typeGroup);
   ensureAlternativeHoursControls();
   syncAlternativeHoursBuilderMode();
+
+  if (spotId) {
+    title.innerText = typeGroup === "sights" ? "修改景點備案卡片" : "修改餐廳推薦備案卡片";
+    const trip = trips.find(t => t.id === activeTripId);
+    if (trip && trip.alternativeSpots) {
+      const list = trip.alternativeSpots[typeGroup] || [];
+      const spot = list.find(s => s.id === spotId);
+      if (spot) {
+        document.getElementById("alt-id").value = spot.id;
+        document.getElementById("a-name").value = spot.name || "";
+        document.getElementById("a-subtype").value = spot.subtype || "";
+        document.getElementById("a-mapsurl").value = spot.mapsUrl || "";
+        document.getElementById("a-address").value = spot.address || "";
+        document.getElementById("a-rating").value = matchRatingSelectValue(spot.rating);
+        document.getElementById("a-hours").value = spot.hours || "";
+        document.getElementById("a-notes").value = spot.notes || "";
+        if (spot.price && document.getElementById("a-price")) {
+          document.getElementById("a-price").value = spot.price;
+        }
+        if (spot.offDays && Array.isArray(spot.offDays)) {
+          spot.offDays.forEach(day => {
+            const chk = document.querySelector(`input[name="a-offdays"][value="${day}"]`);
+            if (chk) chk.checked = true;
+          });
+        }
+      }
+    }
+  } else {
+    title.innerText = typeGroup === "sights" ? "新增景點備案庫卡片" : "新增餐廳推薦備案卡片";
+  }
+
   modal.classList.add("active");
 }
+
+window.openAltSpotModal = function(spotId, typeGroup) {
+  openAlternativeModal(typeGroup, spotId);
+};
 
 function syncAlternativeFieldCopy(typeGroup) {
   const nameLabel = document.getElementById("a-name-label");
@@ -2866,26 +2901,44 @@ function handleAlternativeSubmit(e) {
     trip.alternativeSpots = { sights: [], restaurants: [] };
   }
 
-  const newItem = {
-    id: "alt-" + Date.now(),
-    name,
-    subtype: "",
-    rating,
-    mapsUrl,
-    address,
-    hours,
-    price,
-    notes,
-    offDays
-  };
+  const altId = document.getElementById("alt-id").value;
+  const list = trip.alternativeSpots[typeGroup] || [];
 
-  trip.alternativeSpots[typeGroup].push(newItem);
-  rememberKnownPlace(newItem, typeGroup);
+  if (altId) {
+    const spot = list.find(s => s.id === altId);
+    if (spot) {
+      spot.name = name;
+      spot.rating = rating;
+      spot.mapsUrl = mapsUrl;
+      spot.address = address;
+      spot.hours = hours;
+      spot.price = price;
+      spot.notes = notes;
+      spot.offDays = offDays;
+      rememberKnownPlace(spot, typeGroup);
+      showToast(`已更新 ${name} 的備案資料！`, "success");
+    }
+  } else {
+    const newItem = {
+      id: "alt-" + Date.now(),
+      name,
+      subtype: "",
+      rating,
+      mapsUrl,
+      address,
+      hours,
+      price,
+      notes,
+      offDays
+    };
+    list.push(newItem);
+    rememberKnownPlace(newItem, typeGroup);
+    showToast(`已成功將 ${name} 加入備案庫！`, "success");
+  }
+
   persistTrips();
-
   closeAlternativeModal();
   renderAlternativeSpots();
-  showToast(`已成功將 ${name} 加入備案庫！`, "success");
 }
 
 window.deleteAlternative = function(id, typeGroup) {
