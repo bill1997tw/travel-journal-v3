@@ -554,6 +554,87 @@ function appendAlternativeHoursEntry() {
   hoursInput.value = currentEntries.join(" / ");
 }
 
+function matchRatingSelectValue(rawValue) {
+  if (!rawValue) return "";
+  const str = String(rawValue).trim();
+  const numMatch = str.match(/3.[0-9]|4.[0-9]|5.0/);
+  if (numMatch) {
+    return `⭐️ ${numMatch[0]}`;
+  }
+  if (str.includes("3") || str.includes("4") || str.includes("5")) {
+    const val = parseFloat(str.replace(/[^0-9.]/g, ""));
+    if (!isNaN(val) && val >= 3.0 && val <= 5.0) {
+      return `⭐️ ${val.toFixed(1)}`;
+    }
+  }
+  return str;
+}
+
+function syncScheduleHoursBuilderMode() {
+  const modeSelect = document.getElementById("s-hours-mode");
+  const rangeRow = document.getElementById("s-hours-range-row");
+  if (!modeSelect || !rangeRow) return;
+  rangeRow.style.display = (modeSelect.value === "24h") ? "none" : "flex";
+}
+
+function appendScheduleHoursEntry() {
+  const daySelect = document.getElementById("s-hours-day");
+  const modeSelect = document.getElementById("s-hours-mode");
+  const openSelect = document.getElementById("s-hours-open");
+  const closeSelect = document.getElementById("s-hours-close");
+  const hoursInput = document.getElementById("s-hours");
+  if (!daySelect || !modeSelect || !openSelect || !closeSelect || !hoursInput) return;
+
+  const dayLabel = daySelect.value || "每日";
+  let entry = "";
+  if (modeSelect.value === "24h") {
+    entry = `${dayLabel} 24小時`;
+  } else {
+    const openTime = openSelect.value || "09:00";
+    const closeTime = closeSelect.value || "18:00";
+    entry = `${dayLabel} ${openTime}-${closeTime}`;
+  }
+
+  const currentEntries = hoursInput.value
+    .split("/")
+    .map(item => item.trim())
+    .filter(Boolean)
+    .filter(item => item !== entry);
+
+  currentEntries.push(entry);
+  hoursInput.value = currentEntries.join(" / ");
+}
+
+function ensureScheduleHoursControls() {
+  const daySelect = document.getElementById("s-hours-day");
+  const modeSelect = document.getElementById("s-hours-mode");
+  const openSelect = document.getElementById("s-hours-open");
+  const closeSelect = document.getElementById("s-hours-close");
+  const addButton = document.getElementById("s-hours-add-btn");
+  const clearButton = document.getElementById("s-hours-clear-btn");
+  const hoursInput = document.getElementById("s-hours");
+  if (!daySelect || !modeSelect || !openSelect || !closeSelect || !addButton || !clearButton || !hoursInput) return;
+  if (daySelect.dataset.ready === "true") {
+    syncScheduleHoursBuilderMode();
+    return;
+  }
+
+  fillSelectOptions(daySelect, BUSINESS_HOUR_DAY_OPTIONS);
+  fillSelectOptions(openSelect, buildScheduleTimeOptions());
+  fillSelectOptions(closeSelect, buildScheduleTimeOptions());
+  openSelect.value = "09:00";
+  closeSelect.value = "18:00";
+
+  modeSelect.addEventListener("change", syncScheduleHoursBuilderMode);
+  addButton.addEventListener("click", appendScheduleHoursEntry);
+  clearButton.addEventListener("click", () => {
+    hoursInput.value = "";
+  });
+
+  daySelect.dataset.ready = "true";
+  syncScheduleHoursBuilderMode();
+}
+
 function ensureAlternativeHoursControls() {
   const daySelect = document.getElementById("a-hours-day");
   const modeSelect = document.getElementById("a-hours-mode");
@@ -1279,17 +1360,22 @@ function renderDashboard() {
     const tripCostSum = Math.max(totalExp, totalAdv, parseInt(trip.diary?.cost || 0));
 
     card.innerHTML = `
-      <img class="carousel-card-img" src="${imgUrl}" alt="${trip.title}">
+      <div style="position:relative;">
+        <img class="carousel-card-img" src="${imgUrl}" alt="${escapeHTML(trip.title)}">
+        <button class="carousel-card-delete-btn" onclick="event.stopPropagation(); deleteTrip('${trip.id}')" title="刪除此旅程" style="position:absolute; top:12px; right:12px; background:rgba(0,0,0,0.65); color:#ffffff; border:1px solid rgba(255,255,255,0.3); border-radius:50%; width:34px; height:34px; display:flex; align-items:center; justify-content:center; cursor:pointer; backdrop-filter:blur(8px); transition:all 0.2s ease; z-index:5;">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        </button>
+      </div>
       <div class="carousel-card-body">
         <div class="carousel-card-meta">
-          <span>📍 ${trip.location}</span>
-          <span>📅 ${trip.dateRange || trip.date}</span>
+          <span>📍 ${escapeHTML(trip.location)}</span>
+          <span>📅 ${escapeHTML(trip.dateRange || trip.date)}</span>
         </div>
         <div class="carousel-card-title">${escapeHTML(trip.title)}</div>
         <div class="carousel-card-desc">${escapeHTML(trip.diary?.content || '暫無手記日記內容，點擊進入企劃室撰寫。')}</div>
-        <div style="margin-top:auto; display:flex; justify-content:space-between; align-items:center; padding-top:0.5rem;">
-          <span style="font-weight:700; color:var(--accent-color); font-size:0.92rem;">預估開銷: NT$ ${tripCostSum.toLocaleString()}</span>
-          <button class="btn btn-secondary" onclick="enterWorkspace('${trip.id}')" style="padding:0.35rem 0.75rem; font-size:0.8rem; border-radius:8px;">開啟本子</button>
+        <div style="margin-top:auto; display:flex; justify-content:space-between; align-items:center; padding-top:0.75rem; border-top:1px solid var(--border-color);">
+          <span style="font-weight:800; color:var(--accent-color); font-size:1.05rem; letter-spacing: -0.3px;">NT$ ${tripCostSum.toLocaleString()}</span>
+          <button class="btn btn-primary" onclick="enterWorkspace('${trip.id}')" style="padding:0.4rem 0.9rem; font-size:0.85rem; font-weight:700; border-radius:10px; box-shadow:0 3px 10px rgba(200,92,50,0.3);">開啟本子</button>
         </div>
       </div>
     `;
@@ -1374,8 +1460,6 @@ window.deleteQuickNote = function(id) {
   renderQuickNotes();
   showToast("速記已刪除", "info");
 };
-
-
 // --- 2. 我的旅程列表渲染 ---
 function renderTripsList() {
   const query = document.getElementById("search-trips-bar").value.toLowerCase();
@@ -1455,6 +1539,9 @@ function deleteTrip(id) {
   if (confirm("您確定要刪除這個行程的全部資料嗎？此動作將連同日程、帳目、備案與行李清單一併刪除，無法復原喔！")) {
     trips = trips.filter(t => t.id !== id);
     persistTrips();
+    if (activeTripId === id) {
+      closeWorkspace();
+    }
     renderTripsList();
     renderDashboard();
     showToast("旅程已永久刪除", "info");
@@ -1568,13 +1655,464 @@ function switchWorkspaceTab(tabId) {
 }
 
 
+// 🗂️ 全景看板跨天/同天拖曳移動處理函數
+function moveOverviewBoardItem(draggedId, sourceDayNum, targetDayNum, targetItemId = null, placeBefore = true) {
+  const trip = trips.find(t => t.id === activeTripId);
+  if (!trip || !trip.itinerary || !trip.itinerary.days) return;
+
+  const sourceDay = trip.itinerary.days.find(d => d.dayNum === sourceDayNum);
+  if (!sourceDay) return;
+
+  let targetDay = trip.itinerary.days.find(d => d.dayNum === targetDayNum);
+  if (!targetDay) {
+    targetDay = {
+      dayNum: targetDayNum,
+      date: `Day ${targetDayNum}`,
+      theme: "自由行日程",
+      desc: "",
+      items: []
+    };
+    trip.itinerary.days.push(targetDay);
+    trip.itinerary.days.sort((a, b) => a.dayNum - b.dayNum);
+  }
+
+  const draggedIndex = sourceDay.items.findIndex(i => i.id === draggedId);
+  if (draggedIndex === -1) return;
+
+  pushItineraryHistorySnapshot(trip);
+
+  // 取出拖曳項目
+  const [draggedItem] = sourceDay.items.splice(draggedIndex, 1);
+
+  // 放至目標天數
+  if (targetItemId) {
+    let insertIndex = targetDay.items.findIndex(i => i.id === targetItemId);
+    if (insertIndex !== -1) {
+      if (!placeBefore) insertIndex += 1;
+      targetDay.items.splice(insertIndex, 0, draggedItem);
+    } else {
+      targetDay.items.push(draggedItem);
+    }
+  } else {
+    targetDay.items.push(draggedItem);
+  }
+
+  // 同步設定 activeItineraryDay 為目標天數
+  activeItineraryDay = targetDayNum;
+
+  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  renderWorkspaceItinerary();
+  showToast(`已成功將行程移動至 DAY ${targetDayNum}！`, "success");
+}
+
+function renderOverviewBoard(trip) {
+  const container = document.getElementById("ws-overview-board-grid");
+  if (!container) return;
+  container.innerHTML = "";
+
+  const iti = trip.itinerary;
+  const daysCount = parseInt(trip.duration) || (iti && iti.days ? iti.days.length : 1);
+  const typeIcons = { "flight": "✈️", "train": "🚆", "bike": "🏍️", "food": "🍜", "hotel": "🏨", "sight": "📷", "other": "📍" };
+
+  for (let i = 1; i <= daysCount; i++) {
+    const dayData = (iti && iti.days) ? iti.days.find(d => d.dayNum === i) : null;
+    const themeText = dayData ? (dayData.theme || "自由行日程") : "自由行日程";
+    const descText = dayData ? (dayData.desc || "無特定交通或住宿說明。") : "";
+    const items = dayData ? (dayData.items || []) : [];
+
+    const colEl = document.createElement("div");
+    colEl.className = `overview-day-column ${activeItineraryDay === i ? 'active-target-day' : ''}`;
+    colEl.id = `overview-day-col-${i}`;
+    colEl.setAttribute("data-day-num", i);
+
+    // 綁定欄位層級拖放 Drop 事件（接受拖入空白天數欄）
+    colEl.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      colEl.classList.add("drag-over-board-col");
+    });
+
+    colEl.addEventListener("dragleave", () => {
+      colEl.classList.remove("drag-over-board-col");
+    });
+
+    colEl.addEventListener("drop", (e) => {
+      e.preventDefault();
+      colEl.classList.remove("drag-over-board-col");
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      try {
+        const data = JSON.parse(rawData);
+        if (data && data.id) {
+          moveOverviewBoardItem(data.id, data.day, i, null, true);
+        }
+      } catch(err){}
+    });
+
+    const itemsContainer = document.createElement("div");
+    itemsContainer.className = "overview-items-list";
+
+    if (items.length === 0) {
+      itemsContainer.innerHTML = `
+        <div style="text-align:center; padding:2.5rem 0; color:var(--text-secondary); opacity:0.8; font-size:0.8rem; border:1px dashed var(--border-color); border-radius:10px;">
+          本日尚無行程安排<br><span style="font-size:0.75rem; opacity:0.7;">可直接將卡片拖曳至此欄</span>
+        </div>
+      `;
+    } else {
+      items.forEach(item => {
+        const icon = typeIcons[item.type] || "📍";
+        const isHigh = item.highlight ? "highlight" : "";
+        const safeTitle = escapeHTML(item.title || "未命名行程");
+        const safeNotes = item.notes || item.content ? escapeHTML(item.notes || item.content) : "";
+        const safeLocation = item.address || item.location ? escapeHTML(item.address || item.location) : "";
+
+        const cardEl = document.createElement("div");
+        cardEl.className = `overview-item-card ${isHigh}`;
+        cardEl.setAttribute("draggable", "true");
+        cardEl.setAttribute("data-id", item.id);
+        cardEl.setAttribute("data-day", i);
+
+        // 卡片拖曳事件
+        cardEl.addEventListener("dragstart", (e) => {
+          e.stopPropagation();
+          e.dataTransfer.setData("text/plain", JSON.stringify({ id: item.id, day: i }));
+          cardEl.classList.add("dragging");
+        });
+
+        cardEl.addEventListener("dragend", (e) => {
+          e.stopPropagation();
+          cardEl.classList.remove("dragging");
+        });
+
+        cardEl.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const draggingEl = document.querySelector(".overview-item-card.dragging");
+          if (!draggingEl || draggingEl === cardEl) return;
+          const rect = cardEl.getBoundingClientRect();
+          const midpoint = rect.top + rect.height / 2;
+          if (e.clientY < midpoint) {
+            cardEl.classList.add("drag-over-before");
+            cardEl.classList.remove("drag-over-after");
+          } else {
+            cardEl.classList.add("drag-over-after");
+            cardEl.classList.remove("drag-over-before");
+          }
+        });
+
+        cardEl.addEventListener("dragleave", (e) => {
+          e.stopPropagation();
+          cardEl.classList.remove("drag-over-before", "drag-over-after");
+        });
+
+        cardEl.addEventListener("drop", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          cardEl.classList.remove("drag-over-before", "drag-over-after");
+          const rawData = e.dataTransfer.getData("text/plain");
+          if (!rawData) return;
+          try {
+            const data = JSON.parse(rawData);
+            if (data && data.id) {
+              const rect = cardEl.getBoundingClientRect();
+              const placeBefore = e.clientY < (rect.top + rect.height / 2);
+              moveOverviewBoardItem(data.id, data.day, i, item.id, placeBefore);
+            }
+          } catch(err){}
+        });
+
+        cardEl.innerHTML = `
+          <div class="overview-item-top">
+            <span class="overview-item-time">${escapeHTML(item.time || '')}</span>
+            <button class="ws-title-copy-btn" onclick="event.stopPropagation(); copyToClipboard('${safeTitle.replace(/'/g, "\\'")}')" title="複製名稱">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              複製
+            </button>
+          </div>
+          <div class="overview-item-title">
+            <span>${icon}</span>
+            <span>${safeTitle}</span>
+          </div>
+          ${safeNotes ? `<div class="overview-item-notes">${safeNotes}</div>` : ''}
+          ${safeLocation ? `
+            <div class="overview-item-addr" onclick="event.stopPropagation(); copyToClipboard('${safeLocation.replace(/'/g, "\\'")}')" title="點擊複製地點">
+              <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">📍 ${safeLocation}</span>
+              <span class="ws-copy-badge">複製</span>
+            </div>
+          ` : ''}
+        `;
+
+        itemsContainer.appendChild(cardEl);
+      });
+    }
+
+    colEl.innerHTML = `
+      <div class="overview-day-header">
+        <div class="overview-day-title-row">
+          <span class="overview-day-badge">DAY ${i}</span>
+          <span class="overview-day-count-tag">${items.length} 個行程</span>
+        </div>
+        <div class="overview-day-theme">${escapeHTML(themeText)}</div>
+        ${descText ? `<div class="overview-day-desc">${escapeHTML(descText)}</div>` : ''}
+      </div>
+    `;
+
+    colEl.appendChild(itemsContainer);
+
+    const footerEl = document.createElement("div");
+    footerEl.className = "overview-day-footer";
+    footerEl.innerHTML = `
+      <button class="overview-action-btn" onclick="activeItineraryDay = ${i}; openScheduleModal();">
+        ➕ 新增這天
+      </button>
+      <button class="overview-action-btn" onclick="activeItineraryDay = ${i}; switchItineraryViewMode('singleday');">
+        🔍 單日細節
+      </button>
+    `;
+    colEl.appendChild(footerEl);
+
+    container.appendChild(colEl);
+  }
+}
+
 // ==================== WORKSPACE A: 詳細行程與備案 ====================
+let itineraryViewMode = "overview"; // 'overview' | 'singleday'
+
+window.switchItineraryViewMode = function(mode) {
+  itineraryViewMode = mode;
+  const btnOverview = document.getElementById("btn-view-overview");
+  const btnSingle = document.getElementById("btn-view-singleday");
+  if (btnOverview) btnOverview.classList.toggle("active", mode === "overview");
+  if (btnSingle) btnSingle.classList.toggle("active", mode === "singleday");
+  renderWorkspaceItinerary();
+};
+
+// 🗂️ 全景看板跨天/同天拖曳移動處理函數
+function moveOverviewBoardItem(draggedId, sourceDayNum, targetDayNum, targetItemId = null, placeBefore = true) {
+  const trip = trips.find(t => t.id === activeTripId);
+  if (!trip || !trip.itinerary || !trip.itinerary.days) return;
+
+  const sourceDay = trip.itinerary.days.find(d => d.dayNum === sourceDayNum);
+  if (!sourceDay) return;
+
+  let targetDay = trip.itinerary.days.find(d => d.dayNum === targetDayNum);
+  if (!targetDay) {
+    targetDay = {
+      dayNum: targetDayNum,
+      date: `Day ${targetDayNum}`,
+      theme: "自由行日程",
+      desc: "",
+      items: []
+    };
+    trip.itinerary.days.push(targetDay);
+    trip.itinerary.days.sort((a, b) => a.dayNum - b.dayNum);
+  }
+
+  const draggedIndex = sourceDay.items.findIndex(i => i.id === draggedId);
+  if (draggedIndex === -1) return;
+
+  pushItineraryHistorySnapshot(trip);
+
+  // 取出拖曳項目
+  const [draggedItem] = sourceDay.items.splice(draggedIndex, 1);
+
+  // 放至目標天數
+  if (targetItemId) {
+    let insertIndex = targetDay.items.findIndex(i => i.id === targetItemId);
+    if (insertIndex !== -1) {
+      if (!placeBefore) insertIndex += 1;
+      targetDay.items.splice(insertIndex, 0, draggedItem);
+    } else {
+      targetDay.items.push(draggedItem);
+    }
+  } else {
+    targetDay.items.push(draggedItem);
+  }
+
+  // 同步設定 activeItineraryDay 為目標天數
+  activeItineraryDay = targetDayNum;
+
+  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  renderWorkspaceItinerary();
+  showToast(`已成功將行程移動至 DAY ${targetDayNum}！`, "success");
+}
+
+function renderOverviewBoard(trip) {
+  const container = document.getElementById("ws-overview-board-grid");
+  if (!container) return;
+  container.innerHTML = "";
+
+  const iti = trip.itinerary;
+  const daysCount = parseInt(trip.duration) || (iti && iti.days ? iti.days.length : 1);
+  const typeIcons = { "flight": "✈️", "train": "🚆", "bike": "🏍️", "food": "🍜", "hotel": "🏨", "sight": "📷", "other": "📍" };
+
+  for (let i = 1; i <= daysCount; i++) {
+    const dayData = (iti && iti.days) ? iti.days.find(d => d.dayNum === i) : null;
+    const themeText = dayData ? (dayData.theme || "自由行日程") : "自由行日程";
+    const descText = dayData ? (dayData.desc || "無特定交通或住宿說明。") : "";
+    const items = dayData ? (dayData.items || []) : [];
+
+    const colEl = document.createElement("div");
+    colEl.className = `overview-day-column ${activeItineraryDay === i ? 'active-target-day' : ''}`;
+    colEl.id = `overview-day-col-${i}`;
+    colEl.setAttribute("data-day-num", i);
+
+    // 綁定欄位層級拖放 Drop 事件（接受拖入空白天數欄）
+    colEl.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      colEl.classList.add("drag-over-board-col");
+    });
+
+    colEl.addEventListener("dragleave", () => {
+      colEl.classList.remove("drag-over-board-col");
+    });
+
+    colEl.addEventListener("drop", (e) => {
+      e.preventDefault();
+      colEl.classList.remove("drag-over-board-col");
+      const rawData = e.dataTransfer.getData("text/plain");
+      if (!rawData) return;
+      try {
+        const data = JSON.parse(rawData);
+        if (data && data.id) {
+          moveOverviewBoardItem(data.id, data.day, i, null, true);
+        }
+      } catch(err){}
+    });
+
+    const itemsContainer = document.createElement("div");
+    itemsContainer.className = "overview-items-list";
+
+    if (items.length === 0) {
+      itemsContainer.innerHTML = `
+        <div style="text-align:center; padding:2.5rem 0; color:var(--text-secondary); opacity:0.8; font-size:0.8rem; border:1px dashed var(--border-color); border-radius:10px;">
+          本日尚無行程安排<br><span style="font-size:0.75rem; opacity:0.7;">可直接將卡片拖曳至此欄</span>
+        </div>
+      `;
+    } else {
+      items.forEach(item => {
+        const icon = typeIcons[item.type] || "📍";
+        const isHigh = item.highlight ? "highlight" : "";
+        const safeTitle = escapeHTML(item.title || "未命名行程");
+        const safeNotes = item.notes || item.content ? escapeHTML(item.notes || item.content) : "";
+        const safeLocation = item.address || item.location ? escapeHTML(item.address || item.location) : "";
+
+        const cardEl = document.createElement("div");
+        cardEl.className = `overview-item-card ${isHigh}`;
+        cardEl.setAttribute("draggable", "true");
+        cardEl.setAttribute("data-id", item.id);
+        cardEl.setAttribute("data-day", i);
+
+        // 卡片拖曳事件
+        cardEl.addEventListener("dragstart", (e) => {
+          e.stopPropagation();
+          e.dataTransfer.setData("text/plain", JSON.stringify({ id: item.id, day: i }));
+          cardEl.classList.add("dragging");
+        });
+
+        cardEl.addEventListener("dragend", (e) => {
+          e.stopPropagation();
+          cardEl.classList.remove("dragging");
+        });
+
+        cardEl.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const draggingEl = document.querySelector(".overview-item-card.dragging");
+          if (!draggingEl || draggingEl === cardEl) return;
+          const rect = cardEl.getBoundingClientRect();
+          const midpoint = rect.top + rect.height / 2;
+          if (e.clientY < midpoint) {
+            cardEl.classList.add("drag-over-before");
+            cardEl.classList.remove("drag-over-after");
+          } else {
+            cardEl.classList.add("drag-over-after");
+            cardEl.classList.remove("drag-over-before");
+          }
+        });
+
+        cardEl.addEventListener("dragleave", (e) => {
+          e.stopPropagation();
+          cardEl.classList.remove("drag-over-before", "drag-over-after");
+        });
+
+        cardEl.addEventListener("drop", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          cardEl.classList.remove("drag-over-before", "drag-over-after");
+          const rawData = e.dataTransfer.getData("text/plain");
+          if (!rawData) return;
+          try {
+            const data = JSON.parse(rawData);
+            if (data && data.id) {
+              const rect = cardEl.getBoundingClientRect();
+              const placeBefore = e.clientY < (rect.top + rect.height / 2);
+              moveOverviewBoardItem(data.id, data.day, i, item.id, placeBefore);
+            }
+          } catch(err){}
+        });
+
+        cardEl.innerHTML = `
+          <div class="overview-item-top">
+            <span class="overview-item-time">${escapeHTML(item.time || '')}</span>
+            <button class="ws-title-copy-btn" onclick="event.stopPropagation(); copyToClipboard('${safeTitle.replace(/'/g, "\\'")}')" title="複製名稱">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              複製
+            </button>
+          </div>
+          <div class="overview-item-title">
+            <span>${icon}</span>
+            <span>${safeTitle}</span>
+          </div>
+          ${safeNotes ? `<div class="overview-item-notes">${safeNotes}</div>` : ''}
+          ${safeLocation ? `
+            <div class="overview-item-addr" onclick="event.stopPropagation(); copyToClipboard('${safeLocation.replace(/'/g, "\\'")}')" title="點擊複製地點">
+              <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">📍 ${safeLocation}</span>
+              <span class="ws-copy-badge">複製</span>
+            </div>
+          ` : ''}
+        `;
+
+        itemsContainer.appendChild(cardEl);
+      });
+    }
+
+    colEl.innerHTML = `
+      <div class="overview-day-header">
+        <div class="overview-day-title-row">
+          <span class="overview-day-badge">DAY ${i}</span>
+          <span class="overview-day-count-tag">${items.length} 個行程</span>
+        </div>
+        <div class="overview-day-theme">${escapeHTML(themeText)}</div>
+        ${descText ? `<div class="overview-day-desc">${escapeHTML(descText)}</div>` : ''}
+      </div>
+    `;
+
+    colEl.appendChild(itemsContainer);
+
+    const footerEl = document.createElement("div");
+    footerEl.className = "overview-day-footer";
+    footerEl.innerHTML = `
+      <button class="overview-action-btn" onclick="activeItineraryDay = ${i}; openScheduleModal();">
+        ➕ 新增這天
+      </button>
+      <button class="overview-action-btn" onclick="activeItineraryDay = ${i}; switchItineraryViewMode('singleday');">
+        🔍 單日細節
+      </button>
+    `;
+    colEl.appendChild(footerEl);
+
+    container.appendChild(colEl);
+  }
+}
+
 function renderWorkspaceItinerary() {
   const trip = trips.find(t => t.id === activeTripId);
   if (!trip) return;
   refreshItineraryUndoButton();
 
   const iti = trip.itinerary;
+  const isMobileView = window.innerWidth <= 768;
+  const currentView = isMobileView ? "singleday" : itineraryViewMode;
 
   // 1. 渲染天數 Selector 頁籤
   const daySelector = document.getElementById("ws-days-selector");
@@ -1587,16 +2125,48 @@ function renderWorkspaceItinerary() {
     btn.innerText = `DAY ${i}`;
     btn.onclick = () => {
       activeItineraryDay = i;
-      renderWorkspaceItinerary();
+      if (currentView === "overview") {
+        // 全景模式：1. 滾動全景看板至 DAY i 欄位
+        document.querySelectorAll(".overview-day-column").forEach(c => c.classList.remove("active-target-day"));
+        const targetCol = document.getElementById(`overview-day-col-${i}`);
+        if (targetCol) {
+          targetCol.classList.add("active-target-day");
+          targetCol.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+        }
+        document.querySelectorAll(".day-selector-btn").forEach((b, idx) => {
+          b.classList.toggle("active", idx + 1 === i);
+        });
+        // 2.【核心修復】100% 同步更新下方的單日時間軸為 DAY i！
+        renderSingleDayTimeline(trip, activeItineraryDay);
+      } else {
+        renderWorkspaceItinerary();
+      }
     };
     daySelector.appendChild(btn);
   }
 
+  // 控制全景看板與單日視圖容器顯隱
+  const overviewWrapper = document.getElementById("ws-overview-board-wrapper");
+  if (overviewWrapper) {
+    overviewWrapper.style.display = (currentView === "overview") ? "block" : "none";
+  }
+
+  if (currentView === "overview") {
+    renderOverviewBoard(trip);
+  }
+
+  // 永遠根據 activeItineraryDay 渲染下方的單日時間軸
+  renderSingleDayTimeline(trip, activeItineraryDay);
+}
+
+// 獨立單日時間軸渲染函數 (100% 同步 activeItineraryDay)
+function renderSingleDayTimeline(trip, dayNum) {
+  const iti = trip.itinerary;
   const timelineContainer = document.getElementById("ws-schedule-timeline");
+  if (!timelineContainer) return;
   timelineContainer.innerHTML = "";
 
   if (!iti || !iti.days || iti.days.length === 0) {
-    // 尚未規劃行程或已被清空
     document.getElementById("ws-day-theme").innerText = "尚未匯入或規劃詳細行程";
     document.getElementById("ws-day-desc").innerText = "點擊右上方「新增日程項目」或「智慧匯入」直接載入助理行程規劃！";
     if (document.getElementById("ws-edit-day-summary-btn")) {
@@ -1605,157 +2175,145 @@ function renderWorkspaceItinerary() {
     timelineContainer.innerHTML = `
       <div style="text-align:center; padding:3rem 0; color:var(--text-secondary);">
         <p>這趟旅程目前還沒有任何日程規劃喔。</p>
-        <p style="font-size:0.85rem; margin-top:0.5rem; opacity:0.8;">建議貼上 Gemini 生成的行程 JSON 來快速填充！</p>
       </div>
     `;
     renderActiveRouteSummary(trip);
     renderAlternativeSpots();
-    nameLabel.innerText = "擗輒?迂 *";
-    subtypeLabel.innerText = "?喳?憿? / ??銝駁? *";
-    nameInput.placeholder = "鞎潔? Google Maps ???敺???葆?仿?撱喳?蝔?";
-    subtypeInput.placeholder = "靘?嚗??啜????∪輒?挾憭?";
     return;
   }
 
-  // 取得當前選定天數的資料；若該天尚未建立，先以獨立的空白天數畫面呈現
-  const dayData = iti.days.find(d => d.dayNum === activeItineraryDay) || {
-    dayNum: activeItineraryDay,
-    date: `Day ${activeItineraryDay}`,
+  const dayData = iti.days.find(d => d.dayNum === dayNum) || {
+    dayNum: dayNum,
+    date: `Day ${dayNum}`,
     theme: "自由行日程",
     desc: "",
     items: []
   };
 
-  if (dayData) {
-    document.getElementById("ws-day-theme").innerText = `DAY ${dayData.dayNum}: ${escapeHTML(dayData.theme || '自由行日程')}`;
-    document.getElementById("ws-day-desc").innerText = escapeHTML(dayData.desc || '無特定交通或住宿說明。');
-    renderActiveRouteSummary(trip);
-    if (document.getElementById("ws-edit-day-summary-btn")) {
-      document.getElementById("ws-edit-day-summary-btn").style.display = "block";
-    }
-
-    const scheduleItems = dayData.items || [];
-    if (scheduleItems.length === 0) {
-      timelineContainer.innerHTML = `
-        <div style="text-align:center; padding:2rem 0; color:var(--text-secondary); border: 1px dashed var(--border-color); border-radius:12px;">
-          <p>今日尚無行程安排，點擊「新增日程項目」手動增加。</p>
-        </div>
-      `;
-    } else {
-      const typeIcons = { "flight": "✈️", "train": "🚆", "bike": "🏍️", "food": "🍜", "hotel": "🏨", "sight": "📷", "other": "📍" };
-      
-      scheduleItems.forEach(item => {
-        const icon = typeIcons[item.type] || "📍";
-        const isHigh = item.highlight ? "highlight" : "";
-        const itemEl = document.createElement("div");
-        itemEl.className = `ws-time-item ${isHigh}`;
-        itemEl.setAttribute("draggable", "true");
-        itemEl.setAttribute("data-id", item.id);
-        
-        // 綁定拖曳事件
-        itemEl.addEventListener("dragstart", (e) => {
-          e.dataTransfer.setData("text/plain", item.id);
-          itemEl.classList.add("dragging");
-        });
-        
-        itemEl.addEventListener("dragover", (e) => {
-          e.preventDefault();
-          const draggingEl = document.querySelector(".ws-time-item.dragging");
-          if (!draggingEl || draggingEl === itemEl) return;
-          
-          const rect = itemEl.getBoundingClientRect();
-          const midpoint = rect.top + rect.height / 2;
-          if (e.clientY < midpoint) {
-            itemEl.classList.add("drag-over-before");
-            itemEl.classList.remove("drag-over-after");
-          } else {
-            itemEl.classList.add("drag-over-after");
-            itemEl.classList.remove("drag-over-before");
-          }
-        });
-        
-        itemEl.addEventListener("dragleave", () => {
-          itemEl.classList.remove("drag-over-before", "drag-over-after");
-        });
-        
-        itemEl.addEventListener("dragend", () => {
-          itemEl.classList.remove("dragging", "drag-over-before", "drag-over-after");
-        });
-        
-        itemEl.addEventListener("drop", (e) => {
-          e.preventDefault();
-          itemEl.classList.remove("drag-over-before", "drag-over-after");
-          const draggedId = e.dataTransfer.getData("text/plain");
-          if (draggedId === item.id) return;
-          
-          const rect = itemEl.getBoundingClientRect();
-          const midpoint = rect.top + rect.height / 2;
-          const placeBefore = e.clientY < midpoint;
-          
-          reorderScheduleItems(draggedId, item.id, placeBefore);
-        });
-
-        // 判斷備註中是否含有 Google 地圖網址
-        let noteHtml = escapeHTML(item.content);
-        const mapUrlMatch = item.content ? item.content.match(/https:\/\/maps\.[^\s]+/g) : null;
-        if (mapUrlMatch) {
-          noteHtml = noteHtml.replace(mapUrlMatch[0], `<a href="${mapUrlMatch[0]}" target="_blank" class="expense-map-link">🗺️ 查看 Google 地圖</a>`);
-        }
-
-        let metaHtml = '';
-        if (item.rating || item.hours) {
-          metaHtml += `
-            <div class="ws-time-card-meta-row" draggable="false">
-              ${item.rating ? `<span draggable="false">${escapeHTML(item.rating)}</span>` : ''}
-              ${item.hours ? `<span style="color: var(--text-secondary); font-weight: normal; display: inline-flex; align-items: center; gap: 0.25rem;" draggable="false">🕒 ${escapeHTML(item.hours)}</span>` : ''}
-            </div>
-          `;
-        }
-        if (item.address) {
-          metaHtml += `
-            <div class="ws-time-card-address" data-address="${escapeHTML(item.address)}" onclick="copyAddress(event, this.getAttribute('data-address'))" title="點擊複製地址" draggable="false">
-              <span draggable="false">📍 ${escapeHTML(item.address)}</span>
-              <span class="ws-copy-badge" draggable="false">[複製]</span>
-            </div>
-          `;
-        }
-        if (item.mapsUrl) {
-          metaHtml += `
-            <a href="${escapeHTML(item.mapsUrl)}" target="_blank" class="ws-time-card-map-btn" draggable="false">
-              🗺️ 導航地圖
-            </a>
-          `;
-        }
-
-        itemEl.innerHTML = `
-          <div class="ws-time-label">${escapeHTML(item.time)}</div>
-          <div class="ws-time-dot"></div>
-          <div class="ws-time-card" draggable="false">
-            <div class="ws-time-card-header" draggable="false">
-              <span class="ws-time-card-title" draggable="false">${icon} ${escapeHTML(item.title)}</span>
-              <div class="card-actions" draggable="false">
-                <button class="btn-icon" onclick="openScheduleModal('${item.id}')" style="width:1.8rem; height:1.8rem; padding:0;" title="編輯" draggable="false">
-                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" draggable="false"><path d="M12 20h9" draggable="false"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" draggable="false"></path></svg>
-                </button>
-                <button class="btn-icon" onclick="deleteScheduleItem('${item.id}')" style="width:1.8rem; height:1.8rem; padding:0; color:var(--danger); border-color:rgba(169, 74, 66, 0.15)" title="刪除" draggable="false">
-                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" draggable="false"><polyline points="3 6 5 6 21 6" draggable="false"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" draggable="false"></path></svg>
-                </button>
-              </div>
-            </div>
-            <div class="ws-time-card-content" draggable="false">${noteHtml}</div>
-            ${metaHtml}
-          </div>
-        `;
-        timelineContainer.appendChild(itemEl);
-      });
-    }
+  document.getElementById("ws-day-theme").innerText = `DAY ${dayData.dayNum}: ${escapeHTML(dayData.theme || '自由行日程')}`;
+  document.getElementById("ws-day-desc").innerText = escapeHTML(dayData.desc || '無特定交通或住宿說明。');
+  renderActiveRouteSummary(trip);
+  if (document.getElementById("ws-edit-day-summary-btn")) {
+    document.getElementById("ws-edit-day-summary-btn").style.display = "block";
   }
 
-  // 2. 渲染備案庫
+  const scheduleItems = dayData.items || [];
+  if (scheduleItems.length === 0) {
+    timelineContainer.innerHTML = `
+      <div style="text-align:center; padding:2rem 0; color:var(--text-secondary); border: 1px dashed var(--border-color); border-radius:12px;">
+        <p>本日尚無行程安排，點擊「新增日程項目」手動增加。</p>
+      </div>
+    `;
+  } else {
+    const typeIcons = { "flight": "✈️", "train": "🚆", "bike": "🏍️", "food": "🍜", "hotel": "🏨", "sight": "📷", "other": "📍" };
+    
+    scheduleItems.forEach(item => {
+      const icon = typeIcons[item.type] || "📍";
+      const isHigh = item.highlight ? "highlight" : "";
+      const itemEl = document.createElement("div");
+      itemEl.className = `ws-time-item ${isHigh}`;
+      itemEl.setAttribute("draggable", "true");
+      itemEl.setAttribute("data-id", item.id);
+      
+      itemEl.addEventListener("dragstart", (e) => {
+        e.dataTransfer.setData("text/plain", item.id);
+        itemEl.classList.add("dragging");
+      });
+      
+      itemEl.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        const draggingEl = document.querySelector(".ws-time-item.dragging");
+        if (!draggingEl || draggingEl === itemEl) return;
+        const rect = itemEl.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+        if (e.clientY < midpoint) {
+          itemEl.classList.add("drag-over-before");
+          itemEl.classList.remove("drag-over-after");
+        } else {
+          itemEl.classList.add("drag-over-after");
+          itemEl.classList.remove("drag-over-before");
+        }
+      });
+      
+      itemEl.addEventListener("dragleave", () => {
+        itemEl.classList.remove("drag-over-before", "drag-over-after");
+      });
+      
+      itemEl.addEventListener("dragend", () => {
+        itemEl.classList.remove("dragging", "drag-over-before", "drag-over-after");
+      });
+      
+      itemEl.addEventListener("drop", (e) => {
+        e.preventDefault();
+        itemEl.classList.remove("drag-over-before", "drag-over-after");
+        const draggedId = e.dataTransfer.getData("text/plain");
+        if (draggedId === item.id) return;
+        
+        const rect = itemEl.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+        const placeBefore = e.clientY < midpoint;
+        
+        reorderScheduleItems(draggedId, item.id, placeBefore);
+      });
+
+      let metaHtml = '';
+      if (item.rating || item.hours) {
+        metaHtml += `
+          <div class="ws-time-card-meta-row">
+            ${item.rating ? `<span>${escapeHTML(item.rating)}</span>` : ''}
+            ${item.hours ? `<span style="color: var(--text-secondary); font-weight: normal; display: inline-flex; align-items: center; gap: 0.25rem;">🕒 ${escapeHTML(item.hours)}</span>` : ''}
+          </div>
+        `;
+      }
+      if (item.address) {
+        metaHtml += `
+          <div class="ws-time-card-address" data-address="${escapeHTML(item.address)}" onclick="copyAddress(event, this.getAttribute('data-address'))" title="點擊複製地址">
+            <span>📍 ${escapeHTML(item.address)}</span>
+            <span class="ws-copy-badge">複製</span>
+          </div>
+        `;
+      }
+      if (item.mapsUrl) {
+        metaHtml += `
+          <a href="${escapeHTML(item.mapsUrl)}" target="_blank" class="ws-time-card-map-btn">
+            🗺️ 導航地圖
+          </a>
+        `;
+      }
+
+      itemEl.innerHTML = `
+        <div class="ws-time-label">${escapeHTML(item.time)}</div>
+        <div class="ws-time-dot"></div>
+        <div class="ws-time-card">
+          <div class="ws-time-card-header">
+            <div class="ws-title-container" style="flex:1; min-width:0; padding-right:0.5rem;">
+              <div class="ws-title-top-row" style="margin-bottom:0.35rem;">
+                <button class="ws-title-copy-btn" data-title="${escapeHTML(item.title)}" onclick="copyTitle(event, this.getAttribute('data-title'))" title="複製標題">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  <span>複製</span>
+                </button>
+              </div>
+              <div class="ws-time-card-title">${icon} ${escapeHTML(item.title)}</div>
+            </div>
+            <div class="card-actions">
+              <button class="btn-icon" onclick="openScheduleModal('${item.id}')" style="width:1.8rem; height:1.8rem; padding:0;" title="編輯">✏️</button>
+              <button class="btn-icon" onclick="deleteScheduleItem('${item.id}')" style="width:1.8rem; height:1.8rem; padding:0;" title="刪除">🗑️</button>
+            </div>
+          </div>
+          ${item.content ? `<div class="ws-time-card-desc">${escapeHTML(item.content)}</div>` : ''}
+          ${metaHtml}
+        </div>
+      `;
+
+      timelineContainer.appendChild(itemEl);
+    });
+  }
+
   renderAlternativeSpots();
 }
 
-// 拖曳排序實作
+
+
 function reorderScheduleItems(draggedId, targetId, placeBefore) {
   const trip = trips.find(t => t.id === activeTripId);
   if (!trip || !trip.itinerary) return;
@@ -1807,11 +2365,19 @@ function renderAlternativeSpots() {
       card.className = "alt-card sight-border";
       card.innerHTML = `
         <div class="alt-card-header">
-          <span class="alt-card-name">📍 ${escapeHTML(spot.name)}</span>
+          <div style="flex:1; min-width:0;">
+            <div style="margin-bottom:3px;">
+              <button class="ws-title-copy-btn" data-title="${escapeHTML(spot.name)}" onclick="copyTitle(event, this.getAttribute('data-title'))" title="複製名稱">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <span>複製</span>
+              </button>
+            </div>
+            <span class="alt-card-name">📍 ${escapeHTML(spot.name)}</span>
+          </div>
           ${spot.subtype ? `<span class="alt-card-badge">${escapeHTML(spot.subtype)}</span>` : ""}
         </div>
         <div class="alt-card-meta">
-          <div>⭐ 評分：<span class="star-badge">${escapeHTML(spot.rating)}</span></div>
+          <div><span class="star-badge">${escapeHTML(spot.rating.startsWith('⭐') || spot.rating.startsWith('⭐️') ? spot.rating : '⭐ ' + spot.rating)}</span></div>
           ${spot.address ? `<div>🏠 地址：<span>${escapeHTML(spot.address)}</span></div>` : ''}
           ${spot.hours ? `<div>🕒 營業：<span>${escapeHTML(spot.hours)}</span></div>` : ''}
           ${spot.offDays && spot.offDays.length > 0 ? `<div style="color:var(--danger); font-weight:600;">❌ 公休：<span>${escapeHTML(spot.offDays.join('、'))}</span></div>` : ''}
@@ -1841,11 +2407,19 @@ function renderAlternativeSpots() {
       card.className = "alt-card restaurant-border";
       card.innerHTML = `
         <div class="alt-card-header">
-          <span class="alt-card-name">🍜 ${escapeHTML(spot.name)}</span>
+          <div style="flex:1; min-width:0;">
+            <div style="margin-bottom:3px;">
+              <button class="ws-title-copy-btn" data-title="${escapeHTML(spot.name)}" onclick="copyTitle(event, this.getAttribute('data-title'))" title="複製標題">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <span>複製</span>
+              </button>
+            </div>
+            <span class="alt-card-name">🍜 ${escapeHTML(spot.name)}</span>
+          </div>
           ${spot.subtype ? `<span class="alt-card-badge">${escapeHTML(spot.subtype)}</span>` : ""}
         </div>
         <div class="alt-card-meta">
-          <div>⭐ 評分：<span class="star-badge">${escapeHTML(spot.rating)}</span></div>
+          <div><span class="star-badge">${escapeHTML(spot.rating.startsWith('⭐') || spot.rating.startsWith('⭐️') ? spot.rating : '⭐ ' + spot.rating)}</span></div>
           ${spot.address ? `<div>🏠 地址：<span>${escapeHTML(spot.address)}</span></div>` : ''}
           ${spot.hours ? `<div>🕒 營業：<span>${escapeHTML(spot.hours)}</span></div>` : ''}
           ${spot.offDays && spot.offDays.length > 0 ? `<div style="color:var(--danger); font-weight:600;">❌ 公休：<span>${escapeHTML(spot.offDays.join('、'))}</span></div>` : ''}
@@ -1892,6 +2466,7 @@ function openScheduleModal(itemId = null) {
   document.getElementById("sche-id").value = "";
   document.getElementById("sche-day-num").value = activeItineraryDay;
   setScheduleTimeControls("");
+  ensureScheduleHoursControls();
 
   if (itemId) {
     title.innerText = "修改日程行程項目";
@@ -1913,7 +2488,7 @@ function openScheduleModal(itemId = null) {
       document.getElementById("s-highlight").checked = !!foundItem.highlight;
       document.getElementById("s-maps-url").value = foundItem.mapsUrl || "";
       document.getElementById("s-address").value = foundItem.address || "";
-      document.getElementById("s-rating").value = foundItem.rating || "";
+      document.getElementById("s-rating").value = matchRatingSelectValue(foundItem.rating);
       document.getElementById("s-hours").value = foundItem.hours || "";
     }
   } else {
@@ -3433,11 +4008,23 @@ function handleExpenseSubmit(e) {
   const name = document.getElementById("exp-name").value.trim();
   const day = parseInt(document.getElementById("exp-day").value) || 1;
   const category = document.getElementById("exp-category").value;
-  const cost = parseInt(document.getElementById("exp-price").value) || 0;
+  const currSelect = document.getElementById("exp-currency");
+  const currency = currSelect ? currSelect.value : "TWD";
+  let inputCost = parseFloat(document.getElementById("exp-price").value) || 0;
   const splitCount = parseInt(document.getElementById("exp-qty").value) || 1;
-  const notes = document.getElementById("exp-notes").value.trim();
+  let notes = document.getElementById("exp-notes").value.trim();
   const payerInput = document.getElementById("exp-payer");
   const payer = payerInput ? payerInput.value.trim() : "";
+
+  let cost = inputCost;
+  if (currency !== "TWD" && inputCost > 0) {
+    const rate = LIVE_EXCHANGE_RATES[currency] || 1;
+    cost = Math.round(inputCost / rate);
+    const foreignTag = `[${inputCost.toLocaleString()} ${currency}]`;
+    if (!notes.includes(foreignTag)) {
+      notes = notes ? `${notes} ${foreignTag}` : foreignTag;
+    }
+  }
 
   if (!trip.ledger) trip.ledger = [];
   if (!trip.advances) trip.advances = [];
@@ -4746,6 +5333,31 @@ window.copyAddress = function(e, text) {
   });
 };
 
+// 複製標題到剪貼簿，提供給各版面標題【複製】按鈕點擊使用
+window.copyTitle = function(e, text) {
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    showToast(`已複製標題：「${text}」`, "success");
+  }).catch(err => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand("copy");
+      showToast(`已複製標題：「${text}」`, "success");
+    } catch (e2) {
+      console.error("無法複製標題:", e2);
+      showToast("複製失敗，請手動複製", "error");
+    }
+    document.body.removeChild(textArea);
+  });
+};
+
 // 高解析度真實景點/商家資料庫，避免第三方 Map API CORS 限制
 const LOCAL_GEO_DATABASE = [
   {
@@ -4926,7 +5538,7 @@ function setupScheduleAutofill() {
   if (!ratingInput.value || ratingInput.value.startsWith("⭐️")) {
     const score = (4.2 + Math.random() * 0.7).toFixed(1);
     const reviews = Math.floor(Math.random() * 7500) + 500;
-    ratingInput.value = `⭐️ ${score} (${reviews.toLocaleString()} 則評論)`;
+    ratingInput.value = `⭐️ ${score}`;
   }
 
   // 2) Smart Mock Address
@@ -5653,7 +6265,7 @@ function setupScheduleAutofill() {
 
   if (foundSpot) {
     if (foundSpot.address) addressInput.value = foundSpot.address;
-    if (foundSpot.rating) ratingInput.value = foundSpot.rating;
+    if (foundSpot.rating) ratingInput.value = matchRatingSelectValue(foundSpot.rating);
     if (foundSpot.hours) hoursInput.value = foundSpot.hours;
     if (foundSpot.name && canReplaceAutofillValue(titleInput.value)) {
       titleInput.value = foundSpot.name;
@@ -5703,7 +6315,7 @@ function setupAlternativeAutofill() {
 
   if (foundSpot) {
     if (foundSpot.address) addressInput.value = foundSpot.address;
-    if (foundSpot.rating) ratingInput.value = foundSpot.rating;
+    if (foundSpot.rating) ratingInput.value = matchRatingSelectValue(foundSpot.rating);
     if (foundSpot.hours) hoursInput.value = foundSpot.hours;
 
     if (typeGroup === "restaurants") {
@@ -6393,3 +7005,179 @@ function startGreetingEdit() {
     finishEdit();
   });
 }
+
+// ==================== 💱 即時匯率換算器與連動功能 ====================
+let LIVE_EXCHANGE_RATES = {
+  "TWD": 1,
+  "JPY": 4.65,     // 1 TWD = 4.65 JPY => 1 JPY = 0.215 TWD
+  "USD": 0.031,    // 1 TWD = 0.031 USD => 1 USD = 32.25 TWD
+  "EUR": 0.0285,
+  "KRW": 42.5,
+  "THB": 1.12,
+  "NZD": 0.052,    // 1 TWD = 0.052 NZD => 1 NZD = 19.23 TWD
+  "HKD": 0.242,
+  "GBP": 0.0245
+};
+
+async function fetchLiveExchangeRates() {
+  try {
+    const res = await fetch("https://open.er-api.com/v6/latest/TWD");
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.rates) {
+        LIVE_EXCHANGE_RATES = data.rates;
+        LIVE_EXCHANGE_RATES["TWD"] = 1;
+      }
+    }
+  } catch (err) {
+    console.warn("離線環境，使用備份匯率數據:", err);
+  }
+}
+fetchLiveExchangeRates();
+
+window.toggleExchangeRateModal = function() {
+  const modal = document.getElementById("exchange-rate-modal");
+  if (!modal) return;
+  const isHidden = getComputedStyle(modal).display === "none";
+  modal.style.display = isHidden ? "flex" : "none";
+  if (isHidden) {
+    calculateExchangeRateResult();
+  }
+};
+
+window.calculateExchangeRateResult = function() {
+  const fromCurrSelect = document.getElementById("modal-rate-from-curr");
+  const amountInput = document.getElementById("modal-rate-amount-input");
+  const listContainer = document.getElementById("modal-rate-multi-list");
+  if (!fromCurrSelect || !amountInput || !listContainer) return;
+
+  const fromCurr = fromCurrSelect.value;
+  const amount = parseFloat(amountInput.value) || 0;
+
+  const targetCurrencies = [
+    { code: "TWD", name: "新台幣 TWD", icon: "🇹🇼", symbol: "NT$" },
+    { code: "JPY", name: "日圓 JPY", icon: "💴", symbol: "¥" },
+    { code: "USD", name: "美金 USD", icon: "💵", symbol: "$" },
+    { code: "EUR", name: "歐元 EUR", icon: "💶", symbol: "€" },
+    { code: "KRW", name: "韓元 KRW", icon: "🇰🇷", symbol: "₩" },
+    { code: "THB", name: "泰銖 THB", icon: "🇹🇭", symbol: "฿" },
+    { code: "NZD", name: "紐幣 NZD", icon: "🇳🇿", symbol: "NZ$" },
+    { code: "HKD", name: "港幣 HKD", icon: "🇭🇰", symbol: "HK$" },
+    { code: "GBP", name: "英鎊 GBP", icon: "🇬🇧", symbol: "£" }
+  ];
+
+  const rateFrom = LIVE_EXCHANGE_RATES[fromCurr] || 1;
+  const amountInTWD = amount / rateFrom;
+
+  let html = "";
+  targetCurrencies.forEach(curr => {
+    if (curr.code === fromCurr) return; // 跳過基準幣別自己
+
+    const rateTo = LIVE_EXCHANGE_RATES[curr.code] || 1;
+    const targetAmount = amountInTWD * rateTo;
+    const unitRate = (1 / rateFrom) * rateTo;
+
+    const formattedAmount = (curr.code === "JPY" || curr.code === "KRW")
+      ? Math.round(targetAmount).toLocaleString()
+      : targetAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    html += `
+      <div class="exchange-row-item">
+        <div class="exchange-row-left">
+          <div class="exchange-row-name">
+            <span style="font-size:1.05rem;">${curr.icon}</span> <span>${curr.name}</span>
+          </div>
+          <div class="exchange-row-rate">
+            1 ${fromCurr} ≈ ${unitRate.toFixed(4)} ${curr.code}
+          </div>
+        </div>
+        <div class="exchange-row-right">
+          <div class="exchange-row-val">
+            ${curr.symbol} ${formattedAmount}
+          </div>
+          <button class="exchange-row-btn" onclick="applySpecificExchangeToExpenseModal(${targetAmount.toFixed(2)}, '${curr.code}')" title="帶入此金額記帳">
+            ＋ 記帳
+          </button>
+        </div>
+      </div>
+    `;
+  });
+
+  listContainer.innerHTML = html;
+};
+
+window.applySpecificExchangeToExpenseModal = function(amount, currency) {
+  toggleExchangeRateModal();
+  openExpenseModal();
+  
+  const currSelect = document.getElementById("exp-currency");
+  const amountInput = document.getElementById("exp-price");
+  
+  if (currSelect) currSelect.value = currency;
+  if (amountInput) {
+    amountInput.value = amount;
+    onExpenseCurrencyOrAmountChange();
+  }
+};
+
+window.onExpenseCurrencyOrAmountChange = function() {
+  const currSelect = document.getElementById("exp-currency");
+  const amountInput = document.getElementById("exp-price");
+  const hintEl = document.getElementById("exp-price-calc-hint");
+  
+  if (!currSelect || !amountInput || !hintEl) return;
+  
+  const curr = currSelect.value;
+  const val = parseFloat(amountInput.value) || 0;
+  
+  if (curr === "TWD" || val <= 0) {
+    hintEl.style.display = "none";
+    return;
+  }
+  
+  const rate = LIVE_EXCHANGE_RATES[curr] || 1;
+  const twdVal = Math.round(val / rate);
+  const unitRate = (1 / rate).toFixed(4);
+  
+  hintEl.style.display = "block";
+  hintEl.innerHTML = `💡 外幣 <strong>${val.toLocaleString()} ${curr}</strong> 依即時匯率 (1 ${curr} ≈ ${unitRate} TWD) 折合約 <strong>NT$ ${twdVal.toLocaleString()}</strong>`;
+};
+
+// 📱 手機端懸浮快捷工具膠囊切換
+window.switchMobileTab = function(target) {
+  document.querySelectorAll(".mobile-dock-btn").forEach(item => {
+    item.classList.toggle("active", item.getAttribute("data-target") === target);
+  });
+
+  if (target === "timeline") {
+    switchWorkspaceTab("itinerary");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } else if (target === "alt-spots") {
+    switchWorkspaceTab("itinerary");
+    setTimeout(() => {
+      const altSec = document.getElementById("ws-alt-spots-container") || document.querySelector(".alternatives-column");
+      if (altSec) {
+        altSec.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 80);
+  } else if (target === "expenses") {
+    switchWorkspaceTab("budget");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } else if (target === "vouchers") {
+    switchWorkspaceTab("vouchers");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } else if (target === "settings") {
+    switchWorkspaceTab("checklists");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+};
+
+// ⌨️ 電腦端全域快捷鍵：按 Esc 鍵一秒關閉所有開起的 Modal 彈窗
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    document.querySelectorAll(".modal-overlay.active, .modal-overlay[style*='display: flex']").forEach(modal => {
+      modal.classList.remove("active");
+      if (modal.id === "exchange-rate-modal") modal.style.display = "none";
+    });
+  }
+});

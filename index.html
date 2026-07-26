@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>悠遊小本本 Voyage Book | 您的專屬旅行規劃與分帳管家</title>
   <meta name="description" content="悠遊小本本是一個為自助旅行與重機愛好者設計的精美企劃工具，包含詳細日程、景點與餐廳備案庫、行李打包清單、多人費用代墊分帳以及回憶日記。">
-  <link rel="stylesheet" href="index.css?v=workspace_budget_fit_v13">
+  <link rel="stylesheet" href="index.css?v=rating_hours_v13">
   <link rel="stylesheet" href="cloud-sync.css">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
@@ -192,12 +192,15 @@
                 <span>🎫 票券憑證與備忘</span>
               </button>
             </div>
-            <div class="ws-sidebar-footer">
+            <div class="ws-sidebar-footer" style="display:flex; flex-direction:column; gap:0.5rem;">
               <button class="btn btn-secondary" id="ws-edit-trip-btn" style="width:100%; font-size:0.85rem; padding:0.5rem;">
                 ⚙️ 編輯旅程基本設定
               </button>
               <button class="btn btn-secondary" id="ws-share-trip-btn" style="width:100%; font-size:0.85rem; padding:0.5rem; margin-top:0.5rem;">
                 🔗 免登入唯讀分享
+              </button>
+              <button class="btn btn-secondary" id="ws-delete-current-trip-btn" onclick="deleteTrip(activeTripId)" style="width:100%; font-size:0.8rem; padding:0.45rem; color:var(--danger); border-color:rgba(169, 74, 66, 0.2);" title="刪除當前整趟旅程">
+                🗑️ 刪除當前旅程
               </button>
             </div>
           </aside>
@@ -218,9 +221,28 @@
                 </div>
               </div>
 
+              <!-- 電腦端專屬：視圖切換列 (🗂️ 全景巨觀看板 vs 📅 單日時間軸) -->
+              <div class="itinerary-view-toggle-bar desktop-only-view-toggle">
+                <div class="view-toggle-group">
+                  <button class="view-toggle-btn active" id="btn-view-overview" onclick="switchItineraryViewMode('overview')">
+                    <span>🗂️ 全景巨觀看板</span>
+                  </button>
+                  <button class="view-toggle-btn" id="btn-view-singleday" onclick="switchItineraryViewMode('singleday')">
+                    <span>📅 單日詳細時間軸</span>
+                  </button>
+                </div>
+              </div>
+
               <!-- 天數滑動選擇列 -->
               <div class="days-selector-bar" id="ws-days-selector">
                 <!-- 動態注入 Day 1, Day 2... -->
+              </div>
+
+              <!-- 🗂️ 全景宏觀看板區塊 (電腦版預設) -->
+              <div class="ws-overview-board-wrapper" id="ws-overview-board-wrapper">
+                <div class="overview-board-grid" id="ws-overview-board-grid">
+                  <!-- 動態注入 Day 1 ~ Day N 看板卡片 -->
+                </div>
               </div>
 
               <div class="itinerary-grid-container">
@@ -251,7 +273,7 @@
                 </div>
 
                 <!-- 備案景點與餐廳推薦 -->
-                <div class="alternatives-column">
+                <div class="alternatives-column" id="ws-alt-spots-container">
                   <div class="alt-header-tabs">
                     <button class="alt-tab active" data-alt-tab="sights">📍 景點備案庫</button>
                     <button class="alt-tab" data-alt-tab="restaurants">🍜 餐廳備案庫</button>
@@ -683,11 +705,52 @@
           </div>
           <div class="form-group">
             <label for="s-rating">商家星級與評分</label>
-            <input type="text" class="form-input" id="s-rating" placeholder="例如：⭐️ 4.6 (1,240 則評論)">
+            <select class="form-select" id="s-rating">
+              <option value="">-- 請選擇星級評分 (選填) --</option>
+              <option value="⭐️ 5.0">⭐️ 5.0 極力推薦</option>
+              <option value="⭐️ 4.9">⭐️ 4.9</option>
+              <option value="⭐️ 4.8">⭐️ 4.8</option>
+              <option value="⭐️ 4.7">⭐️ 4.7</option>
+              <option value="⭐️ 4.6">⭐️ 4.6</option>
+              <option value="⭐️ 4.5">⭐️ 4.5</option>
+              <option value="⭐️ 4.4">⭐️ 4.4</option>
+              <option value="⭐️ 4.3">⭐️ 4.3</option>
+              <option value="⭐️ 4.2">⭐️ 4.2</option>
+              <option value="⭐️ 4.1">⭐️ 4.1</option>
+              <option value="⭐️ 4.0">⭐️ 4.0</option>
+              <option value="⭐️ 3.9">⭐️ 3.9</option>
+              <option value="⭐️ 3.8">⭐️ 3.8</option>
+              <option value="⭐️ 3.7">⭐️ 3.7</option>
+              <option value="⭐️ 3.6">⭐️ 3.6</option>
+              <option value="⭐️ 3.5">⭐️ 3.5</option>
+              <option value="⭐️ 3.4">⭐️ 3.4</option>
+              <option value="⭐️ 3.3">⭐️ 3.3</option>
+              <option value="⭐️ 3.2">⭐️ 3.2</option>
+              <option value="⭐️ 3.1">⭐️ 3.1</option>
+              <option value="⭐️ 3.0">⭐️ 3.0</option>
+            </select>
           </div>
           <div class="form-group">
             <label for="s-hours">商家營業時間</label>
-            <input type="text" class="form-input" id="s-hours" placeholder="例如：08:00 - 17:00 / 24小時">
+            <input type="text" class="form-input" id="s-hours" placeholder="可直接輸入，或用下方快速加入">
+            <div class="hours-builder" id="s-hours-builder">
+              <div class="hours-builder-row">
+                <select class="form-select" id="s-hours-day"></select>
+                <select class="form-select" id="s-hours-mode">
+                  <option value="range">時段</option>
+                  <option value="24h">24小時</option>
+                </select>
+              </div>
+              <div class="hours-builder-row range-row" id="s-hours-range-row">
+                <select class="form-select" id="s-hours-open"></select>
+                <span class="hours-builder-separator">至</span>
+                <select class="form-select" id="s-hours-close"></select>
+              </div>
+              <div class="hours-builder-actions">
+                <button type="button" class="btn btn-secondary" id="s-hours-add-btn">加入營業時間</button>
+                <button type="button" class="btn btn-secondary" id="s-hours-clear-btn">清空欄位</button>
+              </div>
+            </div>
           </div>
           <div class="form-group" style="display:flex; align-items:center; gap:0.5rem; flex-direction:row;">
             <input type="checkbox" id="s-highlight" style="width:18px; height:18px; cursor:pointer;">
@@ -726,7 +789,30 @@
           </div>
           <div class="form-group">
             <label for="a-rating">商家星級與評分</label>
-            <input type="text" class="form-input" id="a-rating" placeholder="例如：⭐️ 4.5 (230 則評論)">
+            <select class="form-select" id="a-rating">
+              <option value="">-- 請選擇星級評分 (選填) --</option>
+              <option value="⭐️ 5.0">⭐️ 5.0 極力推薦</option>
+              <option value="⭐️ 4.9">⭐️ 4.9</option>
+              <option value="⭐️ 4.8">⭐️ 4.8</option>
+              <option value="⭐️ 4.7">⭐️ 4.7</option>
+              <option value="⭐️ 4.6">⭐️ 4.6</option>
+              <option value="⭐️ 4.5">⭐️ 4.5</option>
+              <option value="⭐️ 4.4">⭐️ 4.4</option>
+              <option value="⭐️ 4.3">⭐️ 4.3</option>
+              <option value="⭐️ 4.2">⭐️ 4.2</option>
+              <option value="⭐️ 4.1">⭐️ 4.1</option>
+              <option value="⭐️ 4.0">⭐️ 4.0</option>
+              <option value="⭐️ 3.9">⭐️ 3.9</option>
+              <option value="⭐️ 3.8">⭐️ 3.8</option>
+              <option value="⭐️ 3.7">⭐️ 3.7</option>
+              <option value="⭐️ 3.6">⭐️ 3.6</option>
+              <option value="⭐️ 3.5">⭐️ 3.5</option>
+              <option value="⭐️ 3.4">⭐️ 3.4</option>
+              <option value="⭐️ 3.3">⭐️ 3.3</option>
+              <option value="⭐️ 3.2">⭐️ 3.2</option>
+              <option value="⭐️ 3.1">⭐️ 3.1</option>
+              <option value="⭐️ 3.0">⭐️ 3.0</option>
+            </select>
           </div>
           <div class="form-group">
             <label for="a-hours">商家營業時間</label>
@@ -834,8 +920,22 @@
             </select>
           </div>
           <div class="form-group">
-            <label for="exp-price">價格/單價 *</label>
-            <input type="number" class="form-input" id="exp-price" min="0" placeholder="整筆總額，例如：5400" required>
+            <label for="exp-price">消費金額與幣別 *</label>
+            <div style="display: flex; gap: 0.5rem;">
+              <select id="exp-currency" class="form-select" style="width: 125px; font-weight: 600;" onchange="onExpenseCurrencyOrAmountChange()">
+                <option value="TWD">台幣 TWD 🇹🇼</option>
+                <option value="JPY">日圓 JPY 💴</option>
+                <option value="NZD">紐幣 NZD 🇳🇿</option>
+                <option value="USD">美金 USD 💵</option>
+                <option value="EUR">歐元 EUR 💶</option>
+                <option value="KRW">韓元 KRW 🇰🇷</option>
+                <option value="THB">泰銖 THB 🇹🇭</option>
+                <option value="HKD">港幣 HKD 🇭🇰</option>
+                <option value="GBP">英鎊 GBP 🇬🇧</option>
+              </select>
+              <input type="number" class="form-input" id="exp-price" min="0" placeholder="金額，例如：5400" required oninput="onExpenseCurrencyOrAmountChange()" style="flex: 1;">
+            </div>
+            <div id="exp-price-calc-hint" style="font-size: 0.78rem; color: var(--accent-color); margin-top: 0.35rem; display: none; font-weight: 600; background: var(--accent-light); padding: 0.3rem 0.6rem; border-radius: 6px;"></div>
           </div>
           <div class="form-group">
             <label for="exp-qty">個人分攤係數 (全額請填人數，如5人平分其中1人填 1) *</label>
@@ -1106,6 +1206,58 @@
     </div>
   </div>
 
+  <!-- 12. 💱 即時匯率浮動快捷按鈕與彈窗 Modal -->
+  <button id="floating-rate-btn" class="floating-rate-btn" title="即時匯率換算器" onclick="toggleExchangeRateModal()">
+    <span class="rate-icon">💱</span>
+    <span class="rate-text">匯率算盤</span>
+  </button>
+
+  <div class="modal-overlay exchange-modal-overlay" id="exchange-rate-modal">
+    <div class="modal-content exchange-modal-card">
+      <div class="exchange-header">
+        <div class="exchange-title">
+          <span class="exchange-title-icon">💱</span>
+          <span>即時匯率換算器</span>
+        </div>
+        <button class="exchange-close-btn" onclick="toggleExchangeRateModal()" title="關閉">✕</button>
+      </div>
+
+      <div class="exchange-input-card">
+        <div>
+          <label class="exchange-label">基準幣別</label>
+          <select id="modal-rate-from-curr" class="exchange-select" onchange="calculateExchangeRateResult()">
+            <option value="TWD" selected>🇹🇼 台幣 TWD</option>
+            <option value="JPY">💴 日圓 JPY</option>
+            <option value="NZD">🇳🇿 紐幣 NZD</option>
+            <option value="USD">💵 美金 USD</option>
+            <option value="EUR">💶 歐元 EUR</option>
+            <option value="KRW">🇰🇷 韓元 KRW</option>
+            <option value="THB">🇹🇭 泰銖 THB</option>
+            <option value="HKD">🇭🇰 港幣 HKD</option>
+            <option value="GBP">🇬🇧 英鎊 GBP</option>
+          </select>
+        </div>
+        <div>
+          <label class="exchange-label">輸入金額</label>
+          <input type="number" id="modal-rate-amount-input" class="exchange-number-input" value="1000" min="0" step="any" placeholder="0" oninput="calculateExchangeRateResult()">
+        </div>
+      </div>
+
+      <div class="exchange-sub-header">
+        <span>多國幣別即時換算對照</span>
+        <span id="modal-rate-time-tag" class="sub-tag">連線中...</span>
+      </div>
+
+      <div id="modal-rate-multi-list" class="exchange-multi-list">
+        <!-- 動態渲染多幣別對照列 -->
+      </div>
+
+      <div class="exchange-footer">
+        <button class="btn btn-secondary exchange-bottom-close" onclick="toggleExchangeRateModal()">關閉算盤</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 11. 全域圖片 Lightbox Modal -->
   <div class="modal-overlay" id="lightbox-modal" style="background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);">
     <div style="position: absolute; top: 1rem; right: 1.5rem; z-index: 10001;">
@@ -1207,11 +1359,39 @@
 
   <div id="guest-readonly-root" hidden></div>
 
+  <!-- 13. 📱 手機專屬懸浮快捷工具膠囊 (Mobile Floating Quick Action Dock) -->
+  <div class="mobile-floating-dock" id="mobile-floating-dock">
+    <button class="mobile-dock-btn active" data-target="timeline" onclick="switchMobileTab('timeline')">
+      <span class="dock-icon">📅</span>
+      <span class="dock-label">行程</span>
+    </button>
+    <button class="mobile-dock-btn" data-target="alt-spots" onclick="switchMobileTab('alt-spots')">
+      <span class="dock-icon">📍</span>
+      <span class="dock-label">備案</span>
+    </button>
+    <button class="mobile-dock-btn" data-target="expenses" onclick="switchMobileTab('expenses')">
+      <span class="dock-icon">💰</span>
+      <span class="dock-label">記帳</span>
+    </button>
+    <button class="mobile-dock-btn" data-target="vouchers" onclick="switchMobileTab('vouchers')">
+      <span class="dock-icon">🎟️</span>
+      <span class="dock-label">憑證</span>
+    </button>
+    <button class="mobile-dock-btn rate-btn" data-target="rate" onclick="toggleExchangeRateModal()">
+      <span class="dock-icon">💱</span>
+      <span class="dock-label">匯率</span>
+    </button>
+    <button class="mobile-dock-btn" data-target="settings" onclick="switchMobileTab('settings')">
+      <span class="dock-icon">⚙️</span>
+      <span class="dock-label">清單</span>
+    </button>
+  </div>
+
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js"></script>
   <script src="cloud-sync.js"></script>
   <script type="module" src="account-cloud-share.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=rating_hours_v13"></script>
 </body>
 </html>
