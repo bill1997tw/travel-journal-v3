@@ -338,6 +338,20 @@
 
             <!-- C. 費用預算與記帳 -->
             <div class="ws-tab-panel" id="ws-panel-budget">
+              <section class="account-cloud-workspace-ledger-entry glass" aria-label="小二算帳連動">
+                <div>
+                  <strong>小二算帳連動</strong>
+                  <span>旅程成員可直接查看 LINE 同步的支出與目前結算。</span>
+                </div>
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  onclick="window.voyageAccountCloud?.openLedgerForLocalTrip(activeTripId)"
+                >
+                  查看小二帳本
+                </button>
+              </section>
+
               <!-- 消費與債務結算看版 -->
               <div class="ledger-summary-grid">
                 <div class="ledger-card-summary glass" style="background:linear-gradient(135deg, rgba(0,0,0,0.01) 0%, rgba(0,0,0,0.03) 100%);">

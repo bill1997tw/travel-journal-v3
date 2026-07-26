@@ -507,6 +507,19 @@
     }
   }
 
+  function findLocalTrip(localTripId) {
+    const importApi = getImportApi();
+    if (!importApi || !localTripId) return null;
+    try {
+      return importApi
+        .parseLocalTrips(localStorage.getItem("voyage_trips") || "[]")
+        .find((trip) => trip?.id === localTripId) || null;
+    } catch (error) {
+      console.warn("Could not inspect the active local trip.", error);
+      return null;
+    }
+  }
+
   function clearRemoteUpdate(tripId) {
     if (!state.remoteUpdates[tripId]) return;
     delete state.remoteUpdates[tripId];
@@ -1181,6 +1194,34 @@
     }
   }
 
+  async function openLedgerForLocalTrip(localTripId) {
+    openPanel();
+    const localTrip = findLocalTrip(localTripId);
+    const cloudTripId = localTrip?._cloud?.tripId || null;
+
+    if (!cloudTripId) {
+      setMessage("此旅程尚未連接雲端帳本，請先在「雲端旅程」建立或匯入旅程。", true);
+      return;
+    }
+    if (!state.session) {
+      setMessage("請先登入旅遊小本本雲端帳號，登入後即可查看這個旅程的帳本。", true);
+      return;
+    }
+
+    try {
+      if (!state.trips.some((trip) => trip.id === cloudTripId)) {
+        await loadTrips();
+      }
+      if (!state.trips.some((trip) => trip.id === cloudTripId)) {
+        setMessage("目前登入的帳號沒有這個旅程的查看權限。", true);
+        return;
+      }
+      await loadLedgerSnapshot(cloudTripId);
+    } catch (error) {
+      setMessage(error.message || "無法開啟這個旅程的帳本。", true);
+    }
+  }
+
   function renderSession() {
     if (!ui) return;
     const signedIn = Boolean(state.session);
@@ -1509,6 +1550,7 @@
 
   window.voyageAccountCloud = Object.freeze({
     open: openPanel,
+    openLedgerForLocalTrip,
     refresh: loadTrips,
     getSession: () => state.session,
     getTrips: () => state.trips.map((trip) => ({ ...trip }))
