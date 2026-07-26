@@ -2276,7 +2276,7 @@ function renderSingleDayTimeline(trip, dayNum) {
       if (item.rating || item.hours) {
         metaHtml += `
           <div class="ws-time-card-meta-row">
-            ${item.rating ? `<span>${escapeHTML(item.rating)}</span>` : ''}
+            ${item.rating ? `<span>${escapeHTML(item.rating.startsWith('⭐') || item.rating.startsWith('⭐️') ? item.rating : '⭐ ' + item.rating)}</span>` : ''}
             ${item.hours ? `<span style="color: var(--text-secondary); font-weight: normal; display: inline-flex; align-items: center; gap: 0.25rem;">🕒 ${escapeHTML(item.hours)}</span>` : ''}
           </div>
         `;
@@ -2404,6 +2404,7 @@ function renderAlternativeSpots() {
           <a href="${spot.mapsUrl}" target="_blank" class="expense-map-link" style="font-size:0.8rem;">🗺️ 查看 Google 地圖</a>
           <div style="display:flex; gap:0.25rem;">
             <button class="btn btn-secondary" onclick="openAddToScheduleModal('${escapeHTML(spot.name)}', '${escapeHTML(spot.notes)}', 'sight')" style="font-size:0.75rem; padding:0.3rem 0.6rem;">➕ 加到行程</button>
+            <button class="btn-icon" onclick="openAltSpotModal('${spot.id}', 'sights')" style="width:1.8rem; height:1.8rem; padding:0;" title="編輯備案">✏️</button>
             <button class="btn-icon" onclick="deleteAlternative('${spot.id}', 'sights')" style="width:1.8rem; height:1.8rem; padding:0; color:var(--danger); border-color:transparent;" title="刪除">✕</button>
           </div>
         </div>
@@ -2446,6 +2447,7 @@ function renderAlternativeSpots() {
           <a href="${spot.mapsUrl}" target="_blank" class="expense-map-link" style="font-size:0.8rem;">🗺️ 查看 Google 地圖</a>
           <div style="display:flex; gap:0.25rem;">
             <button class="btn btn-secondary" onclick="openAddToScheduleModal('${escapeHTML(spot.name)}', '${escapeHTML(spot.notes)}', 'food')" style="font-size:0.75rem; padding:0.3rem 0.6rem;">➕ 加到行程</button>
+            <button class="btn-icon" onclick="openAltSpotModal('${spot.id}', 'restaurants')" style="width:1.8rem; height:1.8rem; padding:0;" title="編輯備案">✏️</button>
             <button class="btn-icon" onclick="deleteAlternative('${spot.id}', 'restaurants')" style="width:1.8rem; height:1.8rem; padding:0; color:var(--danger); border-color:transparent;" title="刪除">✕</button>
           </div>
         </div>
