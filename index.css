@@ -216,6 +216,10 @@ main {
   width: 100%;
 }
 
+body[data-current-view="workspace"] main {
+  max-width: 1800px;
+}
+
 .view-section {
   display: none;
   animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -695,9 +699,11 @@ main {
 
 .workspace-layout {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 260px minmax(0, 1fr);
   gap: 1.5rem;
   align-items: start;
+  width: 100%;
+  min-width: 0;
 }
 
 .workspace-sidebar {
@@ -754,6 +760,8 @@ main {
 .workspace-main {
   padding: 2rem;
   min-height: 600px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Guard against misparsed duplicate panels escaping the main workspace card. */
@@ -764,6 +772,8 @@ main {
 .ws-tab-panel {
   display: none;
   animation: fadeInPanel 0.3s ease;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .ws-tab-panel.active {
@@ -1876,6 +1886,20 @@ main {
 
 .table-container {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+#ws-panel-budget {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#ws-panel-budget .panel-section-header > div {
+  min-width: 0;
 }
 
 .excel-table {
