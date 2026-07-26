@@ -16,6 +16,8 @@
     lineBindingTripId: null,
     lineBindingStatus: null,
     linePairingCode: null,
+    lineMemberStatus: null,
+    lineMemberPairingCode: null,
     preview: null,
     lastImportReceipt: null,
     mounted: false,
@@ -47,6 +49,8 @@
     state.lineBindingTripId = null;
     state.lineBindingStatus = null;
     state.linePairingCode = null;
+    state.lineMemberStatus = null;
+    state.lineMemberPairingCode = null;
     if (!ui) return;
     ui.lineBindingSection.hidden = true;
     ui.lineBindingContent.replaceChildren();
@@ -57,6 +61,7 @@
     const trip = state.trips.find((item) => item.id === state.lineBindingTripId);
     const canManage = trip && getRole(trip) === "owner";
     const status = state.lineBindingStatus;
+    const memberStatus = state.lineMemberStatus;
 
     ui.lineBindingTitle.textContent = `${trip?.title || "旅程"}・LINE 連動`;
     ui.lineBindingContent.innerHTML = `
@@ -84,6 +89,29 @@
           ? '<button type="button" class="btn btn-secondary account-cloud-line-revoke">解除 LINE 綁定</button>'
           : ""}
       </div>
+      ${status.is_bound && memberStatus ? `
+        <div class="account-cloud-line-status" data-bound="${memberStatus.is_linked ? "true" : "false"}">
+          <strong>${memberStatus.is_linked ? "我的 LINE 身分已連結" : "我的 LINE 身分尚未連結"}</strong>
+          <span>${memberStatus.is_linked
+            ? `連結時間 ${new Date(memberStatus.linked_at).toLocaleString("zh-TW")}`
+            : "每位旅程成員都要用自己的帳號完成一次，系統才不會把同名成員認錯。"}</span>
+        </div>
+        ${state.lineMemberPairingCode ? `
+          <div class="account-cloud-line-code">
+            <span>我的 LINE 身分碼（10 分鐘內有效）</span>
+            <strong>${escapeHtml(state.lineMemberPairingCode)}</strong>
+            <button type="button" class="btn btn-secondary account-cloud-line-member-copy">複製成員連結指令</button>
+          </div>
+        ` : ""}
+        ${!memberStatus.is_linked && !memberStatus.has_open_claim ? `
+          <div class="account-cloud-line-actions">
+            <button type="button" class="btn btn-primary account-cloud-line-member-create">連結我的 LINE</button>
+          </div>
+        ` : ""}
+        ${memberStatus.has_open_claim && !state.lineMemberPairingCode ? `
+          <p class="account-cloud-line-note">已有尚未過期的成員身分碼；舊碼不會再次顯示，請等待到期後再產生。</p>
+        ` : ""}
+      ` : ""}
       <p class="account-cloud-line-note">配對碼只能使用一次；旅遊小本本不會儲存 LINE 原始群組 ID。</p>
     `;
     ui.lineBindingSection.hidden = false;
@@ -97,6 +125,13 @@
         await navigator.clipboard.writeText(`綁定旅程 ${state.linePairingCode}`);
         setMessage("配對碼已複製，請貼到要連動的小二算帳 LINE 群組。");
       });
+    ui.lineBindingContent.querySelector(".account-cloud-line-member-create")
+      ?.addEventListener("click", createLineMemberClaim);
+    ui.lineBindingContent.querySelector(".account-cloud-line-member-copy")
+      ?.addEventListener("click", async () => {
+        await navigator.clipboard.writeText(`連結成員 ${state.lineMemberPairingCode}`);
+        setMessage("成員連結指令已複製，請用自己的 LINE 帳號貼到已綁定的小二群組。");
+      });
   }
 
   async function loadLineBinding(tripId) {
@@ -105,16 +140,45 @@
     setMessage("");
     state.lineBindingTripId = tripId;
     state.linePairingCode = null;
+    state.lineMemberPairingCode = null;
     try {
-      const { data, error } = await state.client.rpc("get_line_trip_binding_status", {
-        target_trip_id: tripId
-      });
-      if (error) throw error;
-      state.lineBindingStatus = data;
+      const [bindingResult, memberResult] = await Promise.all([
+        state.client.rpc("get_line_trip_binding_status", { target_trip_id: tripId }),
+        state.client.rpc("get_my_line_member_link_status", { target_trip_id: tripId })
+      ]);
+      if (bindingResult.error) throw bindingResult.error;
+      if (memberResult.error) throw memberResult.error;
+      state.lineBindingStatus = bindingResult.data;
+      state.lineMemberStatus = memberResult.data;
       renderLineBinding();
     } catch (error) {
       closeLineBinding();
       setMessage(error.message || "無法讀取 LINE 綁定狀態。", true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createLineMemberClaim() {
+    const tripId = state.lineBindingTripId;
+    if (!tripId || state.busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const { data, error } = await state.client.rpc("create_my_line_member_link_claim", {
+        target_trip_id: tripId
+      });
+      if (error) throw error;
+      const { data: status, error: statusError } = await state.client.rpc(
+        "get_my_line_member_link_status",
+        { target_trip_id: tripId }
+      );
+      if (statusError) throw statusError;
+      state.lineMemberStatus = status;
+      state.lineMemberPairingCode = data.pairing_code;
+      renderLineBinding();
+    } catch (error) {
+      setMessage(error.message || "無法產生成員 LINE 身分碼。", true);
     } finally {
       setBusy(false);
     }
@@ -162,6 +226,13 @@
       if (statusError) throw statusError;
       state.lineBindingStatus = status;
       state.linePairingCode = null;
+      state.lineMemberStatus = {
+        is_linked: false,
+        has_open_claim: false,
+        linked_at: null,
+        claim_expires_at: null
+      };
+      state.lineMemberPairingCode = null;
       renderLineBinding();
       setMessage("LINE 群組綁定已解除。");
     } catch (error) {
