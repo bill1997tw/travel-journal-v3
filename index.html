@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>悠遊小本本 Voyage Book | 您的專屬旅行規劃與分帳管家</title>
   <meta name="description" content="悠遊小本本是一個為自助旅行與重機愛好者設計的精美企劃工具，包含詳細日程、景點與餐廳備案庫、行李打包清單、多人費用代墊分帳以及回憶日記。">
-  <link rel="stylesheet" href="index.css?v=rating_hours_v13">
+  <link rel="stylesheet" href="index.css?v=offdays_v14">
   <link rel="stylesheet" href="cloud-sync.css">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
@@ -752,6 +752,39 @@
               </div>
             </div>
           </div>
+          <div class="form-group" id="s-offdays-group" style="margin-top: 0.5rem;">
+            <label>餐廳/商家公休日 (可多選)</label>
+            <div class="offdays-selector">
+              <label class="offday-label">
+                <input type="checkbox" name="s-offdays" value="週一">
+                <span>一</span>
+              </label>
+              <label class="offday-label">
+                <input type="checkbox" name="s-offdays" value="週二">
+                <span>二</span>
+              </label>
+              <label class="offday-label">
+                <input type="checkbox" name="s-offdays" value="週三">
+                <span>三</span>
+              </label>
+              <label class="offday-label">
+                <input type="checkbox" name="s-offdays" value="週四">
+                <span>四</span>
+              </label>
+              <label class="offday-label">
+                <input type="checkbox" name="s-offdays" value="週五">
+                <span>五</span>
+              </label>
+              <label class="offday-label text-weekend">
+                <input type="checkbox" name="s-offdays" value="週六">
+                <span>六</span>
+              </label>
+              <label class="offday-label text-weekend">
+                <input type="checkbox" name="s-offdays" value="週日">
+                <span>日</span>
+              </label>
+            </div>
+          </div>
           <div class="form-group" style="display:flex; align-items:center; gap:0.5rem; flex-direction:row;">
             <input type="checkbox" id="s-highlight" style="width:18px; height:18px; cursor:pointer;">
             <label for="s-highlight" style="margin:0; cursor:pointer; font-weight:600;">星級高亮提醒（加強顯示）</label>
@@ -1392,6 +1425,6 @@
   <script src="supabase-config.js"></script>
   <script src="cloud-sync.js"></script>
   <script type="module" src="account-cloud-share.js"></script>
-  <script src="app.js?v=rating_hours_v13"></script>
+  <script src="app.js?v=offdays_v14"></script>
 </body>
 </html>

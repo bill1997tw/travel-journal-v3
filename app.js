@@ -595,13 +595,22 @@ function appendScheduleHoursEntry() {
     entry = `${dayLabel} ${openTime}-${closeTime}`;
   }
 
+  // 取得勾選的公休日
+  const offdaysChecked = Array.from(document.querySelectorAll('input[name="s-offdays"]:checked')).map(c => c.value);
+  let offdayText = "";
+  if (offdaysChecked.length > 0) {
+    offdayText = ` (公休:${offdaysChecked.join("、")})`;
+  }
+
+  const fullEntry = entry + offdayText;
+
   const currentEntries = hoursInput.value
     .split("/")
     .map(item => item.trim())
     .filter(Boolean)
-    .filter(item => item !== entry);
+    .filter(item => item !== fullEntry);
 
-  currentEntries.push(entry);
+  currentEntries.push(fullEntry);
   hoursInput.value = currentEntries.join(" / ");
 }
 
@@ -629,6 +638,13 @@ function ensureScheduleHoursControls() {
   addButton.addEventListener("click", appendScheduleHoursEntry);
   clearButton.addEventListener("click", () => {
     hoursInput.value = "";
+    document.querySelectorAll('input[name="s-offdays"]').forEach(c => c.checked = false);
+  });
+
+  document.querySelectorAll('input[name="s-offdays"]').forEach(chk => {
+    chk.addEventListener("change", () => {
+      // 勾選變動時若清空了可選擇重新點擊加入
+    });
   });
 
   daySelect.dataset.ready = "true";
@@ -2498,6 +2514,7 @@ function openScheduleModal(itemId = null) {
     document.getElementById("s-address").value = "";
     document.getElementById("s-rating").value = "";
     document.getElementById("s-hours").value = "";
+    document.querySelectorAll('input[name="s-offdays"]').forEach(c => c.checked = false);
   }
 
   modal.classList.add("active");
