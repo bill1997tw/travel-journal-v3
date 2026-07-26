@@ -11,7 +11,9 @@ const {
   fingerprintTrip,
   getCloudTripState,
   classifyRemoteUpdate,
-  replaceImportedCandidate
+  replaceImportedCandidate,
+  prepareLocalTripPromotion,
+  commitLocalTripPromotion
 } = require("../account-cloud-import.js");
 
 function createStorage(initial = {}) {
@@ -58,6 +60,51 @@ test("normalizes a complete legacy travel journal document", () => {
   assert.equal(result.summary.itineraryDays, 1);
   assert.equal(result.summary.expenses, 1);
   assert.deepEqual(result.warnings, []);
+});
+
+test("prepares a complete local trip for atomic cloud promotion", () => {
+  const storage = createStorage({
+    voyage_trips: JSON.stringify([{
+      id: "alishan-local",
+      title: "阿里山二天一夜",
+      location: "台灣，嘉義",
+      date: "10/26",
+      ledger: [{ id: "expense-1", name: "午餐", cost: 500 }]
+    }])
+  });
+
+  const payload = prepareLocalTripPromotion(storage, "alishan-local");
+
+  assert.equal(payload.sourceKey, "voyage-local:alishan-local");
+  assert.equal(payload.title, "阿里山二天一夜");
+  assert.equal(payload.destination, "台灣，嘉義");
+  assert.equal(payload.startDate, null);
+  assert.equal(payload.state.trip.ledger[0].cost, 500);
+});
+
+test("commits cloud identity onto the original local trip with backup", () => {
+  const original = [{
+    id: "alishan-local",
+    title: "阿里山二天一夜",
+    ledger: []
+  }];
+  const storage = createStorage({ voyage_trips: JSON.stringify(original) });
+
+  const receipt = commitLocalTripPromotion(
+    storage,
+    "alishan-local",
+    "cloud-trip-1",
+    1,
+    1,
+    new Date("2026-07-26T10:00:00.000Z")
+  );
+  const saved = JSON.parse(storage.getItem("voyage_trips"));
+
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].id, "alishan-local");
+  assert.equal(saved[0]._cloud.tripId, "cloud-trip-1");
+  assert.equal(saved[0]._cloud.revision, 1);
+  assert.equal(JSON.parse(storage.getItem(receipt.backupKey))[0]._cloud, undefined);
 });
 
 test("basic cloud documents become a warned, minimal local trip", () => {

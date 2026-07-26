@@ -392,6 +392,108 @@
     };
   }
 
+  function prepareLocalTripPromotion(storage, localTripId) {
+    if (!storage || typeof storage.getItem !== "function") {
+      throw new TypeError("storage_required");
+    }
+    if (!localTripId) {
+      throw new TypeError("local_trip_id_required");
+    }
+    const trips = parseLocalTrips(storage.getItem("voyage_trips") || "[]");
+    const localTrip = trips.find((trip) => trip?.id === localTripId);
+    if (!localTrip) {
+      throw new TypeError("local_trip_not_found");
+    }
+    if (localTrip._cloud?.tripId) {
+      throw new TypeError("local_trip_already_promoted");
+    }
+    if (!String(localTrip.title || "").trim()) {
+      throw new TypeError("local_trip_title_required");
+    }
+    const cloudTrip = clone(localTrip);
+    delete cloudTrip._cloud;
+    const isoDate = (value) =>
+      typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/u.test(value.trim())
+        ? value.trim()
+        : null;
+    return {
+      sourceKey: `voyage-local:${localTripId}`,
+      title: String(localTrip.title).trim(),
+      destination: String(localTrip.location || "").trim() || null,
+      startDate: isoDate(localTrip.date),
+      endDate: isoDate(localTrip.endDate),
+      baseCurrency: "TWD",
+      schemaVersion: 1,
+      state: {
+        source: "voyage-local-storage-v1",
+        promotedAt: new Date().toISOString(),
+        trip: cloudTrip
+      }
+    };
+  }
+
+  function commitLocalTripPromotion(
+    storage,
+    localTripId,
+    cloudTripId,
+    revision,
+    schemaVersion = 1,
+    now = new Date()
+  ) {
+    if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function") {
+      throw new TypeError("storage_required");
+    }
+    if (!localTripId || !cloudTripId) {
+      throw new TypeError("promotion_ids_required");
+    }
+    if (!Number.isSafeInteger(Number(revision)) || Number(revision) < 0) {
+      throw new TypeError("promotion_revision_invalid");
+    }
+    const previousRaw = storage.getItem("voyage_trips") || "[]";
+    const trips = parseLocalTrips(previousRaw);
+    const index = trips.findIndex((trip) => trip?.id === localTripId);
+    if (index < 0) {
+      throw new TypeError("local_trip_not_found");
+    }
+    if (trips[index]._cloud?.tripId && trips[index]._cloud.tripId !== cloudTripId) {
+      throw new TypeError("local_trip_cloud_conflict");
+    }
+
+    const backupKey = makeBackupKey(now);
+    const previousLatestBackupKey = storage.getItem(LATEST_BACKUP_KEY);
+    const promotedTrip = clone(trips[index]);
+    promotedTrip._cloud = {
+      tripId: cloudTripId,
+      revision: Number(revision),
+      schemaVersion: Number(schemaVersion) || 1,
+      importedAt: now.toISOString(),
+      lastSavedAt: now.toISOString(),
+      sourceFormat: "voyage-local-storage-v1"
+    };
+    promotedTrip._cloud.savedFingerprint = fingerprintTrip(promotedTrip);
+    trips[index] = promotedTrip;
+
+    storage.setItem(backupKey, previousRaw);
+    try {
+      storage.setItem(LATEST_BACKUP_KEY, backupKey);
+      storage.setItem("voyage_trips", JSON.stringify(trips));
+    } catch (error) {
+      storage.removeItem(backupKey);
+      if (previousLatestBackupKey) {
+        storage.setItem(LATEST_BACKUP_KEY, previousLatestBackupKey);
+      } else {
+        storage.removeItem(LATEST_BACKUP_KEY);
+      }
+      throw error;
+    }
+    return {
+      backupKey,
+      localTripId,
+      cloudTripId,
+      promotedTrip: clone(promotedTrip)
+    };
+  }
+
   function commitSavedRevision(storage, cloudTripId, revision, savedAt = new Date()) {
     if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function") {
       throw new TypeError("storage_required");
@@ -623,6 +725,8 @@
     getLatestBackupReceipt,
     getRecoverableImportBackupReceipt,
     prepareCloudSave,
+    prepareLocalTripPromotion,
+    commitLocalTripPromotion,
     commitSavedRevision,
     assertStorageWritable,
     compareTripStates,

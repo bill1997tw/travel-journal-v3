@@ -740,6 +740,9 @@
         </div>
         <div class="account-cloud-trip-actions">
           <span class="account-cloud-trip-state" data-state="${escapeHtml(stateMeta.tone)}">${escapeHtml(stateMeta.label)}</span>
+          <button type="button" class="btn btn-primary account-cloud-promote" data-local-trip-id="${escapeHtml(trip.id)}">
+            建立雲端旅程
+          </button>
         </div>
       `;
       ui.tripList.appendChild(item);
@@ -762,6 +765,9 @@
     }
     for (const button of ui.tripList.querySelectorAll(".account-cloud-realtime-test")) {
       button.addEventListener("click", () => triggerRealtimeTestUpdate(button.dataset.tripId));
+    }
+    for (const button of ui.tripList.querySelectorAll(".account-cloud-promote")) {
+      button.addEventListener("click", () => promoteLocalTrip(button.dataset.localTripId));
     }
   }
 
@@ -1128,6 +1134,49 @@
       }
     } finally {
       state.savingTripIds.delete(tripId);
+      setBusy(false);
+    }
+  }
+
+  async function promoteLocalTrip(localTripId) {
+    const importApi = getImportApi();
+    if (!state.client || !state.session || !importApi || state.busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      importApi.assertStorageWritable(localStorage);
+      const payload = importApi.prepareLocalTripPromotion(localStorage, localTripId);
+      const { data, error } = await state.client.rpc("create_trip_from_local_document", {
+        source_key: payload.sourceKey,
+        trip_title: payload.title,
+        trip_destination: payload.destination,
+        trip_start_date: payload.startDate,
+        trip_end_date: payload.endDate,
+        trip_base_currency: payload.baseCurrency,
+        document_schema_version: payload.schemaVersion,
+        document_state: payload.state
+      });
+      if (error) throw error;
+      if (!data?.trip_id || !Number.isSafeInteger(Number(data.revision))) {
+        throw new Error("cloud_promotion_response_invalid");
+      }
+
+      state.lastImportReceipt = importApi.commitLocalTripPromotion(
+        localStorage,
+        localTripId,
+        data.trip_id,
+        Number(data.revision),
+        Number(data.schema_version) || payload.schemaVersion
+      );
+      ui.undoButton.hidden = false;
+      window.voyageApp?.rehydrateAndRender?.();
+      await loadTrips();
+      setMessage(data.created
+        ? "已安全建立雲端旅程；原本本機內容完整保留，現在可以設定 LINE 連動。"
+        : "已重新連回先前建立的雲端旅程，沒有建立重複旅程。");
+    } catch (error) {
+      setMessage(error.message || "建立雲端旅程失敗；本機資料沒有變更。", true);
+    } finally {
       setBusy(false);
     }
   }
