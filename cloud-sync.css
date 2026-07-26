@@ -850,9 +850,32 @@
   font-size: 0.82rem;
 }
 
+#ws-panel-budget .ledger-row-split-grid {
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) !important;
+  max-width: 100%;
+  min-width: 0;
+}
+
+#ws-panel-budget .ledger-row-split-grid > .glass {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+#ws-panel-budget .ledger-row-split-grid .table-container {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
 @media (max-width: 640px) {
   .account-cloud-workspace-ledger-entry {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  #ws-panel-budget .ledger-row-split-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
   }
 }
