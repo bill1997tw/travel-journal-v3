@@ -94,7 +94,7 @@
       ?.addEventListener("click", revokeLineBinding);
     ui.lineBindingContent.querySelector(".account-cloud-line-copy")
       ?.addEventListener("click", async () => {
-        await navigator.clipboard.writeText(state.linePairingCode);
+        await navigator.clipboard.writeText(`綁定旅程 ${state.linePairingCode}`);
         setMessage("配對碼已複製，請貼到要連動的小二算帳 LINE 群組。");
       });
   }
