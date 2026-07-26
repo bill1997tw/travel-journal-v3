@@ -13,6 +13,9 @@
     ledgerTripId: null,
     ledgerSnapshot: null,
     ledgerTestMode: false,
+    lineBindingTripId: null,
+    lineBindingStatus: null,
+    linePairingCode: null,
     preview: null,
     lastImportReceipt: null,
     mounted: false,
@@ -38,6 +41,134 @@
 
   function getLedgerApi() {
     return window.VoyageCloudLedger || null;
+  }
+
+  function closeLineBinding() {
+    state.lineBindingTripId = null;
+    state.lineBindingStatus = null;
+    state.linePairingCode = null;
+    if (!ui) return;
+    ui.lineBindingSection.hidden = true;
+    ui.lineBindingContent.replaceChildren();
+  }
+
+  function renderLineBinding() {
+    if (!ui || !state.lineBindingStatus) return;
+    const trip = state.trips.find((item) => item.id === state.lineBindingTripId);
+    const canManage = trip && getRole(trip) === "owner";
+    const status = state.lineBindingStatus;
+
+    ui.lineBindingTitle.textContent = `${trip?.title || "旅程"}・LINE 連動`;
+    ui.lineBindingContent.innerHTML = `
+      <div class="account-cloud-line-status" data-bound="${status.is_bound ? "true" : "false"}">
+        <strong>${status.is_bound ? "已綁定 LINE 群組" : "尚未綁定 LINE 群組"}</strong>
+        <span>${status.is_bound
+          ? `${status.chat_type === "room" ? "聊天室" : "群組"}，綁定時間 ${new Date(status.bound_at).toLocaleString("zh-TW")}`
+          : "先產生一次性配對碼，再貼到要連動的小二算帳群組。"}</span>
+      </div>
+      ${state.linePairingCode ? `
+        <div class="account-cloud-line-code">
+          <span>一次性配對碼（10 分鐘內有效）</span>
+          <strong>${escapeHtml(state.linePairingCode)}</strong>
+          <button type="button" class="btn btn-secondary account-cloud-line-copy">複製配對碼</button>
+        </div>
+      ` : ""}
+      ${status.has_open_claim && !state.linePairingCode ? `
+        <p class="account-cloud-line-note">已有尚未過期的配對碼。為了安全，舊碼不會再次顯示；請等待到期後再產生新碼。</p>
+      ` : ""}
+      <div class="account-cloud-line-actions">
+        ${canManage && !status.is_bound && !status.has_open_claim
+          ? '<button type="button" class="btn btn-primary account-cloud-line-create">產生配對碼</button>'
+          : ""}
+        ${canManage && status.is_bound
+          ? '<button type="button" class="btn btn-secondary account-cloud-line-revoke">解除 LINE 綁定</button>'
+          : ""}
+      </div>
+      <p class="account-cloud-line-note">配對碼只能使用一次；旅遊小本本不會儲存 LINE 原始群組 ID。</p>
+    `;
+    ui.lineBindingSection.hidden = false;
+
+    ui.lineBindingContent.querySelector(".account-cloud-line-create")
+      ?.addEventListener("click", createLineBindingClaim);
+    ui.lineBindingContent.querySelector(".account-cloud-line-revoke")
+      ?.addEventListener("click", revokeLineBinding);
+    ui.lineBindingContent.querySelector(".account-cloud-line-copy")
+      ?.addEventListener("click", async () => {
+        await navigator.clipboard.writeText(state.linePairingCode);
+        setMessage("配對碼已複製，請貼到要連動的小二算帳 LINE 群組。");
+      });
+  }
+
+  async function loadLineBinding(tripId) {
+    if (!state.client || !state.session || state.busy) return;
+    setBusy(true);
+    setMessage("");
+    state.lineBindingTripId = tripId;
+    state.linePairingCode = null;
+    try {
+      const { data, error } = await state.client.rpc("get_line_trip_binding_status", {
+        target_trip_id: tripId
+      });
+      if (error) throw error;
+      state.lineBindingStatus = data;
+      renderLineBinding();
+    } catch (error) {
+      closeLineBinding();
+      setMessage(error.message || "無法讀取 LINE 綁定狀態。", true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createLineBindingClaim() {
+    const tripId = state.lineBindingTripId;
+    if (!tripId || state.busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const { data, error } = await state.client.rpc("create_line_trip_binding_claim", {
+        target_trip_id: tripId
+      });
+      if (error) throw error;
+      const { data: status, error: statusError } = await state.client.rpc(
+        "get_line_trip_binding_status",
+        { target_trip_id: tripId }
+      );
+      if (statusError) throw statusError;
+      state.lineBindingStatus = status;
+      state.linePairingCode = data.pairing_code;
+      renderLineBinding();
+    } catch (error) {
+      setMessage(error.message || "無法產生 LINE 配對碼。", true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revokeLineBinding() {
+    const tripId = state.lineBindingTripId;
+    if (!tripId || state.busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const { error } = await state.client.rpc("revoke_line_trip_binding", {
+        target_trip_id: tripId
+      });
+      if (error) throw error;
+      const { data: status, error: statusError } = await state.client.rpc(
+        "get_line_trip_binding_status",
+        { target_trip_id: tripId }
+      );
+      if (statusError) throw statusError;
+      state.lineBindingStatus = status;
+      state.linePairingCode = null;
+      renderLineBinding();
+      setMessage("LINE 群組綁定已解除。");
+    } catch (error) {
+      setMessage(error.message || "無法解除 LINE 綁定。", true);
+    } finally {
+      setBusy(false);
+    }
   }
 
   function isCloudOffline() {
@@ -504,6 +635,9 @@
           <button type="button" class="btn btn-secondary account-cloud-ledger-open" data-trip-id="${escapeHtml(trip.id)}">
             查看帳本
           </button>
+          <button type="button" class="btn btn-secondary account-cloud-line-open" data-trip-id="${escapeHtml(trip.id)}">
+            LINE 連動
+          </button>
           ${canSave ? `
             <button type="button" class="btn btn-primary account-cloud-save" data-trip-id="${escapeHtml(trip.id)}">
               儲存本機修改
@@ -548,6 +682,9 @@
     }
     for (const button of ui.tripList.querySelectorAll(".account-cloud-ledger-open")) {
       button.addEventListener("click", () => loadLedgerSnapshot(button.dataset.tripId));
+    }
+    for (const button of ui.tripList.querySelectorAll(".account-cloud-line-open")) {
+      button.addEventListener("click", () => loadLineBinding(button.dataset.tripId));
     }
     for (const button of ui.tripList.querySelectorAll(".account-cloud-remote-action")) {
       button.addEventListener("click", () => handleRemoteUpdateAction(button.dataset.tripId));
@@ -1107,6 +1244,16 @@
           </div>
           <div class="account-cloud-ledger-content"></div>
         </section>
+        <section class="account-cloud-line-binding" hidden>
+          <div class="account-cloud-ledger-heading">
+            <div>
+              <p>小二算帳</p>
+              <h4 class="account-cloud-line-title">LINE 連動</h4>
+            </div>
+            <button type="button" class="account-cloud-line-close" aria-label="關閉 LINE 連動">✕</button>
+          </div>
+          <div class="account-cloud-line-content"></div>
+        </section>
         <section class="account-cloud-import-preview" hidden>
           <div class="account-cloud-preview-heading">
             <h4>匯入前預覽</h4>
@@ -1146,6 +1293,10 @@
       ledgerContent: overlay.querySelector(".account-cloud-ledger-content"),
       ledgerRefreshButton: overlay.querySelector(".account-cloud-ledger-refresh"),
       ledgerCloseButton: overlay.querySelector(".account-cloud-ledger-close"),
+      lineBindingSection: overlay.querySelector(".account-cloud-line-binding"),
+      lineBindingTitle: overlay.querySelector(".account-cloud-line-title"),
+      lineBindingContent: overlay.querySelector(".account-cloud-line-content"),
+      lineBindingCloseButton: overlay.querySelector(".account-cloud-line-close"),
       preview: overlay.querySelector(".account-cloud-import-preview"),
       previewContent: overlay.querySelector(".account-cloud-preview-content"),
       previewCloseButton: overlay.querySelector(".account-cloud-preview-close"),
@@ -1169,6 +1320,7 @@
       if (state.ledgerTripId) loadLedgerSnapshot(state.ledgerTripId);
     });
     ui.ledgerCloseButton.addEventListener("click", closeLedgerSnapshot);
+    ui.lineBindingCloseButton.addEventListener("click", closeLineBinding);
     ui.undoButton.addEventListener("click", undoLastImport);
     ui.overlay.addEventListener("click", (event) => {
       if (event.target === ui.overlay) closePanel();
