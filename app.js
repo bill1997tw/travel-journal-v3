@@ -1389,8 +1389,8 @@ function renderDashboard() {
         </div>
         <div class="carousel-card-title">${escapeHTML(trip.title)}</div>
         <div class="carousel-card-desc">${escapeHTML(trip.diary?.content || '暫無手記日記內容，點擊進入企劃室撰寫。')}</div>
-        <div style="margin-top:auto; display:flex; justify-content:space-between; align-items:center; padding-top:0.75rem; border-top:1px solid var(--border-color);">
-          <span style="font-weight:800; color:var(--accent-color); font-size:1.05rem; letter-spacing: -0.3px;">NT$ ${tripCostSum.toLocaleString()}</span>
+        <div class="carousel-card-footer">
+          <div class="carousel-card-cost">預估開銷: <span style="font-weight:800; color:var(--accent-color); font-size:1.05rem; letter-spacing: -0.3px;">NT$ ${tripCostSum.toLocaleString()}</span></div>
           <button class="btn btn-primary" onclick="enterWorkspace('${trip.id}')" style="padding:0.4rem 0.9rem; font-size:0.85rem; font-weight:700; border-radius:10px; box-shadow:0 3px 10px rgba(200,92,50,0.3);">開啟本子</button>
         </div>
       </div>

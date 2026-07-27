@@ -456,6 +456,26 @@ body[data-current-view="workspace"] main {
   text-overflow: ellipsis;
 }
 
+.carousel-card-footer {
+  margin-top: auto !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding-top: 0.85rem !important;
+  border-top: 1px solid var(--border-color) !important;
+  min-height: 48px !important;
+  box-sizing: border-box !important;
+}
+
+.carousel-card-cost {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 .carousel-nav-btn {
   width: 2.25rem;
   height: 2.25rem;
