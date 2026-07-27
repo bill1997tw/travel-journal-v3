@@ -3145,3 +3145,21 @@ footer {
   background-color: var(--danger);
   opacity: 0.9;
 }
+
+/* Guest Readonly Share Styles */
+#guest-readonly-banner {
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+}
+
+@media (max-width: 600px) {
+  #guest-readonly-banner {
+    font-size: 0.78rem !important;
+    padding: 0.5rem 0.9rem !important;
+    top: 8px !important;
+  }
+
+  #guest-share-modal .modal-content {
+    padding: 1.25rem !important;
+  }
+}

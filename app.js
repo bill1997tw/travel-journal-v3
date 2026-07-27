@@ -22,7 +22,7 @@ const DEFAULT_TRIPS = [
     date: "2024-10-26",
     dateRange: "10/26 - 10/27",
     duration: 2,
-    companion: "翔翔、郁魚等 5 人",
+    companion: "小明、郁魚等 5 人",
     travelers: "5人同行",
     luggage: "無行李重限制",
     rental: "自駕/搭乘林鐵火車",
@@ -109,26 +109,26 @@ const DEFAULT_TRIPS = [
     ledger: [
       { id: "exp-ali-1", name: "阿里山國家森林遊樂區全票", day: 2, category: "景點", cost: 200, splitCount: 1, notes: "KLOOK訂票(第二行程必要門票)" },
       { id: "exp-ali-2", name: "火車票：祝山線 (往返票)", day: 2, category: "交通", cost: 150, splitCount: 1, notes: "去程一定要一張，回程體力可以走觀日步道" },
-      { id: "exp-ali-3", name: "文山賓館五人房", day: 1, category: "住宿", cost: 5400, splitCount: 5, notes: "文山賓館住宿房費(翔翔代墊)" },
+      { id: "exp-ali-3", name: "文山賓館五人房", day: 1, category: "住宿", cost: 5400, splitCount: 5, notes: "文山賓館住宿房費(小明代墊)" },
       { id: "exp-ali-4", name: "街角永富苦茶油雞", day: 1, category: "餐飲", cost: 200, splitCount: 1, notes: "第一天午餐合菜人均" },
       { id: "exp-ali-5", name: "山賓餐廳", day: 1, category: "餐飲", cost: 200, splitCount: 1, notes: "第一天晚餐合菜人均" },
       { id: "exp-ali-6", name: "茶田35號 小笠原二館", day: 2, category: "餐飲", cost: 200, splitCount: 1, notes: "第二天日出精緻早餐" }
     ],
     advances: [
-      { id: "adv-ali-1", payer: "翔翔", date: "9月28日", item: "文山賓館五人房住宿", amount: 5400, splitCount: 5, notes: "文山賓館住宿房費" },
+      { id: "adv-ali-1", payer: "小明", date: "9月28日", item: "文山賓館五人房住宿", amount: 5400, splitCount: 5, notes: "文山賓館住宿房費" },
       { id: "adv-ali-2", payer: "郁魚", date: "10月11日", item: "祝山火車票(5人往返)", amount: 750, splitCount: 5, notes: "代購小火車票" }
     ],
     repayInfo: [
-      { id: "rp-ali-1", name: "翔翔", method: "現金支付", account: "現場清帳付款" },
+      { id: "rp-ali-1", name: "小明", method: "現金支付", account: "現場清帳付款" },
       { id: "rp-ali-2", name: "郁魚", method: "Line Pay", account: "Line 一卡通帳號：241859012" },
-      { id: "rp-ali-3", name: "翔翔", method: "銀行轉帳", account: "玉山銀行(808) 帳號 0182-940-123456" },
+      { id: "rp-ali-3", name: "小明", method: "銀行轉帳", account: "玉山銀行(808) 帳號 0182-940-123456" },
       { id: "rp-ali-4", name: "郁魚", method: "現場請客", account: "下次再說！我請客！老闆大氣 🤝" }
     ],
     diary: {
       content: "阿里山的大團圓精緻之旅！這兩天我們運氣極佳，不但爬了茶園圍繞的二延平步道，還在優遊吧斯看了精彩歌舞。晚上在山賓餐廳吃溫暖的石頭火鍋，第二天更是一口氣解鎖了金色的小笠原日出與壯觀雲海！茶田35號的有機茶香與巨木林間的芬多精，洗滌了平日的疲憊。大家一起分攤預算，結帳時帳目清晰，是一次完美的團體出遊！",
       rating: 5,
       weather: "晴天",
-      companion: "翔翔、郁魚、部魚共5人",
+      companion: "小明、郁魚、部魚共5人",
       image: "assets/kyoto_street.png",
       cost: 6350
     }

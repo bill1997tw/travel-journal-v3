@@ -196,6 +196,9 @@
               <button class="btn btn-secondary" id="ws-edit-trip-btn" style="width:100%; font-size:0.85rem; padding:0.5rem;">
                 ⚙️ 編輯旅程基本設定
               </button>
+              <button class="btn btn-secondary" id="ws-share-trip-btn" style="width:100%; font-size:0.85rem; padding:0.5rem; margin-top:0.5rem;">
+                🔗 免登入唯讀分享
+              </button>
             </div>
           </aside>
 
@@ -840,7 +843,7 @@
           </div>
           <div class="form-group">
             <label for="exp-payer">是誰代墊的？ (選填，無代墊請留空)</label>
-            <input type="text" class="form-input" id="exp-payer" placeholder="例如：我、翔翔、郁魚" list="payer-list">
+            <input type="text" class="form-input" id="exp-payer" placeholder="例如：我、小明、郁魚" list="payer-list">
             <datalist id="payer-list"></datalist>
           </div>
           <div class="form-group">
@@ -866,7 +869,7 @@
         <div class="form-grid" style="grid-template-columns: 1fr;">
           <div class="form-group">
             <label for="adv-payer">是哪位友人代墊的？ *</label>
-            <input type="text" class="form-input" id="adv-payer" placeholder="例如：翔翔、我、郁魚" required>
+            <input type="text" class="form-input" id="adv-payer" placeholder="例如：小明、我、郁魚" required>
           </div>
           <div class="form-group">
             <label for="adv-date">代墊款項日期</label>
@@ -907,7 +910,7 @@
         <div class="form-grid" style="grid-template-columns: 1fr;">
           <div class="form-group">
             <label for="rp-name">旅伴名字 *</label>
-            <input type="text" class="form-input" id="rp-name" placeholder="例如：翔翔、我" required>
+            <input type="text" class="form-input" id="rp-name" placeholder="例如：小明、我" required>
           </div>
           <div class="form-group">
             <label for="rp-method">收款方法/管道 *</label>
@@ -1113,10 +1116,97 @@
     </div>
   </div>
 
+  <!-- 12. 免登入唯讀分享 Modal (Guest Read-Only Share Modal) -->
+  <div class="modal-overlay" id="guest-share-modal">
+    <div class="modal-content glass" style="max-width: 540px;">
+      <button class="modal-close" id="guest-share-modal-close" title="關閉">✕</button>
+      <h2 class="modal-title">🔗 免登入唯讀分享 (Guest Read-Only Share)</h2>
+      <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1.25rem;">
+        產生專屬的唯讀連結分享給 LINE 旅伴。旅伴點開後無需註冊或登入，即可查看您選擇公開的旅程資訊，但無法新增、修改或刪除資料。
+      </p>
+
+      <!-- 開關設定區 -->
+      <div class="glass" style="padding:1.25rem; margin-bottom:1.25rem; border-radius:12px; background:rgba(255,255,255,0.03);">
+        <h3 style="font-size:0.95rem; font-weight:700; margin-bottom:0.75rem;">👁️ 公開內容權限設定</h3>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; font-size:0.85rem;">
+          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+            <input type="checkbox" id="share-scope-itinerary" checked> 行程與景點
+          </label>
+          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+            <input type="checkbox" id="share-scope-alternatives" checked> 備案庫
+          </label>
+          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+            <input type="checkbox" id="share-scope-budget"> 預算／總花費
+          </label>
+          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+            <input type="checkbox" id="share-scope-ledger"> 小二帳本及目前結算
+          </label>
+          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; grid-column:span 2;">
+            <input type="checkbox" id="share-scope-tickets"> 票券與憑證資訊 (敏感內容自動遮蔽)
+          </label>
+        </div>
+
+        <div style="margin-top:1rem; padding-top:0.75rem; border-top:1px solid var(--border-color);">
+          <label for="share-expires-days" style="font-size:0.85rem; font-weight:600; display:block; margin-bottom:0.25rem;">⏳ 連結有效期限</label>
+          <select class="form-select" id="share-expires-days" style="font-size:0.85rem; padding:0.4rem 0.6rem;">
+            <option value="0">無期限 (永久有效直到手動停用)</option>
+            <option value="1">1 天 (24 小時)</option>
+            <option value="3">3 天</option>
+            <option value="7">7 天 (1 週)</option>
+            <option value="30">30 天</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 敏感資訊防護聲明 -->
+      <div style="font-size:0.75rem; color:var(--text-secondary); background:rgba(255,255,255,0.05); padding:0.75rem; border-radius:8px; margin-bottom:1.25rem; line-height:1.4;">
+        🛡️ <b>隱私保護須知：</b>私人備註、收款帳號、條碼/QR Code、訂單完整編號及未主動公開的個人欠款均自動遮蔽。
+      </div>
+
+      <!-- 連結展示與操作區 -->
+      <div id="share-link-result-box" style="display:none; margin-bottom:1.25rem;">
+        <label style="font-size:0.85rem; font-weight:600; display:block; margin-bottom:0.25rem;">專屬唯讀分享網址：</label>
+        <div style="display:flex; gap:0.5rem;">
+          <input type="text" class="form-input" id="share-link-input" readonly style="font-size:0.8rem; flex:1;">
+          <button type="button" class="btn btn-primary" id="share-copy-btn" style="font-size:0.8rem; padding:0.4rem 0.8rem;">複製連結</button>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-color); padding-top:1.25rem; margin-top:1rem;">
+        <div>
+          <button type="button" class="btn btn-secondary" id="share-revoke-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem; display:none; color:var(--danger); border-color:var(--danger);">🛑 停用連結</button>
+        </div>
+        <div style="display:flex; gap:0.75rem;">
+          <button type="button" class="btn btn-secondary" id="guest-share-modal-cancel">關閉</button>
+          <button type="button" class="btn btn-primary" id="share-generate-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">✨ 產生分享連結</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 13. 訪客唯讀模式 Banner (Floating Banner) -->
+  <div id="guest-readonly-banner" class="glass" style="display:none; position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:9999; padding:0.6rem 1.25rem; border-radius:30px; box-shadow:0 8px 24px rgba(0,0,0,0.25); align-items:center; gap:0.75rem; border:1px solid rgba(255,255,255,0.3); background:rgba(200, 92, 50, 0.95); color:#fff; font-size:0.85rem; font-weight:600;">
+    <span>👁️ 訪客唯讀模式（免登入查看）</span>
+    <span style="font-size:0.75rem; opacity:0.85; padding-left:0.5rem; border-left:1px solid rgba(255,255,255,0.4);">受限存取：唯讀無法編輯</span>
+  </div>
+
+  <!-- 14. 連結失效卡片 (Invalid Overlay) -->
+  <div id="guest-invalid-overlay" style="display:none; position:fixed; inset:0; z-index:10000; background:rgba(0,0,0,0.75); backdrop-filter:blur(10px); align-items:center; justify-content:center; padding:1.5rem;">
+    <div class="modal-content glass" style="max-width:440px; text-align:center; padding:2.5rem 2rem; border-radius:16px;">
+      <div style="font-size:3.5rem; margin-bottom:1rem;">⚠️</div>
+      <h2 style="font-size:1.25rem; font-weight:700; margin-bottom:0.75rem;">這份旅程邀請已失效</h2>
+      <p style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:1.75rem; line-height:1.5;" id="guest-invalid-msg">
+        這份旅程邀請已失效，請向旅程建立者索取新連結。
+      </p>
+      <a href="./" class="btn btn-primary" style="display:inline-block; font-size:0.85rem; padding:0.6rem 1.5rem; text-decoration:none;">回到悠遊小本本首頁</a>
+    </div>
+  </div>
+
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js"></script>
   <script src="cloud-sync.js"></script>
+  <script type="module" src="account-cloud-share.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
