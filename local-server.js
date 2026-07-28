@@ -24,6 +24,8 @@ function getCacheControl(filePath) {
     fileName === "index.html"
     || fileName === "app.js"
     || fileName === "cloud-sync.js"
+    || fileName === "app-entry.js"
+    || fileName === "app-entry.css"
     || fileName === "supabase-config.js"
     || fileName === "sw.js"
     || fileName === "manifest.webmanifest"

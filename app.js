@@ -22,7 +22,7 @@ const DEFAULT_TRIPS = [
     date: "2024-10-26",
     dateRange: "10/26 - 10/27",
     duration: 2,
-    companion: "小明、郁魚等 5 人",
+    companion: "小明、小華等 5 人",
     travelers: "5人同行",
     luggage: "無行李重限制",
     rental: "自駕/搭乘林鐵火車",
@@ -116,19 +116,19 @@ const DEFAULT_TRIPS = [
     ],
     advances: [
       { id: "adv-ali-1", payer: "小明", date: "9月28日", item: "文山賓館五人房住宿", amount: 5400, splitCount: 5, notes: "文山賓館住宿房費" },
-      { id: "adv-ali-2", payer: "郁魚", date: "10月11日", item: "祝山火車票(5人往返)", amount: 750, splitCount: 5, notes: "代購小火車票" }
+      { id: "adv-ali-2", payer: "小華", date: "10月11日", item: "祝山火車票(5人往返)", amount: 750, splitCount: 5, notes: "代購小火車票" }
     ],
     repayInfo: [
       { id: "rp-ali-1", name: "小明", method: "現金支付", account: "現場清帳付款" },
-      { id: "rp-ali-2", name: "郁魚", method: "Line Pay", account: "Line 一卡通帳號：241859012" },
-      { id: "rp-ali-3", name: "小明", method: "銀行轉帳", account: "玉山銀行(808) 帳號 0182-940-123456" },
-      { id: "rp-ali-4", name: "郁魚", method: "現場請客", account: "下次再說！我請客！老闆大氣 🤝" }
+      { id: "rp-ali-2", name: "小華", method: "Line Pay", account: "範例 Line Pay 帳號" },
+      { id: "rp-ali-3", name: "小明", method: "銀行轉帳", account: "範例銀行帳號：0000-000-000000" },
+      { id: "rp-ali-4", name: "小華", method: "現場請客", account: "下次再說！我請客！老闆大氣 🤝" }
     ],
     diary: {
       content: "阿里山的大團圓精緻之旅！這兩天我們運氣極佳，不但爬了茶園圍繞的二延平步道，還在優遊吧斯看了精彩歌舞。晚上在山賓餐廳吃溫暖的石頭火鍋，第二天更是一口氣解鎖了金色的小笠原日出與壯觀雲海！茶田35號的有機茶香與巨木林間的芬多精，洗滌了平日的疲憊。大家一起分攤預算，結帳時帳目清晰，是一次完美的團體出遊！",
       rating: 5,
       weather: "晴天",
-      companion: "小明、郁魚、部魚共5人",
+      companion: "小明、小華、小美共5人",
       image: "assets/kyoto_street.png",
       cost: 6350
     }
@@ -928,8 +928,7 @@ function initData() {
     });
     persistTrips();
   } else {
-    trips = [...DEFAULT_TRIPS];
-    trips.forEach(t => ensurePackingCategoryState(t));
+    trips = [];
     persistTrips();
   }
 
@@ -937,10 +936,7 @@ function initData() {
   if (localNotes) {
     quickNotes = JSON.parse(localNotes);
   } else {
-    quickNotes = [
-      { id: 1, text: "下次旅行想去北海道看雪 ❄️" },
-      { id: 2, text: "規劃日本富士山登山大攻略 🗻" }
-    ];
+    quickNotes = [];
     localStorage.setItem("voyage_quick_notes", JSON.stringify(quickNotes));
   }
 }
@@ -976,6 +972,7 @@ function setupEventListeners() {
 
   // 新增旅程按鈕
   document.getElementById("global-add-trip-btn").addEventListener("click", () => openTripEditorModal());
+  document.getElementById("dashboard-empty-add-trip").addEventListener("click", () => openTripEditorModal());
   document.getElementById("trips-add-btn").addEventListener("click", () => openTripEditorModal());
   document.getElementById("trip-modal-close").addEventListener("click", closeTripEditorModal);
   document.getElementById("trip-modal-cancel").addEventListener("click", closeTripEditorModal);
@@ -1344,25 +1341,21 @@ function renderDashboard() {
   document.getElementById("stats-total-spent").innerText = `$${totalSpent.toLocaleString("zh-TW")}`;
   document.getElementById("stats-days").innerText = totalDays;
 
+  const emptyWelcome = document.getElementById("dashboard-empty-welcome");
+  const statsBar = document.querySelector("#view-dashboard .stats-bar");
+  const dashboardGrid = document.querySelector("#view-dashboard .dashboard-grid");
+  const isEmpty = totalTrips === 0;
+  emptyWelcome.hidden = !isEmpty;
+  statsBar.hidden = isEmpty;
+  dashboardGrid.hidden = isEmpty;
+  if (isEmpty) return;
+
   const track = document.getElementById("dashboard-carousel-track");
   track.innerHTML = "";
 
   const sorted = [...trips].sort((a, b) => new Date(b.date) - new Date(a.date));
-  
-  if (sorted.length === 0) {
-    track.innerHTML = `
-      <div style="flex:0 0 100%; display:flex; flex-direction:column; align-items:center; justify-content:center; height:260px; color:var(--text-secondary);">
-        <p>目前還沒有任何規劃的旅程喔！</p>
-        <button class="btn btn-primary" onclick="openTripEditorModal()" style="margin-top:1rem;">立即新增第一趟旅程</button>
-      </div>
-    `;
-    document.getElementById("carousel-prev").style.display = "none";
-    document.getElementById("carousel-next").style.display = "none";
-    return;
-  } else {
-    document.getElementById("carousel-prev").style.display = "flex";
-    document.getElementById("carousel-next").style.display = "flex";
-  }
+  document.getElementById("carousel-prev").style.display = "flex";
+  document.getElementById("carousel-next").style.display = "flex";
 
   sorted.slice(0, 5).forEach(trip => {
     const card = document.createElement("div");

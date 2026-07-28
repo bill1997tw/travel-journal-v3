@@ -10,12 +10,85 @@
   <meta name="description" content="悠遊小本本是一個為自助旅行與重機愛好者設計的精美企劃工具，包含詳細日程、景點與餐廳備案庫、行李打包清單、多人費用代墊分帳以及回憶日記。">
   <link rel="stylesheet" href="index.css?v=v30">
   <link rel="stylesheet" href="cloud-sync.css">
+  <link rel="stylesheet" href="app-entry.css?v=v31">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/app-icon.svg">
 </head>
 <body>
-  <div class="app-container">
+  <div class="app-entry" id="app-entry" role="dialog" aria-modal="true" aria-labelledby="app-entry-title">
+    <div class="app-entry-card glass">
+      <div class="app-entry-brand" aria-hidden="true">
+        <div class="app-entry-logo">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+          </svg>
+        </div>
+        <strong>悠遊小本本</strong>
+        <span>Voyage Book</span>
+      </div>
+
+      <div class="app-entry-loading" id="app-entry-loading">
+        <span class="app-entry-spinner"></span>
+        <p>正在準備您的旅程空間…</p>
+      </div>
+
+      <div class="app-entry-auth" id="app-entry-auth" hidden>
+        <div class="app-entry-copy">
+          <p>歡迎回來</p>
+          <h1 id="app-entry-title">登入您的旅遊小本本</h1>
+          <span>自己的旅程只會出現在自己的帳號；受邀的旅程依 Owner 設定顯示。</span>
+        </div>
+
+        <div class="app-entry-tabs" role="tablist" aria-label="帳號操作">
+          <button type="button" class="is-active" data-entry-tab="login" role="tab" aria-selected="true">登入</button>
+          <button type="button" data-entry-tab="register" role="tab" aria-selected="false">申請帳號</button>
+        </div>
+
+        <form class="app-entry-form" id="app-entry-login-form">
+          <label>
+            Email
+            <input type="email" name="email" autocomplete="username" required>
+          </label>
+          <label>
+            密碼
+            <input type="password" name="password" autocomplete="current-password" required>
+          </label>
+          <button type="submit" class="btn btn-primary">登入並開啟旅程</button>
+        </form>
+
+        <form class="app-entry-form" id="app-entry-register-form" hidden>
+          <label>
+            顯示名稱
+            <input type="text" name="displayName" autocomplete="name" maxlength="40" placeholder="例如：小明" required>
+          </label>
+          <label>
+            Email
+            <input type="email" name="email" autocomplete="username" required>
+          </label>
+          <label>
+            密碼
+            <input type="password" name="password" autocomplete="new-password" minlength="8" required>
+          </label>
+          <label>
+            再輸入一次密碼
+            <input type="password" name="passwordConfirm" autocomplete="new-password" minlength="8" required>
+          </label>
+          <button type="submit" class="btn btn-primary">建立我的帳號</button>
+        </form>
+
+        <div class="app-entry-message" id="app-entry-message" role="alert"></div>
+        <div class="app-entry-divider"><span>或</span></div>
+        <button type="button" class="btn btn-secondary app-entry-guest" id="app-entry-guest-btn">
+          以訪客身分使用本機版
+        </button>
+        <p class="app-entry-guest-note">訪客資料只保存在這台裝置，不會自動同步到其他人的手機。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-container" id="main-app-container" inert>
     <!-- Header -->
     <header class="glass">
       <div class="logo" id="logo-btn" style="display:flex; align-items:center; gap:0.25rem;">
@@ -69,6 +142,13 @@
             </button>
           </div>
           <p id="greeting-subtitle" style="margin:0;">開啟您的精緻旅行規劃，今天想去哪裡冒險？</p>
+        </div>
+
+        <div class="dashboard-empty-welcome glass" id="dashboard-empty-welcome" hidden>
+          <div class="dashboard-empty-icon">＋</div>
+          <h2>建立您的第一趟旅程</h2>
+          <p>從空白小本本開始安排日期、旅伴、行程與共同帳本。</p>
+          <button type="button" class="btn btn-primary" id="dashboard-empty-add-trip">＋ 新建旅程</button>
         </div>
 
         <!-- 數據統計條 -->
@@ -976,7 +1056,7 @@
           </div>
           <div class="form-group">
             <label for="exp-payer">是誰代墊的？ (選填，無代墊請留空)</label>
-            <input type="text" class="form-input" id="exp-payer" placeholder="例如：我、小明、郁魚" list="payer-list">
+            <input type="text" class="form-input" id="exp-payer" placeholder="例如：我、小明、小華" list="payer-list">
             <datalist id="payer-list"></datalist>
           </div>
           <div class="form-group">
@@ -1002,7 +1082,7 @@
         <div class="form-grid" style="grid-template-columns: 1fr;">
           <div class="form-group">
             <label for="adv-payer">是哪位友人代墊的？ *</label>
-            <input type="text" class="form-input" id="adv-payer" placeholder="例如：小明、我、郁魚" required>
+            <input type="text" class="form-input" id="adv-payer" placeholder="例如：小明、我、小華" required>
           </div>
           <div class="form-group">
             <label for="adv-date">代墊款項日期</label>
@@ -1423,6 +1503,7 @@
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js"></script>
+  <script src="app-entry.js?v=v31"></script>
   <script src="cloud-sync.js"></script>
   <script type="module" src="account-cloud-share.js"></script>
   <script src="app.js?v=v30"></script>
