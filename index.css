@@ -3163,3 +3163,123 @@ footer {
     padding: 1.25rem !important;
   }
 }
+body.guest-readonly-active > :not(#guest-readonly-root):not(#guest-invalid-overlay) {
+  display: none !important;
+}
+
+#guest-readonly-root {
+  min-height: 100vh;
+  background: var(--bg-main);
+  color: var(--text-primary);
+  padding: 24px 16px 56px;
+}
+
+.guest-share-page {
+  width: min(920px, 100%);
+  margin: 0 auto;
+}
+
+.guest-share-hero,
+.guest-share-day {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  box-shadow: var(--shadow-sm);
+  padding: 24px;
+  margin-bottom: 18px;
+}
+
+.guest-share-hero h1 {
+  margin: 12px 0 8px;
+  font-size: clamp(1.75rem, 5vw, 2.7rem);
+}
+
+.guest-share-hero p,
+.guest-share-day p {
+  line-height: 1.7;
+}
+
+.guest-share-badge {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: rgba(211, 101, 58, 0.14);
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.guest-share-day h2 {
+  margin: 0 0 8px;
+}
+
+.guest-share-timeline {
+  margin-top: 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.guest-share-item {
+  display: grid;
+  grid-template-columns: minmax(90px, 120px) 1fr;
+  gap: 16px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border-color);
+}
+
+.guest-share-item time {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.guest-share-item h4,
+.guest-share-alt h4 {
+  margin: 0 0 6px;
+}
+
+.guest-share-muted {
+  color: var(--text-secondary);
+}
+
+.guest-share-alt-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.guest-share-alt {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.38);
+  overflow-wrap: anywhere;
+}
+
+.guest-share-page footer {
+  padding: 18px 4px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  #guest-readonly-root {
+    padding: 12px 10px 40px;
+  }
+
+  .guest-share-hero,
+  .guest-share-day {
+    border-radius: 15px;
+    padding: 18px 15px;
+  }
+
+  .guest-share-item {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .guest-share-alt-grid {
+    grid-template-columns: 1fr;
+  }
+}

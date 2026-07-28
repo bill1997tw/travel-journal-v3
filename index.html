@@ -1129,20 +1129,20 @@
       <div class="glass" style="padding:1.25rem; margin-bottom:1.25rem; border-radius:12px; background:rgba(255,255,255,0.03);">
         <h3 style="font-size:0.95rem; font-weight:700; margin-bottom:0.75rem;">👁️ 公開內容權限設定</h3>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; font-size:0.85rem;">
-          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
-            <input type="checkbox" id="share-scope-itinerary" checked> 行程與景點
+          <label style="display:flex; align-items:center; gap:0.5rem;">
+            <input type="checkbox" id="share-scope-itinerary" checked disabled> 行程與景點（本次先行版固定公開）
           </label>
           <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
             <input type="checkbox" id="share-scope-alternatives" checked> 備案庫
           </label>
-          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
-            <input type="checkbox" id="share-scope-budget"> 預算／總花費
+          <label style="display:flex; align-items:center; gap:0.5rem; opacity:0.55;">
+            <input type="checkbox" id="share-scope-budget" disabled> 預算／總花費（後續開放）
           </label>
-          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
-            <input type="checkbox" id="share-scope-ledger"> 小二帳本及目前結算
+          <label style="display:flex; align-items:center; gap:0.5rem; opacity:0.55;">
+            <input type="checkbox" id="share-scope-ledger" disabled> 小二帳本及目前結算（後續開放）
           </label>
-          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; grid-column:span 2;">
-            <input type="checkbox" id="share-scope-tickets"> 票券與憑證資訊 (敏感內容自動遮蔽)
+          <label style="display:flex; align-items:center; gap:0.5rem; grid-column:span 2; opacity:0.55;">
+            <input type="checkbox" id="share-scope-tickets" disabled> 票券與憑證資訊（後續安全版本開放）
           </label>
         </div>
 
@@ -1201,6 +1201,8 @@
       <a href="./" class="btn btn-primary" style="display:inline-block; font-size:0.85rem; padding:0.6rem 1.5rem; text-decoration:none;">回到悠遊小本本首頁</a>
     </div>
   </div>
+
+  <div id="guest-readonly-root" hidden></div>
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

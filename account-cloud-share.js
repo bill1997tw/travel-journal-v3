@@ -1,332 +1,246 @@
-/**
- * 免登入唯讀分享 (Guest Read-Only Share) 前端控制模組
- */
+const INVALID_SHARE_MESSAGE = "這份旅程邀請已失效，請向旅程建立者索取新連結。";
 
-// 產生 256-bit (32 bytes) 高強度不可預測隨機 token
-export function generateRandomShareToken() {
-  const bytes = new Uint8Array(32);
-  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
-    crypto.getRandomValues(bytes);
-  } else {
-    for (let i = 0; i < 32; i++) {
-      bytes[i] = Math.floor(Math.random() * 256);
-    }
-  }
-  return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
+function createClient() {
+  const config = window.VOYAGE_SUPABASE_CONFIG || {};
+  const key = config.publishableKey || config.anonKey;
+  if (!window.supabase?.createClient || !config.url || !key) return null;
+  return window.supabase.createClient(config.url, key);
 }
 
-// 建立 Guest Share 狀態與 DOM 邏輯
-export function createGuestShareManager({ supabaseClient, onTripLoaded, showToast }) {
-  let currentRawToken = null;
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
 
-  return {
-    async loadShareStatus(tripId) {
-      if (!supabaseClient || !tripId) return null;
-      try {
-        const { data, error } = await supabaseClient.rpc("get_guest_share_status", {
-          p_trip_id: tripId
-        });
-        if (error) throw error;
-        return data;
-      } catch (err) {
-        console.warn("[GuestShare] Load status failed:", err.message);
-        return null;
-      }
-    },
+function parseExpiry(days) {
+  const count = Number(days);
+  if (!Number.isFinite(count) || count <= 0) return null;
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + count);
+  return expiresAt.toISOString();
+}
 
-    async createOrRegenerateShare(tripId, scopes, expiresDays = null) {
-      if (!supabaseClient || !tripId) throw new Error("Missing client or tripId");
-      
-      const rawToken = generateRandomShareToken();
-      let expiresAt = null;
-      if (expiresDays && Number(expiresDays) > 0) {
-        const d = new Date();
-        d.setDate(d.getDate() + Number(expiresDays));
-        expiresAt = d.toISOString();
-      }
+export function createGuestShareManager(client) {
+  if (!client?.rpc) throw new TypeError("supabase_client_required");
 
-      const { data, error } = await supabaseClient.rpc("create_guest_share", {
-        p_trip_id: tripId,
-        p_scopes: scopes || { itinerary: true, alternatives: true, budget: false, ledger: false, tickets: false },
-        p_expires_at: expiresAt,
-        p_raw_token: rawToken
+  return Object.freeze({
+    async create(tripId, { expiresAt = null, includeAlternatives = true } = {}) {
+      const { data, error } = await client.rpc("create_guest_readonly_share", {
+        target_trip_id: tripId,
+        share_expires_at: expiresAt,
+        share_alternatives: includeAlternatives
       });
-
       if (error) throw error;
-      currentRawToken = rawToken;
-
-      const baseUrl = typeof window !== "undefined" && window.location
-        ? window.location.origin + window.location.pathname
-        : "https://localhost/";
-      const shareUrl = `${baseUrl}?share=${rawToken}`;
-
-      return {
-        ...data,
-        rawToken,
-        shareUrl
-      };
-    },
-
-    async revokeShare(tripId) {
-      if (!supabaseClient || !tripId) throw new Error("Missing client or tripId");
-
-      const { data, error } = await supabaseClient.rpc("revoke_guest_share", {
-        p_trip_id: tripId
-      });
-
-      if (error) throw error;
-      currentRawToken = null;
+      if (!data?.token || !/^[0-9a-f]{64}$/.test(data.token)) {
+        throw new Error("share_token_missing");
+      }
       return data;
     },
 
-    async fetchTripByToken(rawToken) {
-      if (!supabaseClient || !rawToken) {
-        return { success: false, error: "invalid_or_expired", message: "這份旅程邀請已失效，請向旅程建立者索取新連結。" };
-      }
-
-      try {
-        const { data, error } = await supabaseClient.rpc("get_trip_by_guest_token", {
-          p_raw_token: rawToken
-        });
-        if (error) throw error;
-        return data;
-      } catch (err) {
-        return { success: false, error: "invalid_or_expired", message: "這份旅程邀請已失效，請向旅程建立者索取新連結。" };
-      }
+    async status(tripId) {
+      const { data, error } = await client.rpc("get_guest_readonly_share_status", {
+        target_trip_id: tripId
+      });
+      if (error) throw error;
+      return data;
     },
 
-    async fetchLedgerByToken(rawToken) {
-      if (!supabaseClient || !rawToken) {
-        return { success: false, error: "invalid_or_expired", message: "這份旅程邀請已失效，請向旅程建立者索取新連結。" };
-      }
-
-      try {
-        const { data, error } = await supabaseClient.rpc("get_ledger_snapshot_by_guest_token", {
-          p_raw_token: rawToken
-        });
-        if (error) throw error;
-        return data;
-      } catch (err) {
-        return { success: false, error: "not_authorized", message: "此分享未公開小二帳本內容。" };
-      }
-    }
-  };
-}
-
-// 瀏覽器 UI 與 DOM 自動初始化綁定
-export function initGuestShareUI() {
-  if (typeof window === "undefined" || !document) return;
-
-  const getClient = () => window.supabaseClient || (window.supabase && window.supabaseConfig ? window.supabase.createClient(window.supabaseConfig.url, window.supabaseConfig.anonKey) : null);
-  const getActiveTripId = () => window.activeTripId || null;
-
-  const showToast = (msg, type = "info") => {
-    if (typeof window.showToast === "function") window.showToast(msg, type);
-    else alert(msg);
-  };
-
-  const shareBtn = document.getElementById("ws-share-trip-btn");
-  const modal = document.getElementById("guest-share-modal");
-  const closeBtn = document.getElementById("guest-share-modal-close");
-  const cancelBtn = document.getElementById("guest-share-modal-cancel");
-  const generateBtn = document.getElementById("share-generate-btn");
-  const copyBtn = document.getElementById("share-copy-btn");
-  const revokeBtn = document.getElementById("share-revoke-btn");
-
-  const resultBox = document.getElementById("share-link-result-box");
-  const linkInput = document.getElementById("share-link-input");
-
-  if (!modal) return;
-
-  const manager = createGuestShareManager({ supabaseClient: getClient(), showToast });
-
-  const closeModal = () => modal.classList.remove("active");
-
-  if (closeBtn) closeBtn.addEventListener("click", closeModal);
-  if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
-
-  if (shareBtn) {
-    shareBtn.addEventListener("click", async () => {
-      const tripId = getActiveTripId();
-      if (!tripId) {
-        showToast("請先打開一趟旅程進行設定", "error");
-        return;
-      }
-
-      modal.classList.add("active");
-      
-      const client = getClient();
-      if (!client) {
-        showToast("雲端服務尚未連線", "error");
-        return;
-      }
-
-      const mgr = createGuestShareManager({ supabaseClient: client, showToast });
-      const status = await mgr.loadShareStatus(tripId);
-
-      if (status && status.has_share && status.is_active) {
-        if (generateBtn) generateBtn.innerText = "🔄 重新產生連結";
-        if (revokeBtn) revokeBtn.style.display = "inline-block";
-        if (status.scopes) {
-          const s = status.scopes;
-          document.getElementById("share-scope-itinerary").checked = !!s.itinerary;
-          document.getElementById("share-scope-alternatives").checked = !!s.alternatives;
-          document.getElementById("share-scope-budget").checked = !!s.budget;
-          document.getElementById("share-scope-ledger").checked = !!s.ledger;
-          document.getElementById("share-scope-tickets").checked = !!s.tickets;
-        }
-      } else {
-        if (generateBtn) generateBtn.innerText = "✨ 產生分享連結";
-        if (revokeBtn) revokeBtn.style.display = "none";
-        if (resultBox) resultBox.style.display = "none";
-      }
-    });
-  }
-
-  if (generateBtn) {
-    generateBtn.addEventListener("click", async () => {
-      const tripId = getActiveTripId();
-      const client = getClient();
-      if (!tripId || !client) return;
-
-      const scopes = {
-        itinerary: document.getElementById("share-scope-itinerary").checked,
-        alternatives: document.getElementById("share-scope-alternatives").checked,
-        budget: document.getElementById("share-scope-budget").checked,
-        ledger: document.getElementById("share-scope-ledger").checked,
-        tickets: document.getElementById("share-scope-tickets").checked
-      };
-
-      const expiresDays = document.getElementById("share-expires-days").value;
-
-      try {
-        generateBtn.disabled = true;
-        generateBtn.innerText = "產生中...";
-        const mgr = createGuestShareManager({ supabaseClient: client, showToast });
-        const res = await mgr.createOrRegenerateShare(tripId, scopes, expiresDays);
-
-        if (linkInput) linkInput.value = res.shareUrl;
-        if (resultBox) resultBox.style.display = "block";
-        if (revokeBtn) revokeBtn.style.display = "inline-block";
-        generateBtn.innerText = "🔄 重新產生連結";
-
-        showToast("已成功產生唯讀分享連結！", "success");
-      } catch (err) {
-        showToast("產生分享連結失敗：" + err.message, "error");
-      } finally {
-        generateBtn.disabled = false;
-      }
-    });
-  }
-
-  if (copyBtn) {
-    copyBtn.addEventListener("click", () => {
-      if (!linkInput || !linkInput.value) return;
-      navigator.clipboard.writeText(linkInput.value).then(() => {
-        showToast("已複製唯讀分享連結至剪貼簿！", "success");
-      }).catch(() => {
-        linkInput.select();
-        document.execCommand("copy");
-        showToast("已複製唯讀分享連結！", "success");
+    async revoke(tripId) {
+      const { error } = await client.rpc("revoke_guest_readonly_share", {
+        target_trip_id: tripId
       });
-    });
-  }
+      if (error) throw error;
+    },
 
-  if (revokeBtn) {
-    revokeBtn.addEventListener("click", async () => {
-      const tripId = getActiveTripId();
-      const client = getClient();
-      if (!tripId || !client) return;
-
-      if (!confirm("確定要停用目前的唯讀分享連結嗎？停用後舊連結將立即失效。")) return;
-
-      try {
-        const mgr = createGuestShareManager({ supabaseClient: client, showToast });
-        await mgr.revokeShare(tripId);
-
-        if (resultBox) resultBox.style.display = "none";
-        if (linkInput) linkInput.value = "";
-        revokeBtn.style.display = "none";
-        if (generateBtn) generateBtn.innerText = "✨ 產生分享連結";
-
-        showToast("已停用唯讀分享連結", "info");
-      } catch (err) {
-        showToast("停用失敗：" + err.message, "error");
+    async read(token) {
+      if (!/^[0-9a-f]{64}$/.test(String(token || ""))) {
+        return { ok: false, error: "invalid_or_expired" };
       }
-    });
-  }
+      const { data, error } = await client.rpc("get_trip_by_guest_readonly_token", {
+        raw_token: token
+      });
+      if (error) return { ok: false, error: "invalid_or_expired" };
+      return data;
+    }
+  });
 }
 
-// 偵測 URL ?share=token 訪客模式
-export async function checkAndApplyGuestShareFromUrl() {
-  if (typeof window === "undefined" || !window.location) return;
+function renderGuestTrip(result) {
+  const trip = result.trip || {};
+  const days = Array.isArray(trip.itinerary?.days) ? trip.itinerary.days : [];
+  const alternatives = trip.alternativeSpots || {};
+  const sights = Array.isArray(alternatives.sights) ? alternatives.sights : [];
+  const restaurants = Array.isArray(alternatives.restaurants) ? alternatives.restaurants : [];
 
-  const urlParams = new URLSearchParams(window.location.search);
-  const shareToken = urlParams.get("share");
+  const dayHtml = days.map((day, index) => {
+    const items = Array.isArray(day.items) ? day.items : [];
+    const itemHtml = items.map(item => `
+      <article class="guest-share-item">
+        <time>${escapeHtml(item.time || "")}</time>
+        <div>
+          <h4>${escapeHtml(item.title || "未命名行程")}</h4>
+          ${item.content ? `<p>${escapeHtml(item.content)}</p>` : ""}
+          ${item.address ? `<p class="guest-share-muted">📍 ${escapeHtml(item.address)}</p>` : ""}
+        </div>
+      </article>
+    `).join("");
+    return `
+      <section class="guest-share-day">
+        <h2>DAY ${escapeHtml(day.dayNum || index + 1)}　${escapeHtml(day.theme || "")}</h2>
+        ${day.date ? `<p class="guest-share-muted">${escapeHtml(day.date)}</p>` : ""}
+        ${day.desc ? `<p>${escapeHtml(day.desc)}</p>` : ""}
+        <div class="guest-share-timeline">${itemHtml || "<p>這一天尚未安排行程。</p>"}</div>
+      </section>
+    `;
+  }).join("");
 
-  if (!shareToken) return;
+  const alternativeHtml = [...sights, ...restaurants].map(item => `
+    <article class="guest-share-alt">
+      <h4>${escapeHtml(item.name || "未命名備案")}</h4>
+      <p>${escapeHtml(item.subtype || "")}</p>
+      ${item.hours ? `<p>營業時間：${escapeHtml(item.hours)}</p>` : ""}
+      ${item.address ? `<p>地址：${escapeHtml(item.address)}</p>` : ""}
+    </article>
+  `).join("");
 
-  window.isGuestReadonlyMode = true;
+  const root = document.getElementById("guest-readonly-root");
+  root.innerHTML = `
+    <main class="guest-share-page">
+      <header class="guest-share-hero">
+        <span class="guest-share-badge">訪客唯讀模式</span>
+        <h1>${escapeHtml(trip.title || "旅程")}</h1>
+        <p>${escapeHtml(trip.location || "")}</p>
+        <p>${escapeHtml(trip.dateRange || trip.date || "")}</p>
+        ${trip.companion ? `<p>旅伴：${escapeHtml(trip.companion)}</p>` : ""}
+      </header>
+      ${dayHtml || '<section class="guest-share-day"><p>目前尚未安排行程。</p></section>'}
+      ${result.include_alternatives && alternativeHtml ? `
+        <section class="guest-share-day">
+          <h2>備案庫</h2>
+          <div class="guest-share-alt-grid">${alternativeHtml}</div>
+        </section>
+      ` : ""}
+      <footer>此頁僅供閱讀，無法新增、修改或刪除旅程。</footer>
+    </main>
+  `;
+  root.hidden = false;
+  document.body.classList.add("guest-readonly-active");
+}
 
-  const banner = document.getElementById("guest-readonly-banner");
-  const invalidOverlay = document.getElementById("guest-invalid-overlay");
-  const invalidMsg = document.getElementById("guest-invalid-msg");
+function showInvalidShare() {
+  const overlay = document.getElementById("guest-invalid-overlay");
+  const message = document.getElementById("guest-invalid-msg");
+  if (message) message.textContent = INVALID_SHARE_MESSAGE;
+  if (overlay) overlay.style.display = "flex";
+}
 
-  if (banner) banner.style.display = "flex";
-
-  // 屏蔽寫入按鈕
-  const writeSelectors = [
-    "#ws-share-trip-btn",
-    "#ws-edit-trip-btn",
-    "#ws-add-schedule-btn",
-    "#ws-add-alt-sight-btn",
-    "#ws-add-alt-restaurant-btn",
-    "#ws-add-expense-btn",
-    "#ws-add-advance-btn",
-    "#ws-add-repay-btn",
-    "#ws-add-voucher-btn",
-    "#ws-add-trip-btn",
-    "#ws-import-cloud-btn",
-    "#ws-export-btn",
-    "#ws-bind-line-btn",
-    ".ws-member-add-btn",
-    ".ws-title-copy-btn"
-  ];
-
-  setTimeout(() => {
-    writeSelectors.forEach(sel => {
-      document.querySelectorAll(sel).forEach(el => el.style.display = "none");
-    });
-  }, 100);
-
-  const getClient = () => window.supabaseClient || (window.supabase && window.supabaseConfig ? window.supabase.createClient(window.supabaseConfig.url, window.supabaseConfig.anonKey) : null);
-  const client = getClient();
-
-  if (!client) {
-    if (invalidOverlay) invalidOverlay.style.display = "flex";
+async function initGuestReader(manager, token) {
+  document.body.classList.add("guest-readonly-loading");
+  const result = await manager.read(token);
+  document.body.classList.remove("guest-readonly-loading");
+  if (!result?.ok || !result.trip) {
+    showInvalidShare();
     return;
   }
+  renderGuestTrip(result);
+}
 
-  const manager = createGuestShareManager({ supabaseClient: client });
-  const result = await manager.fetchTripByToken(shareToken);
+function initOwnerShare(manager) {
+  const modal = document.getElementById("guest-share-modal");
+  const shareButton = document.getElementById("ws-share-trip-btn");
+  const generateButton = document.getElementById("share-generate-btn");
+  const revokeButton = document.getElementById("share-revoke-btn");
+  const linkBox = document.getElementById("share-link-result-box");
+  const linkInput = document.getElementById("share-link-input");
+  const alternativesInput = document.getElementById("share-scope-alternatives");
+  const expiryInput = document.getElementById("share-expires-days");
 
-  if (!result || !result.success) {
-    if (invalidOverlay) {
-      if (invalidMsg && result?.message) invalidMsg.innerText = result.message;
-      invalidOverlay.style.display = "flex";
+  const getTripId = () => window.getActiveCloudTripId?.() || null;
+  const close = () => modal?.classList.remove("active");
+
+  document.getElementById("guest-share-modal-close")?.addEventListener("click", close);
+  document.getElementById("guest-share-modal-cancel")?.addEventListener("click", close);
+
+  shareButton?.addEventListener("click", async () => {
+    const tripId = getTripId();
+    if (!tripId) {
+      window.showToast?.("請先將這趟旅程儲存到雲端，再建立分享連結。", "error");
+      return;
     }
+    modal?.classList.add("active");
+    linkBox.style.display = "none";
+    try {
+      const status = await manager.status(tripId);
+      revokeButton.style.display = status?.is_active ? "inline-block" : "none";
+      alternativesInput.checked = status?.has_share
+        ? Boolean(status.include_alternatives)
+        : true;
+    } catch {
+      close();
+      window.showToast?.("目前無法讀取分享設定，請稍後再試。", "error");
+    }
+  });
+
+  generateButton?.addEventListener("click", async () => {
+    const tripId = getTripId();
+    if (!tripId) return;
+    generateButton.disabled = true;
+    try {
+      const result = await manager.create(tripId, {
+        expiresAt: parseExpiry(expiryInput.value),
+        includeAlternatives: alternativesInput.checked
+      });
+      linkInput.value = `${window.location.origin}${window.location.pathname}?share=${result.token}`;
+      linkBox.style.display = "block";
+      revokeButton.style.display = "inline-block";
+      window.showToast?.("唯讀分享連結已建立。舊連結已立即失效。", "success");
+    } catch {
+      window.showToast?.("建立分享連結失敗，請確認你是旅程擁有者。", "error");
+    } finally {
+      generateButton.disabled = false;
+    }
+  });
+
+  document.getElementById("share-copy-btn")?.addEventListener("click", async () => {
+    if (!linkInput.value) return;
+    await navigator.clipboard.writeText(linkInput.value);
+    window.showToast?.("已複製分享連結。", "success");
+  });
+
+  revokeButton?.addEventListener("click", async () => {
+    const tripId = getTripId();
+    if (!tripId || !window.confirm("確定要停用這個分享連結嗎？")) return;
+    try {
+      await manager.revoke(tripId);
+      linkInput.value = "";
+      linkBox.style.display = "none";
+      revokeButton.style.display = "none";
+      window.showToast?.("分享連結已停用。", "success");
+    } catch {
+      window.showToast?.("停用失敗，請稍後再試。", "error");
+    }
+  });
+}
+
+function start() {
+  const client = createClient();
+  const token = new URLSearchParams(window.location.search).get("share");
+  if (!client) {
+    if (token) showInvalidShare();
     return;
   }
-
-  // 成功載入唯讀旅程資料，將資料注入畫面
-  if (typeof window.applyGuestReadonlyTripData === "function") {
-    window.applyGuestReadonlyTripData(result);
+  const manager = createGuestShareManager(client);
+  if (token) {
+    initGuestReader(manager, token);
+  } else {
+    initOwnerShare(manager);
   }
 }
 
 if (typeof window !== "undefined") {
-  window.addEventListener("DOMContentLoaded", () => {
-    initGuestShareUI();
-    checkAndApplyGuestShareFromUrl();
-  });
+  window.addEventListener("DOMContentLoaded", start);
 }

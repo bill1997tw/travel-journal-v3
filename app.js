@@ -1461,6 +1461,11 @@ function deleteTrip(id) {
   }
 }
 
+window.getActiveCloudTripId = function() {
+  const trip = trips.find(item => item.id === activeTripId);
+  return trip?._cloud?.tripId || null;
+};
+
 function CONTINENT_NAME(code) {
   const names = { Asia: "亞洲", Europe: "歐洲", NorthAmerica: "北美", SouthAmerica: "南美", Africa: "非洲", Oceania: "大洋洲" };
   return names[code] || code;
