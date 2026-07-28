@@ -29,7 +29,12 @@ test("share manager uses only guarded RPCs", async () => {
   };
 
   const manager = createGuestShareManager(client);
-  const created = await manager.create("trip-1");
+  const created = await manager.create("trip-1", {
+    includeChecklists: true,
+    includeBudget: true,
+    includeLedger: true,
+    includeVouchers: true
+  });
   assert.equal(created.token, "a".repeat(64));
   await manager.status("trip-1");
   const read = await manager.read("b".repeat(64));
@@ -45,6 +50,15 @@ test("share manager uses only guarded RPCs", async () => {
       "revoke_guest_readonly_share"
     ]
   );
+  assert.deepEqual(calls[0].payload, {
+    target_trip_id: "trip-1",
+    share_expires_at: null,
+    share_alternatives: true,
+    share_checklists: true,
+    share_budget: true,
+    share_ledger: true,
+    share_vouchers: true
+  });
 });
 
 test("invalid token never falls back to local trip data", async () => {
@@ -70,4 +84,17 @@ test("guest mode is a dedicated readonly page and exposes no local fallback", ()
   assert.doesNotMatch(source, /localStorage/);
   assert.doesNotMatch(source, /demo token/i);
   assert.doesNotMatch(source, /Math\.random/);
+});
+
+test("expanded guest view renders sanitized optional sections", () => {
+  const source = fs.readFileSync(
+    new URL("../account-cloud-share.js", import.meta.url),
+    "utf8"
+  );
+  assert.match(source, /行李與待辦/);
+  assert.match(source, /旅行預算摘要/);
+  assert.match(source, /小二帳本/);
+  assert.match(source, /票券與憑證摘要/);
+  assert.match(source, /QR Code、連結及備註不公開/);
+  assert.doesNotMatch(source, /fileData/);
 });

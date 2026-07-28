@@ -16,6 +16,30 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function formatMinorUnits(value, currency = "TWD") {
+  const minor = Number(value);
+  if (!Number.isSafeInteger(minor)) return "";
+  const digits = ["JPY", "KRW"].includes(currency) ? 0 : 2;
+  return new Intl.NumberFormat("zh-TW", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits
+  }).format(minor / (digits === 0 ? 1 : 100));
+}
+
+function renderSimpleList(items, emptyText) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return `<p class="guest-share-muted">${escapeHtml(emptyText)}</p>`;
+  }
+  return `<ul class="guest-share-list">${items.map(item => `
+    <li class="${item?.checked ? "is-done" : ""}">
+      <span>${item?.checked ? "✓" : "○"}</span>
+      <span>${escapeHtml(item?.name || item?.text || item?.title || "")}</span>
+    </li>
+  `).join("")}</ul>`;
+}
+
 function parseExpiry(days) {
   const count = Number(days);
   if (!Number.isFinite(count) || count <= 0) return null;
@@ -28,11 +52,22 @@ export function createGuestShareManager(client) {
   if (!client?.rpc) throw new TypeError("supabase_client_required");
 
   return Object.freeze({
-    async create(tripId, { expiresAt = null, includeAlternatives = true } = {}) {
+    async create(tripId, {
+      expiresAt = null,
+      includeAlternatives = true,
+      includeChecklists = false,
+      includeBudget = false,
+      includeLedger = false,
+      includeVouchers = false
+    } = {}) {
       const { data, error } = await client.rpc("create_guest_readonly_share", {
         target_trip_id: tripId,
         share_expires_at: expiresAt,
-        share_alternatives: includeAlternatives
+        share_alternatives: includeAlternatives,
+        share_checklists: includeChecklists,
+        share_budget: includeBudget,
+        share_ledger: includeLedger,
+        share_vouchers: includeVouchers
       });
       if (error) throw error;
       if (!data?.token || !/^[0-9a-f]{64}$/.test(data.token)) {
@@ -75,6 +110,12 @@ function renderGuestTrip(result) {
   const alternatives = trip.alternativeSpots || {};
   const sights = Array.isArray(alternatives.sights) ? alternatives.sights : [];
   const restaurants = Array.isArray(alternatives.restaurants) ? alternatives.restaurants : [];
+  const checklists = trip.checklists || {};
+  const budget = Array.isArray(trip.budget) ? trip.budget : [];
+  const ledger = trip.ledger || {};
+  const ledgerEntries = Array.isArray(ledger.entries) ? ledger.entries : [];
+  const settlements = Array.isArray(ledger.settlements) ? ledger.settlements : [];
+  const vouchers = Array.isArray(trip.vouchers) ? trip.vouchers : [];
 
   const dayHtml = days.map((day, index) => {
     const items = Array.isArray(day.items) ? day.items : [];
@@ -107,6 +148,49 @@ function renderGuestTrip(result) {
     </article>
   `).join("");
 
+  const budgetHtml = budget.map(item => `
+    <article class="guest-share-row">
+      <div>
+        <strong>${escapeHtml(item.name || "未命名支出")}</strong>
+        <p class="guest-share-muted">${escapeHtml(item.day || "")} ${escapeHtml(item.category || "")}</p>
+      </div>
+      <span>NT$ ${Number(item.cost || 0).toLocaleString("zh-TW")}</span>
+    </article>
+  `).join("");
+
+  const ledgerHtml = ledgerEntries.map(entry => {
+    const participant = entry.kind === "borrowing"
+      ? `${entry.borrower || ""} 向 ${entry.lender || ""} 借款`
+      : entry.kind === "repayment"
+        ? `${entry.payer || ""} 還款給 ${entry.receiver || ""}`
+        : `${entry.payer || ""} 付款`;
+    return `
+      <article class="guest-share-row">
+        <div>
+          <strong>${escapeHtml(entry.title || participant || "帳本紀錄")}</strong>
+          <p class="guest-share-muted">${escapeHtml(participant)}</p>
+        </div>
+        <span>${escapeHtml(formatMinorUnits(Number(entry.amount_minor), entry.currency))}</span>
+      </article>
+    `;
+  }).join("");
+
+  const settlementHtml = settlements.map(item => `
+    <article class="guest-share-row">
+      <strong>${escapeHtml(item.payer)} → ${escapeHtml(item.receiver)}</strong>
+      <span>${escapeHtml(formatMinorUnits(Number(item.amount_minor), item.currency))}</span>
+    </article>
+  `).join("");
+
+  const voucherHtml = vouchers.map(item => `
+    <article class="guest-share-alt">
+      <h4>${escapeHtml(item.title || "未命名票券")}</h4>
+      <p>${escapeHtml(item.category || "")}</p>
+      ${item.date ? `<p class="guest-share-muted">${escapeHtml(item.date)}</p>` : ""}
+      <p class="guest-share-muted">為保護隱私，檔案、QR Code、連結及備註不公開。</p>
+    </article>
+  `).join("");
+
   const root = document.getElementById("guest-readonly-root");
   root.innerHTML = `
     <main class="guest-share-page">
@@ -122,6 +206,37 @@ function renderGuestTrip(result) {
         <section class="guest-share-day">
           <h2>備案庫</h2>
           <div class="guest-share-alt-grid">${alternativeHtml}</div>
+        </section>
+      ` : ""}
+      ${result.include_checklists ? `
+        <section class="guest-share-day">
+          <h2>行李與待辦</h2>
+          <div class="guest-share-columns">
+            <div><h3>行李清單</h3>${renderSimpleList(checklists.packingList, "尚無行李項目")}</div>
+            <div><h3>待辦事項</h3>${renderSimpleList(checklists.todoList, "尚無待辦事項")}</div>
+            <div><h3>購物願望</h3>${renderSimpleList(checklists.wishlist, "尚無購物願望")}</div>
+          </div>
+        </section>
+      ` : ""}
+      ${result.include_budget ? `
+        <section class="guest-share-day">
+          <h2>旅行預算摘要</h2>
+          ${budgetHtml || '<p class="guest-share-muted">尚無預算資料。</p>'}
+        </section>
+      ` : ""}
+      ${result.include_ledger ? `
+        <section class="guest-share-day">
+          <h2>小二帳本</h2>
+          <h3>帳本紀錄</h3>
+          ${ledgerHtml || '<p class="guest-share-muted">尚無帳本紀錄。</p>'}
+          <h3>目前結算</h3>
+          ${settlementHtml || '<p class="guest-share-muted">目前已結清，沒有待還款項。</p>'}
+        </section>
+      ` : ""}
+      ${result.include_vouchers ? `
+        <section class="guest-share-day">
+          <h2>票券與憑證摘要</h2>
+          <div class="guest-share-alt-grid">${voucherHtml || '<p class="guest-share-muted">尚無票券摘要。</p>'}</div>
         </section>
       ` : ""}
       <footer>此頁僅供閱讀，無法新增、修改或刪除旅程。</footer>
@@ -157,6 +272,10 @@ function initOwnerShare(manager) {
   const linkBox = document.getElementById("share-link-result-box");
   const linkInput = document.getElementById("share-link-input");
   const alternativesInput = document.getElementById("share-scope-alternatives");
+  const checklistsInput = document.getElementById("share-scope-checklists");
+  const budgetInput = document.getElementById("share-scope-budget");
+  const ledgerInput = document.getElementById("share-scope-ledger");
+  const vouchersInput = document.getElementById("share-scope-tickets");
   const expiryInput = document.getElementById("share-expires-days");
 
   const getTripId = () => window.getActiveCloudTripId?.() || null;
@@ -179,6 +298,10 @@ function initOwnerShare(manager) {
       alternativesInput.checked = status?.has_share
         ? Boolean(status.include_alternatives)
         : true;
+      checklistsInput.checked = Boolean(status?.has_share && status.include_checklists);
+      budgetInput.checked = Boolean(status?.has_share && status.include_budget);
+      ledgerInput.checked = Boolean(status?.has_share && status.include_ledger);
+      vouchersInput.checked = Boolean(status?.has_share && status.include_vouchers);
     } catch {
       close();
       window.showToast?.("目前無法讀取分享設定，請稍後再試。", "error");
@@ -192,7 +315,11 @@ function initOwnerShare(manager) {
     try {
       const result = await manager.create(tripId, {
         expiresAt: parseExpiry(expiryInput.value),
-        includeAlternatives: alternativesInput.checked
+        includeAlternatives: alternativesInput.checked,
+        includeChecklists: checklistsInput.checked,
+        includeBudget: budgetInput.checked,
+        includeLedger: ledgerInput.checked,
+        includeVouchers: vouchersInput.checked
       });
       linkInput.value = `${window.location.origin}${window.location.pathname}?share=${result.token}`;
       linkBox.style.display = "block";
