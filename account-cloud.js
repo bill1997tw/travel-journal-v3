@@ -24,6 +24,31 @@
     busy: false
   };
   let ui = null;
+  let autoSaveTimer = null;
+  let autoSaveTripId = null;
+  let autoSaveMutedUntil = 0;
+
+  function scheduleTripSave(tripId) {
+    if (!tripId) return;
+    autoSaveTripId = tripId;
+    window.clearTimeout(autoSaveTimer);
+    autoSaveTimer = window.setTimeout(async () => {
+      autoSaveTimer = null;
+      const targetTripId = autoSaveTripId;
+      autoSaveTripId = null;
+
+      if (Date.now() < autoSaveMutedUntil || !state.session) return;
+      if (state.busy) {
+        scheduleTripSave(targetTripId);
+        return;
+      }
+
+      const trip = state.trips.find((item) => item.id === targetTripId);
+      const role = trip ? getRole(trip) : null;
+      if (role !== "owner" && role !== "editor") return;
+      await saveImportedTrip(targetTripId, { automatic: true });
+    }, 1200);
+  }
 
   function hasConfig() {
     return Boolean(config.url && (config.publishableKey || config.anonKey));
@@ -1080,7 +1105,7 @@
     }
   }
 
-  async function saveImportedTrip(tripId) {
+  async function saveImportedTrip(tripId, options = {}) {
     const importApi = getImportApi();
     const trip = state.trips.find((item) => item.id === tripId);
     const role = getRole(trip);
@@ -1117,6 +1142,7 @@
       importApi.commitSavedRevision(localStorage, tripId, savedRevision);
       delete state.remoteUpdates[tripId];
       await getQueueApi()?.deleteDraft(tripId).catch(() => {});
+      autoSaveMutedUntil = Date.now() + 3000;
       window.voyageApp?.rehydrateAndRender?.();
       renderTrips();
       await refreshQueue();
@@ -1552,6 +1578,7 @@
     open: openPanel,
     openLedgerForLocalTrip,
     refresh: loadTrips,
+    scheduleTripSave,
     getSession: () => state.session,
     getTrips: () => state.trips.map((trip) => ({ ...trip }))
   });

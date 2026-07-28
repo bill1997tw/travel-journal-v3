@@ -829,11 +829,11 @@ function initData() {
       ensureDiaryState(t);
       ensurePackingCategoryState(t);
     });
-    localStorage.setItem("voyage_trips", JSON.stringify(trips));
+    persistTrips();
   } else {
     trips = [...DEFAULT_TRIPS];
     trips.forEach(t => ensurePackingCategoryState(t));
-    localStorage.setItem("voyage_trips", JSON.stringify(trips));
+    persistTrips();
   }
 
   const localNotes = localStorage.getItem("voyage_quick_notes");
@@ -1454,10 +1454,18 @@ function renderTripsList() {
 function deleteTrip(id) {
   if (confirm("您確定要刪除這個行程的全部資料嗎？此動作將連同日程、帳目、備案與行李清單一併刪除，無法復原喔！")) {
     trips = trips.filter(t => t.id !== id);
-    localStorage.setItem("voyage_trips", JSON.stringify(trips));
+    persistTrips();
     renderTripsList();
     renderDashboard();
     showToast("旅程已永久刪除", "info");
+  }
+}
+
+function persistTrips() {
+  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  const cloudTripId = window.getActiveCloudTripId?.();
+  if (cloudTripId) {
+    window.voyageAccountCloud?.scheduleTripSave?.(cloudTripId);
   }
 }
 
@@ -1775,7 +1783,7 @@ function reorderScheduleItems(draggedId, targetId, placeBefore) {
   dayData.items.splice(insertIndex, 0, draggedItem);
 
   // 儲存至 LocalStorage 並刷新
-  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  persistTrips();
   renderWorkspaceItinerary();
   showToast("行程順序已調整！", "success");
 }
@@ -1981,7 +1989,7 @@ function handleScheduleSubmit(e) {
     showToast("已成功新增行程日程！", "success");
   }
 
-  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  persistTrips();
   closeScheduleModal();
   renderWorkspaceItinerary();
 }
@@ -1994,7 +2002,7 @@ window.deleteScheduleItem = function(itemId) {
       trip.itinerary.days.forEach(d => {
         d.items = d.items.filter(item => item.id !== itemId);
       });
-      localStorage.setItem("voyage_trips", JSON.stringify(trips));
+      persistTrips();
       renderWorkspaceItinerary();
       showToast("已刪除該日程", "info");
     }
@@ -2008,7 +2016,7 @@ function handleClearItinerary() {
       pushItineraryHistorySnapshot(trip);
       trip.itinerary = null;
       trip.routePlans = [];
-      localStorage.setItem("voyage_trips", JSON.stringify(trips));
+      persistTrips();
       renderWorkspaceItinerary();
       showToast("詳細行程已清空", "info");
     }
@@ -2190,7 +2198,7 @@ function handleUndoItineraryStep() {
     }, type === "food" ? "restaurants" : "sights");
   }
 
-  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  persistTrips();
   persistItineraryHistory();
   renderWorkspaceItinerary();
   showToast("已回到上一步。", "success");
@@ -2279,7 +2287,7 @@ function handleAlternativeSubmit(e) {
 
   trip.alternativeSpots[typeGroup].push(newItem);
   rememberKnownPlace(newItem, typeGroup);
-  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  persistTrips();
 
   closeAlternativeModal();
   renderAlternativeSpots();
@@ -2291,7 +2299,7 @@ window.deleteAlternative = function(id, typeGroup) {
     const trip = trips.find(t => t.id === activeTripId);
     if (trip && trip.alternativeSpots && trip.alternativeSpots[typeGroup]) {
       trip.alternativeSpots[typeGroup] = trip.alternativeSpots[typeGroup].filter(item => item.id !== id);
-      localStorage.setItem("voyage_trips", JSON.stringify(trips));
+      persistTrips();
       renderAlternativeSpots();
       showToast("備案已移除", "info");
     }
@@ -2370,7 +2378,7 @@ function handleAddToScheduleSubmit(e) {
   };
 
   dayData.items.push(newItem);
-  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  persistTrips();
   document.getElementById("add-to-schedule-modal").classList.remove("active");
   
   // 切換到對應天數並重新渲染
@@ -2486,7 +2494,7 @@ function handleItineraryImport() {
         });
       }
 
-      localStorage.setItem("voyage_trips", JSON.stringify(trips));
+      persistTrips();
       document.getElementById("itinerary-importer-modal").classList.remove("active");
       activeItineraryDay = 1;
       renderWorkspaceItinerary();
@@ -2586,7 +2594,7 @@ function handleItineraryImport() {
         }
       }
 
-      localStorage.setItem("voyage_trips", JSON.stringify(trips));
+      persistTrips();
       document.getElementById("itinerary-importer-modal").classList.remove("active");
       activeItineraryDay = 1;
       renderWorkspaceItinerary();
@@ -2615,7 +2623,7 @@ function handleItineraryImport() {
     });
 
     trip.itinerary = data;
-    localStorage.setItem("voyage_trips", JSON.stringify(trips));
+    persistTrips();
     document.getElementById("itinerary-importer-modal").classList.remove("active");
     activeItineraryDay = 1;
     renderWorkspaceItinerary();
@@ -2721,7 +2729,7 @@ function handleRouteImportSubmit(e) {
   });
 
   activeItineraryDay = dayNum;
-  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  persistTrips();
   closeRouteImportModal();
   renderWorkspaceItinerary();
   showToast(`已匯入 ${parsedStops.length} 個站點到 DAY ${dayNum}。`, "success");
@@ -2884,7 +2892,7 @@ window.toggleLuggageItem = function(id) {
     const item = trip.packingList.find(i => i.id === id);
     if (item) {
       item.checked = !item.checked;
-      localStorage.setItem("voyage_trips", JSON.stringify(trips));
+      persistTrips();
       renderWorkspaceChecklists();
     }
   }
@@ -2894,7 +2902,7 @@ window.deleteLuggageItem = function(id) {
   const trip = trips.find(t => t.id === activeTripId);
   if (trip && trip.packingList) {
     trip.packingList = trip.packingList.filter(i => i.id !== id);
-    localStorage.setItem("voyage_trips", JSON.stringify(trips));
+    persistTrips();
     renderWorkspaceChecklists();
   }
 };
@@ -2918,7 +2926,7 @@ function handleLuggageCategoryAdd() {
   }
 
   trip.packingCategories.push(category);
-  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  persistTrips();
   input.value = "";
   renderWorkspaceChecklists();
   showToast(`已新增「${category}」分類。`, "success");
@@ -2938,7 +2946,7 @@ window.deleteLuggageCategory = function(category) {
 
   trip.packingCategories = trip.packingCategories.filter(name => name !== category);
   trip.packingList = (trip.packingList || []).filter(item => (item.category || "日常雜物 🎒").trim() !== category);
-  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  persistTrips();
   renderWorkspaceChecklists();
   showToast(`已刪除「${category}」分類。`, "success");
 };
@@ -2963,7 +2971,7 @@ window.addLuggageItem = function(category) {
       checked: false
     };
     trip.packingList.push(newItem);
-    localStorage.setItem("voyage_trips", JSON.stringify(trips));
+    persistTrips();
     input.value = "";
     renderWorkspaceChecklists();
     showToast(`已將 ${name} 加入行前打包！`, "success");
@@ -2977,7 +2985,7 @@ function toggleTodoItem(id) {
     const item = trip.todoList.find(i => i.id === id);
     if (item) {
       item.checked = !item.checked;
-      localStorage.setItem("voyage_trips", JSON.stringify(trips));
+      persistTrips();
       renderWorkspaceChecklists();
     }
   }
@@ -2987,7 +2995,7 @@ function deleteTodoItem(id) {
   const trip = trips.find(t => t.id === activeTripId);
   if (trip && trip.todoList) {
     trip.todoList = trip.todoList.filter(i => i.id !== id);
-    localStorage.setItem("voyage_trips", JSON.stringify(trips));
+    persistTrips();
     renderWorkspaceChecklists();
   }
 }
@@ -3008,7 +3016,7 @@ function handleTodoAdd() {
       date: date,
       checked: false
     });
-    localStorage.setItem("voyage_trips", JSON.stringify(trips));
+    persistTrips();
     nameInput.value = "";
     dateInput.value = "";
     renderWorkspaceChecklists();
@@ -3023,7 +3031,7 @@ function toggleWishItem(id) {
     const item = trip.wishlist.find(i => i.id === id);
     if (item) {
       item.checked = !item.checked;
-      localStorage.setItem("voyage_trips", JSON.stringify(trips));
+      persistTrips();
       renderWorkspaceChecklists();
     }
   }
@@ -3033,7 +3041,7 @@ function deleteWishItem(id) {
   const trip = trips.find(t => t.id === activeTripId);
   if (trip && trip.wishlist) {
     trip.wishlist = trip.wishlist.filter(i => i.id !== id);
-    localStorage.setItem("voyage_trips", JSON.stringify(trips));
+    persistTrips();
     renderWorkspaceChecklists();
   }
 }
@@ -3054,7 +3062,7 @@ function handleWishAdd() {
       price: price,
       checked: false
     });
-    localStorage.setItem("voyage_trips", JSON.stringify(trips));
+    persistTrips();
     nameInput.value = "";
     priceInput.value = "";
     renderWorkspaceChecklists();
@@ -3476,7 +3484,7 @@ function handleExpenseSubmit(e) {
     trip.advances = trip.advances.filter(adv => adv.expenseId !== savedExpenseId);
   }
 
-  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  persistTrips();
   closeExpenseModal();
   renderWorkspaceBudget();
   renderBudgetCharts();
@@ -3490,7 +3498,7 @@ window.deleteExpenseItem = function(itemId) {
       if (trip.advances) {
         trip.advances = trip.advances.filter(adv => adv.expenseId !== itemId);
       }
-      localStorage.setItem("voyage_trips", JSON.stringify(trips));
+      persistTrips();
       renderWorkspaceBudget();
       renderBudgetCharts();
       showToast("支出明細已移除", "info");
@@ -3566,7 +3574,7 @@ function handleAdvanceSubmit(e) {
     showToast("成功新增代墊記錄！", "success");
   }
 
-  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  persistTrips();
   closeAdvanceModal();
   renderWorkspaceBudget();
 }
@@ -3576,7 +3584,7 @@ window.deleteAdvanceItem = function(id) {
     const trip = trips.find(t => t.id === activeTripId);
     if (trip && trip.advances) {
       trip.advances = trip.advances.filter(a => a.id !== id);
-      localStorage.setItem("voyage_trips", JSON.stringify(trips));
+      persistTrips();
       renderWorkspaceBudget();
       showToast("代墊記錄已刪除", "info");
     }
@@ -3613,7 +3621,7 @@ function handleRepaySubmit(e) {
     name, method, account
   });
 
-  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  persistTrips();
   closeRepayModal();
   renderWorkspaceBudget();
   showToast("收款設定已儲存！", "success");
@@ -3624,7 +3632,7 @@ window.deleteRepayItem = function(id) {
     const trip = trips.find(t => t.id === activeTripId);
     if (trip && trip.repayInfo) {
       trip.repayInfo = trip.repayInfo.filter(r => r.id !== id);
-      localStorage.setItem("voyage_trips", JSON.stringify(trips));
+      persistTrips();
       renderWorkspaceBudget();
       showToast("已移除還款通道", "info");
     }
@@ -3917,7 +3925,7 @@ function handleDiarySave() {
   trip.rating = rating;
   if (image) trip.image = image;
 
-  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  persistTrips();
   showToast("旅行日記與回憶已成功儲存！", "success");
   renderWorkspaceDiary();
 }
@@ -4230,7 +4238,7 @@ function handleVoucherSubmit(e) {
     showToast("憑證已成功新增！", "success");
   }
   
-  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  persistTrips();
   closeVoucherModal();
   renderWorkspaceVouchers();
 }
@@ -4241,7 +4249,7 @@ window.deleteVoucherItem = function(id) {
     const trip = trips.find(t => t.id === activeTripId);
     if (trip && trip.vouchers) {
       trip.vouchers = trip.vouchers.filter(item => item.id !== id);
-      localStorage.setItem("voyage_trips", JSON.stringify(trips));
+      persistTrips();
       renderWorkspaceVouchers();
       showToast("已成功刪除該憑證備忘", "info");
     }
@@ -4449,7 +4457,7 @@ function handleTripSubmit(e) {
     showToast("成功建立新旅程！立即開啟小本本規劃吧！", "success");
   }
 
-  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  persistTrips();
   closeTripEditorModal();
   renderTripsList();
   renderDashboard();
@@ -6104,7 +6112,7 @@ function handleDaySummarySubmit(e) {
   dayData.desc = document.getElementById("ds-desc").value.trim();
 
   // 儲存至 LocalStorage 並重新渲染
-  localStorage.setItem("voyage_trips", JSON.stringify(trips));
+  persistTrips();
   closeDaySummaryModal();
   renderWorkspaceItinerary();
   showToast("今日行程摘要已成功更新！", "success");
