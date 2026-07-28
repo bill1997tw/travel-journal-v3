@@ -1650,6 +1650,8 @@ function switchWorkspaceTab(tabId) {
     panel.classList.remove("active");
   });
   document.getElementById(`ws-panel-${tabId}`).classList.add("active");
+  document.getElementById("ws-desktop-day-jump")
+    ?.classList.toggle("is-visible", tabId === "itinerary");
 
   // 觸發各自渲染
   if (tabId === "itinerary") {
@@ -1898,6 +1900,94 @@ function renderOverviewBoard(trip) {
   }
 }
 
+function updateItineraryDayNavigation(dayNum) {
+  document.querySelectorAll(".day-selector-btn[data-day-num]").forEach((button) => {
+    const isActive = Number(button.dataset.dayNum) === dayNum;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+
+  document.querySelectorAll(".desktop-day-jump-btn[data-day-num]").forEach((button) => {
+    const isActive = Number(button.dataset.dayNum) === dayNum;
+    button.classList.toggle("active", isActive);
+    if (isActive) {
+      button.setAttribute("aria-current", "true");
+    } else {
+      button.removeAttribute("aria-current");
+    }
+  });
+}
+
+function scrollWorkspaceToTop() {
+  const target = document.querySelector("#view-workspace .workspace-back-bar")
+    || document.getElementById("view-workspace");
+  if (!target) return;
+
+  const stickyHeader = document.querySelector("header");
+  const headerOffset = (stickyHeader?.offsetHeight || 0) + 16;
+  const targetTop = target.getBoundingClientRect().top + window.scrollY - headerOffset;
+  window.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+}
+
+function selectWorkspaceItineraryDay(dayNum, options = {}) {
+  const trip = trips.find(t => t.id === activeTripId);
+  if (!trip) return;
+
+  const daysCount = Math.max(1, parseInt(trip.duration) || 1);
+  activeItineraryDay = Math.min(Math.max(Number(dayNum) || 1, 1), daysCount);
+
+  const isMobileView = window.innerWidth <= 768;
+  const currentView = isMobileView ? "singleday" : itineraryViewMode;
+  if (currentView === "overview") {
+    document.querySelectorAll(".overview-day-column").forEach((column) => {
+      column.classList.remove("active-target-day");
+    });
+    const targetColumn = document.getElementById(`overview-day-col-${activeItineraryDay}`);
+    if (targetColumn) {
+      targetColumn.classList.add("active-target-day");
+      if (!options.scrollToDetail) {
+        targetColumn.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+      }
+    }
+    renderSingleDayTimeline(trip, activeItineraryDay);
+    updateItineraryDayNavigation(activeItineraryDay);
+  } else {
+    renderWorkspaceItinerary();
+  }
+
+  if (options.scrollToDetail) {
+    window.requestAnimationFrame(() => {
+      document.getElementById("ws-day-info-card")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+}
+
+function renderDesktopItineraryJump(daysCount) {
+  const navigation = document.getElementById("ws-desktop-day-jump");
+  const list = document.getElementById("ws-day-jump-list");
+  const topButton = document.getElementById("ws-day-jump-top");
+  if (!navigation || !list || !topButton) return;
+
+  navigation.classList.add("is-visible");
+  topButton.onclick = scrollWorkspaceToTop;
+  list.innerHTML = "";
+
+  for (let dayNum = 1; dayNum <= daysCount; dayNum++) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "desktop-day-jump-btn";
+    button.dataset.dayNum = String(dayNum);
+    button.innerHTML = `<span>DAY</span><span>${dayNum}</span>`;
+    button.title = `跳到 DAY ${dayNum}`;
+    button.setAttribute("aria-label", `跳到 DAY ${dayNum}`);
+    button.onclick = () => selectWorkspaceItineraryDay(dayNum, { scrollToDetail: true });
+    list.appendChild(button);
+  }
+
+  updateItineraryDayNavigation(activeItineraryDay);
+}
+
 function renderWorkspaceItinerary() {
   const trip = trips.find(t => t.id === activeTripId);
   if (!trip) return;
@@ -1911,32 +2001,18 @@ function renderWorkspaceItinerary() {
   const daySelector = document.getElementById("ws-days-selector");
   daySelector.innerHTML = "";
   
-  const daysCount = parseInt(trip.duration) || 1;
+  const daysCount = Math.max(1, parseInt(trip.duration) || 1);
+  activeItineraryDay = Math.min(Math.max(activeItineraryDay, 1), daysCount);
   for (let i = 1; i <= daysCount; i++) {
     const btn = document.createElement("button");
     btn.className = `day-selector-btn ${activeItineraryDay === i ? 'active' : ''}`;
     btn.innerText = `DAY ${i}`;
-    btn.onclick = () => {
-      activeItineraryDay = i;
-      if (currentView === "overview") {
-        // 全景模式：1. 滾動全景看板至 DAY i 欄位
-        document.querySelectorAll(".overview-day-column").forEach(c => c.classList.remove("active-target-day"));
-        const targetCol = document.getElementById(`overview-day-col-${i}`);
-        if (targetCol) {
-          targetCol.classList.add("active-target-day");
-          targetCol.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-        }
-        document.querySelectorAll(".day-selector-btn").forEach((b, idx) => {
-          b.classList.toggle("active", idx + 1 === i);
-        });
-        // 2.【核心修復】100% 同步更新下方的單日時間軸為 DAY i！
-        renderSingleDayTimeline(trip, activeItineraryDay);
-      } else {
-        renderWorkspaceItinerary();
-      }
-    };
+    btn.dataset.dayNum = String(i);
+    btn.setAttribute("aria-pressed", String(activeItineraryDay === i));
+    btn.onclick = () => selectWorkspaceItineraryDay(i);
     daySelector.appendChild(btn);
   }
+  renderDesktopItineraryJump(daysCount);
 
   // 控制全景看板與單日視圖容器顯隱
   const overviewWrapper = document.getElementById("ws-overview-board-wrapper");
