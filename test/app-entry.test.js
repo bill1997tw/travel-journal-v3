@@ -40,7 +40,7 @@ test("empty dashboard uses one prominent create-trip action", () => {
   assert.match(htmlSource, /id="dashboard-empty-welcome"/);
   assert.match(htmlSource, /id="dashboard-empty-add-trip"/);
   assert.match(appSource, /emptyWelcome\.hidden = !isEmpty/);
-  assert.match(appSource, /dashboardGrid\.hidden = isEmpty/);
+  assert.match(appSource, /dashboardGrid\.hidden = !hasLocalTrips/);
 });
 
 test("entry assets are responsive and included in the offline shell", () => {
@@ -48,7 +48,7 @@ test("entry assets are responsive and included in the offline shell", () => {
   assert.match(entryStyles, /\.stats-bar\[hidden\]/);
   assert.match(entryStyles, /@media \(max-width: 480px\)/);
   assert.match(entryStyles, /@media \(prefers-reduced-motion: reduce\)/);
-  assert.match(workerSource, /voyage-book-shell-v31/);
+  assert.match(workerSource, /voyage-book-shell-v32/);
   assert.match(workerSource, /"\.\/app-entry\.js"/);
   assert.match(workerSource, /"\.\/app-entry\.css"/);
 });

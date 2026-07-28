@@ -233,6 +233,7 @@ const CATEGORY_COLORS = {
 let trips = [];
 let quickNotes = [];
 let currentCarouselIndex = 0;
+let accessibleCloudTripCount = 0;
 
 let activeTripId = null; // 當前進入的 Workspace 旅程 ID
 let activeWorkspaceTab = "itinerary"; // 當前 Workspace 子分頁 (itinerary, checklists, budget, diary)
@@ -1344,11 +1345,12 @@ function renderDashboard() {
   const emptyWelcome = document.getElementById("dashboard-empty-welcome");
   const statsBar = document.querySelector("#view-dashboard .stats-bar");
   const dashboardGrid = document.querySelector("#view-dashboard .dashboard-grid");
-  const isEmpty = totalTrips === 0;
+  const hasLocalTrips = totalTrips > 0;
+  const isEmpty = !hasLocalTrips && accessibleCloudTripCount === 0;
   emptyWelcome.hidden = !isEmpty;
-  statsBar.hidden = isEmpty;
-  dashboardGrid.hidden = isEmpty;
-  if (isEmpty) return;
+  statsBar.hidden = !hasLocalTrips;
+  dashboardGrid.hidden = !hasLocalTrips;
+  if (!hasLocalTrips) return;
 
   const track = document.getElementById("dashboard-carousel-track");
   track.innerHTML = "";
@@ -6794,6 +6796,12 @@ window.voyageApp = {
     setupTheme();
     renderAll();
     document.dispatchEvent(new CustomEvent("voyage:app-ready"));
+  },
+  setAccessibleCloudTripCount(count) {
+    accessibleCloudTripCount = Number.isSafeInteger(Number(count))
+      ? Math.max(0, Number(count))
+      : 0;
+    renderDashboard();
   },
   showToast
 };

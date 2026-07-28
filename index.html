@@ -9,7 +9,7 @@
   <title>悠遊小本本 Voyage Book | 您的專屬旅行規劃與分帳管家</title>
   <meta name="description" content="悠遊小本本是一個為自助旅行與重機愛好者設計的精美企劃工具，包含詳細日程、景點與餐廳備案庫、行李打包清單、多人費用代墊分帳以及回憶日記。">
   <link rel="stylesheet" href="index.css?v=v30">
-  <link rel="stylesheet" href="cloud-sync.css">
+  <link rel="stylesheet" href="cloud-sync.css?v=v32">
   <link rel="stylesheet" href="app-entry.css?v=v31">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
@@ -150,6 +150,17 @@
           <p>從空白小本本開始安排日期、旅伴、行程與共同帳本。</p>
           <button type="button" class="btn btn-primary" id="dashboard-empty-add-trip">＋ 新建旅程</button>
         </div>
+
+        <section class="dashboard-cloud-trips glass" id="dashboard-cloud-trips" hidden>
+          <div class="dashboard-cloud-trips-heading">
+            <div>
+              <span>帳號旅程</span>
+              <h2>我的雲端旅程</h2>
+            </div>
+            <p>包含自己建立，以及其他 Owner 邀請您參加的旅程。</p>
+          </div>
+          <div class="dashboard-cloud-trips-list" id="dashboard-cloud-trips-list"></div>
+        </section>
 
         <!-- 數據統計條 -->
         <div class="stats-bar">
@@ -1506,6 +1517,6 @@
   <script src="app-entry.js?v=v31"></script>
   <script src="cloud-sync.js"></script>
   <script type="module" src="account-cloud-share.js"></script>
-  <script src="app.js?v=v30"></script>
+  <script src="app.js?v=v32"></script>
 </body>
 </html>

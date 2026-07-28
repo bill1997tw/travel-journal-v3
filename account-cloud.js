@@ -20,6 +20,7 @@
     lineMemberPairingCode: null,
     collaborationTripId: null,
     collaborationMembers: [],
+    previewRole: null,
     preview: null,
     lastImportReceipt: null,
     mounted: false,
@@ -537,6 +538,67 @@
     }[status] || { label: status, tone: "neutral" };
   }
 
+  function renderCloudHomeTrips() {
+    const section = document.getElementById("dashboard-cloud-trips");
+    const list = document.getElementById("dashboard-cloud-trips-list");
+    if (!section || !list) return;
+
+    const signedInTrips = state.session ? state.trips : [];
+    window.voyageApp?.setAccessibleCloudTripCount?.(signedInTrips.length);
+    section.hidden = signedInTrips.length === 0;
+    list.replaceChildren();
+    if (signedInTrips.length === 0) return;
+
+    for (const trip of signedInTrips) {
+      const role = getRole(trip);
+      const importedTrip = findImportedTrip(trip.id);
+      const canEdit = role === "owner" || role === "editor";
+      const item = document.createElement("article");
+      item.className = "dashboard-cloud-trip";
+      item.innerHTML = `
+        <div class="dashboard-cloud-trip-main">
+          <strong>${escapeHtml(trip.title)}</strong>
+          <span>${escapeHtml(trip.destination || "尚未設定目的地")}</span>
+          <div>
+            <span class="account-cloud-role" data-role="${escapeHtml(role)}">${escapeHtml(roleLabel(role))}</span>
+            <span class="dashboard-cloud-trip-state">${importedTrip ? "已載入此裝置" : "雲端旅程"}</span>
+          </div>
+        </div>
+        <div class="dashboard-cloud-trip-actions">
+          ${importedTrip && canEdit ? `
+            <button type="button" class="btn btn-primary dashboard-cloud-trip-open" data-local-trip-id="${escapeHtml(importedTrip.id)}">
+              開啟旅程
+            </button>
+          ` : `
+            <button type="button" class="btn ${canEdit ? "btn-primary" : "btn-secondary"} dashboard-cloud-trip-preview" data-trip-id="${escapeHtml(trip.id)}">
+              ${canEdit ? "安全載入" : "查看摘要"}
+            </button>
+          `}
+          <button type="button" class="btn btn-secondary dashboard-cloud-trip-ledger" data-trip-id="${escapeHtml(trip.id)}">
+            查看帳本
+          </button>
+        </div>
+      `;
+      list.appendChild(item);
+    }
+
+    for (const button of list.querySelectorAll(".dashboard-cloud-trip-open")) {
+      button.addEventListener("click", () => window.enterWorkspace?.(button.dataset.localTripId));
+    }
+    for (const button of list.querySelectorAll(".dashboard-cloud-trip-preview")) {
+      button.addEventListener("click", () => {
+        openPanel();
+        previewTrip(button.dataset.tripId);
+      });
+    }
+    for (const button of list.querySelectorAll(".dashboard-cloud-trip-ledger")) {
+      button.addEventListener("click", () => {
+        openPanel();
+        loadLedgerSnapshot(button.dataset.tripId);
+      });
+    }
+  }
+
   function renderQueue() {
     if (!ui) return;
     ui.queueSection.hidden = state.queuedDrafts.length === 0;
@@ -872,6 +934,7 @@
 
   function renderTrips() {
     if (!ui) return;
+    renderCloudHomeTrips();
     ui.tripList.replaceChildren();
     const importApi = getImportApi();
     let localTrips = [];
@@ -1077,13 +1140,16 @@
 
   function closePreview() {
     state.preview = null;
+    state.previewRole = null;
     if (!ui) return;
     ui.preview.hidden = true;
     ui.previewContent.replaceChildren();
+    ui.importButton.hidden = true;
   }
 
   function renderPreview(result) {
     const { summary, warnings } = result;
+    const canImport = state.previewRole === "owner" || state.previewRole === "editor";
     ui.previewContent.innerHTML = `
       <dl class="account-cloud-preview-grid">
         <div><dt>旅程</dt><dd>${escapeHtml(summary.title)}</dd></div>
@@ -1095,9 +1161,12 @@
       </dl>
       ${warnings.map((warning) => `<p class="account-cloud-warning">${escapeHtml(warning)}</p>`).join("")}
       <p class="account-cloud-import-note">
-        確認後會先備份目前的本機旅程，再把這趟旅程新增到本機；不會覆蓋既有旅程。
+        ${canImport
+          ? "確認後會先備份目前的本機旅程，再把這趟旅程新增到本機；不會覆蓋既有旅程。"
+          : "您在這趟旅程的權限是僅查看，因此不會把內容匯入可編輯的本機工作區。"}
       </p>
     `;
+    ui.importButton.hidden = !canImport;
     ui.preview.hidden = false;
   }
 
@@ -1115,6 +1184,7 @@
         .eq("trip_id", tripId)
         .single();
       if (error) throw error;
+      state.previewRole = getRole(trip);
       state.preview = importApi.normalizeCandidate(trip, data);
       renderPreview(state.preview);
     } catch (error) {
@@ -1126,7 +1196,12 @@
 
   function importPreview() {
     const importApi = getImportApi();
-    if (!state.preview || !importApi || state.busy) return;
+    if (
+      !state.preview
+      || !importApi
+      || state.busy
+      || (state.previewRole !== "owner" && state.previewRole !== "editor")
+    ) return;
     setBusy(true);
     setMessage("");
     try {
@@ -1439,6 +1514,7 @@
     ui.authButton.textContent = signedIn ? "雲端旅程" : "登入雲端";
     setStatus(signedIn ? "帳號雲端已連線" : "本機模式（資料安全保留）", signedIn ? "live" : "neutral");
     renderTrips();
+    renderCloudHomeTrips();
   }
 
   async function loadTrips() {
@@ -1800,7 +1876,11 @@
     refresh: loadTrips,
     scheduleTripSave,
     getSession: () => state.session,
-    getTrips: () => state.trips.map((trip) => ({ ...trip }))
+    getTrips: () => state.trips.map((trip) => ({ ...trip })),
+    getRoleForTrip: (tripId) => {
+      const trip = state.trips.find((item) => item.id === tripId);
+      return trip ? getRole(trip) : null;
+    }
   });
 
   window.addEventListener("online", () => {
