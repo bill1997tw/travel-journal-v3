@@ -18,6 +18,8 @@
     linePairingCode: null,
     lineMemberStatus: null,
     lineMemberPairingCode: null,
+    collaborationTripId: null,
+    collaborationMembers: [],
     preview: null,
     lastImportReceipt: null,
     mounted: false,
@@ -338,6 +340,178 @@
       editor: "可編輯",
       viewer: "僅查看"
     }[role] || "成員";
+  }
+
+  function memberDisplayName(member) {
+    const profile = Array.isArray(member?.profiles)
+      ? member.profiles[0]
+      : member?.profiles;
+    return profile?.display_name || "已註冊旅伴";
+  }
+
+  function collaborationErrorMessage(error) {
+    const message = error?.message || "";
+    if (message.includes("member_account_not_found")) {
+      return "找不到這個信箱的帳號。請旅伴先申請帳號，再由 Owner 邀請。";
+    }
+    if (message.includes("trip_manage_forbidden")) {
+      return "只有這趟旅程的 Owner 可以管理旅伴。";
+    }
+    if (message.includes("owner_role_reserved")) {
+      return "Owner 身分不能透過邀請轉讓。";
+    }
+    return message || "旅伴權限更新失敗，請稍後再試。";
+  }
+
+  function closeCollaboration() {
+    state.collaborationTripId = null;
+    state.collaborationMembers = [];
+    if (!ui) return;
+    ui.collaborationSection.hidden = true;
+    ui.collaborationContent.replaceChildren();
+    ui.collaborationEmail.value = "";
+  }
+
+  function renderCollaboration() {
+    if (!ui || !state.collaborationTripId) return;
+    const trip = state.trips.find((item) => item.id === state.collaborationTripId);
+    if (!trip || getRole(trip) !== "owner") {
+      closeCollaboration();
+      return;
+    }
+
+    ui.collaborationTitle.textContent = `${trip.title}・旅伴權限`;
+    ui.collaborationContent.replaceChildren();
+
+    for (const member of state.collaborationMembers) {
+      const row = document.createElement("article");
+      const isOwner = member.role === "owner";
+      row.className = "account-cloud-collaborator";
+      row.innerHTML = `
+        <div>
+          <strong>${escapeHtml(memberDisplayName(member))}</strong>
+          <span>${isOwner ? "旅程擁有者" : "已註冊旅伴"}</span>
+        </div>
+        <div class="account-cloud-collaborator-actions">
+          ${isOwner ? `
+            <span class="account-cloud-role" data-role="owner">擁有者</span>
+          ` : `
+            <label>
+              權限
+              <select class="account-cloud-collaborator-role" data-user-id="${escapeHtml(member.user_id)}">
+                <option value="editor" ${member.role === "editor" ? "selected" : ""}>可編輯</option>
+                <option value="viewer" ${member.role === "viewer" ? "selected" : ""}>僅查看</option>
+              </select>
+            </label>
+            <button type="button" class="btn btn-secondary account-cloud-collaborator-remove" data-user-id="${escapeHtml(member.user_id)}">
+              移除
+            </button>
+          `}
+        </div>
+      `;
+      ui.collaborationContent.appendChild(row);
+    }
+
+    ui.collaborationSection.hidden = false;
+    for (const select of ui.collaborationContent.querySelectorAll(".account-cloud-collaborator-role")) {
+      select.addEventListener("change", () => updateCollaboratorRole(select.dataset.userId, select.value));
+    }
+    for (const button of ui.collaborationContent.querySelectorAll(".account-cloud-collaborator-remove")) {
+      button.addEventListener("click", () => removeCollaborator(button.dataset.userId));
+    }
+  }
+
+  async function loadCollaboration(tripId, options = {}) {
+    const trip = state.trips.find((item) => item.id === tripId);
+    if (!state.client || !state.session || !trip || getRole(trip) !== "owner" || state.busy) return;
+    setBusy(true);
+    if (!options.preserveMessage) setMessage("");
+    state.collaborationTripId = tripId;
+    try {
+      const { data, error } = await state.client
+        .from("trip_members")
+        .select("trip_id, user_id, role, joined_at, profiles(display_name, avatar_url)")
+        .eq("trip_id", tripId)
+        .order("joined_at", { ascending: true });
+      if (error) throw error;
+      state.collaborationMembers = data || [];
+      renderCollaboration();
+    } catch (error) {
+      closeCollaboration();
+      setMessage(collaborationErrorMessage(error), true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function inviteCollaborator(event) {
+    event.preventDefault();
+    const tripId = state.collaborationTripId;
+    const email = ui.collaborationEmail.value.trim();
+    const role = ui.collaborationRole.value;
+    if (!tripId || !email || state.busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const { error } = await state.client.rpc("add_trip_member_by_email", {
+        target_trip_id: tripId,
+        member_email: email,
+        member_role: role
+      });
+      if (error) throw error;
+      ui.collaborationEmail.value = "";
+      setMessage(`已加入旅伴，權限為「${roleLabel(role)}」。`);
+    } catch (error) {
+      setMessage(collaborationErrorMessage(error), true);
+      return;
+    } finally {
+      setBusy(false);
+    }
+    await loadCollaboration(tripId, { preserveMessage: true });
+  }
+
+  async function updateCollaboratorRole(userId, role) {
+    const tripId = state.collaborationTripId;
+    if (!tripId || !userId || state.busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const { error } = await state.client
+        .from("trip_members")
+        .update({ role })
+        .eq("trip_id", tripId)
+        .eq("user_id", userId);
+      if (error) throw error;
+      setMessage(`旅伴權限已改為「${roleLabel(role)}」。`);
+    } catch (error) {
+      setMessage(collaborationErrorMessage(error), true);
+    } finally {
+      setBusy(false);
+    }
+    await loadCollaboration(tripId, { preserveMessage: true });
+  }
+
+  async function removeCollaborator(userId) {
+    const tripId = state.collaborationTripId;
+    const member = state.collaborationMembers.find((item) => item.user_id === userId);
+    if (!tripId || !member || member.role === "owner" || state.busy) return;
+    if (!window.confirm(`確定移除旅伴「${memberDisplayName(member)}」？移除後對方將無法再看到這趟旅程。`)) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const { error } = await state.client
+        .from("trip_members")
+        .delete()
+        .eq("trip_id", tripId)
+        .eq("user_id", userId);
+      if (error) throw error;
+      setMessage("旅伴已移除。");
+    } catch (error) {
+      setMessage(collaborationErrorMessage(error), true);
+    } finally {
+      setBusy(false);
+    }
+    await loadCollaboration(tripId, { preserveMessage: true });
   }
 
   function queueStatusLabel(status) {
@@ -747,6 +921,11 @@
           <button type="button" class="btn btn-secondary account-cloud-line-open" data-trip-id="${escapeHtml(trip.id)}">
             LINE 連動
           </button>
+          ${role === "owner" ? `
+            <button type="button" class="btn btn-secondary account-cloud-collaboration-open" data-trip-id="${escapeHtml(trip.id)}">
+              管理旅伴
+            </button>
+          ` : ""}
           ${canSave ? `
             <button type="button" class="btn btn-primary account-cloud-save" data-trip-id="${escapeHtml(trip.id)}">
               儲存本機修改
@@ -797,6 +976,9 @@
     }
     for (const button of ui.tripList.querySelectorAll(".account-cloud-line-open")) {
       button.addEventListener("click", () => loadLineBinding(button.dataset.tripId));
+    }
+    for (const button of ui.tripList.querySelectorAll(".account-cloud-collaboration-open")) {
+      button.addEventListener("click", () => loadCollaboration(button.dataset.tripId));
     }
     for (const button of ui.tripList.querySelectorAll(".account-cloud-remote-action")) {
       button.addEventListener("click", () => handleRemoteUpdateAction(button.dataset.tripId));
@@ -1297,6 +1479,7 @@
     setMessage("");
     closePreview();
     closeLedgerSnapshot();
+    closeCollaboration();
     if (state.session) {
       loadTrips().catch((error) => setMessage(error.message, true));
     } else {
@@ -1346,6 +1529,7 @@
       state.remoteUpdates = {};
       state.preview = null;
       closeLedgerSnapshot();
+      closeCollaboration();
       renderSession();
     } catch (error) {
       setMessage(error.message || "登出失敗，請稍後再試。", true);
@@ -1417,6 +1601,33 @@
           <div class="account-cloud-queue-list"></div>
         </section>
         <div class="account-cloud-trip-list"></div>
+        <section class="account-cloud-collaboration" hidden>
+          <div class="account-cloud-ledger-heading">
+            <div>
+              <p>多人共同編輯</p>
+              <h4 class="account-cloud-collaboration-title">旅伴權限</h4>
+            </div>
+            <button type="button" class="account-cloud-collaboration-close" aria-label="關閉旅伴權限">✕</button>
+          </div>
+          <p class="account-cloud-collaboration-note">
+            Editor 可查看並編輯這趟旅程；Viewer 登入後只能查看。免登入旅伴請使用「免登入唯讀分享」連結。
+          </p>
+          <form class="account-cloud-collaboration-form">
+            <label>
+              旅伴的註冊信箱
+              <input type="email" autocomplete="email" placeholder="friend@example.com" required>
+            </label>
+            <label>
+              權限
+              <select>
+                <option value="editor">可編輯</option>
+                <option value="viewer">僅查看</option>
+              </select>
+            </label>
+            <button type="submit" class="btn btn-primary">加入旅伴</button>
+          </form>
+          <div class="account-cloud-collaboration-content"></div>
+        </section>
         <section class="account-cloud-ledger" hidden>
           <div class="account-cloud-ledger-heading">
             <div>
@@ -1474,6 +1685,13 @@
       queueSection: overlay.querySelector(".account-cloud-queue"),
       queueList: overlay.querySelector(".account-cloud-queue-list"),
       tripList: overlay.querySelector(".account-cloud-trip-list"),
+      collaborationSection: overlay.querySelector(".account-cloud-collaboration"),
+      collaborationTitle: overlay.querySelector(".account-cloud-collaboration-title"),
+      collaborationContent: overlay.querySelector(".account-cloud-collaboration-content"),
+      collaborationForm: overlay.querySelector(".account-cloud-collaboration-form"),
+      collaborationEmail: overlay.querySelector('.account-cloud-collaboration-form input[type="email"]'),
+      collaborationRole: overlay.querySelector(".account-cloud-collaboration-form select"),
+      collaborationCloseButton: overlay.querySelector(".account-cloud-collaboration-close"),
       ledgerSection: overlay.querySelector(".account-cloud-ledger"),
       ledgerTitle: overlay.querySelector(".account-cloud-ledger-title"),
       ledgerRevision: overlay.querySelector(".account-cloud-ledger-revision"),
@@ -1501,6 +1719,8 @@
       loadTrips().catch((error) => setMessage(error.message, true));
     });
     ui.signOutButton.addEventListener("click", signOut);
+    ui.collaborationForm.addEventListener("submit", inviteCollaborator);
+    ui.collaborationCloseButton.addEventListener("click", closeCollaboration);
     ui.previewCloseButton.addEventListener("click", closePreview);
     ui.importButton.addEventListener("click", importPreview);
     ui.ledgerRefreshButton.addEventListener("click", () => {

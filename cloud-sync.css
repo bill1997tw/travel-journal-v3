@@ -784,6 +784,88 @@
   background: color-mix(in srgb, var(--card-bg) 92%, transparent);
 }
 
+.account-cloud-collaboration {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent-color) 35%, var(--border-color));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--accent-color) 6%, var(--card-bg));
+}
+
+.account-cloud-collaboration-note {
+  margin: 0.65rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.account-cloud-collaboration-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 8rem auto;
+  align-items: end;
+  gap: 0.65rem;
+  margin: 0.9rem 0;
+}
+
+.account-cloud-collaboration-form label,
+.account-cloud-collaborator-actions label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.account-cloud-collaboration-form input,
+.account-cloud-collaboration-form select,
+.account-cloud-collaborator-actions select {
+  width: 100%;
+  min-height: 2.45rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  background: var(--bg-body);
+  color: var(--text-primary);
+}
+
+.account-cloud-collaboration-content {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.account-cloud-collaborator,
+.account-cloud-collaborator-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.account-cloud-collaborator {
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 11px;
+  background: var(--bg-body);
+}
+
+.account-cloud-collaborator > div:first-child {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.account-cloud-collaborator span {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.account-cloud-collaboration-close {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+
 .account-cloud-line-status,
 .account-cloud-line-code {
   display: grid;
@@ -870,6 +952,16 @@
 }
 
 @media (max-width: 640px) {
+  .account-cloud-collaboration-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .account-cloud-collaborator,
+  .account-cloud-collaborator-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .account-cloud-workspace-ledger-entry {
     align-items: stretch;
     flex-direction: column;
