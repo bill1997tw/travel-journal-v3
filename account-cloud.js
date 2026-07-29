@@ -6,6 +6,7 @@
     client: null,
     session: null,
     trips: [],
+    archivedTrips: [],
     queuedDrafts: [],
     remoteUpdates: {},
     realtimeChannel: null,
@@ -291,7 +292,7 @@
     const stylesheet = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
       .find((link) => link.getAttribute("href")?.split("?")[0] === "cloud-sync.css");
     if (!stylesheet) return;
-    stylesheet.href = "cloud-sync.css?v=account_cloud_v7";
+    stylesheet.href = "cloud-sync.css?v=account_cloud_v8";
   }
 
   function escapeHtml(value) {
@@ -950,7 +951,7 @@
       return;
     }
 
-    if (state.trips.length === 0 && localOnlyTrips.length === 0) {
+    if (state.trips.length === 0 && state.archivedTrips.length === 0 && localOnlyTrips.length === 0) {
       ui.tripList.innerHTML = '<p class="account-cloud-empty">這個帳號目前沒有可存取的雲端旅程。</p>';
       return;
     }
@@ -987,6 +988,9 @@
           ${role === "owner" ? `
             <button type="button" class="btn btn-secondary account-cloud-collaboration-open" data-trip-id="${escapeHtml(trip.id)}">
               管理旅伴
+            </button>
+            <button type="button" class="btn btn-secondary account-cloud-archive" data-trip-id="${escapeHtml(trip.id)}">
+              封存雲端旅程
             </button>
           ` : ""}
           ${canSave ? `
@@ -1028,6 +1032,37 @@
       ui.tripList.appendChild(item);
     }
 
+    if (state.archivedTrips.length > 0) {
+      const heading = document.createElement("div");
+      heading.className = "account-cloud-archived-heading";
+      heading.innerHTML = `
+        <div>
+          <strong>已封存旅程</strong>
+          <span>資料與帳本仍安全保留，可由 Owner 隨時復原。</span>
+        </div>
+      `;
+      ui.tripList.appendChild(heading);
+
+      for (const trip of state.archivedTrips) {
+        const item = document.createElement("article");
+        item.className = "account-cloud-trip account-cloud-trip-archived";
+        item.innerHTML = `
+          <div>
+            <strong>${escapeHtml(trip.title)}</strong>
+            <span>${escapeHtml(trip.destination || "未設定目的地")}</span>
+          </div>
+          <div class="account-cloud-trip-actions">
+            <span class="account-cloud-trip-state" data-state="neutral">已封存</span>
+            <span class="account-cloud-role" data-role="owner">擁有者</span>
+            <button type="button" class="btn btn-primary account-cloud-restore" data-trip-id="${escapeHtml(trip.id)}">
+              復原旅程
+            </button>
+          </div>
+        `;
+        ui.tripList.appendChild(item);
+      }
+    }
+
     for (const button of ui.tripList.querySelectorAll(".account-cloud-preview")) {
       button.addEventListener("click", () => previewTrip(button.dataset.tripId));
     }
@@ -1043,6 +1078,12 @@
     for (const button of ui.tripList.querySelectorAll(".account-cloud-collaboration-open")) {
       button.addEventListener("click", () => loadCollaboration(button.dataset.tripId));
     }
+    for (const button of ui.tripList.querySelectorAll(".account-cloud-archive")) {
+      button.addEventListener("click", () => setCloudTripArchived(button.dataset.tripId, true));
+    }
+    for (const button of ui.tripList.querySelectorAll(".account-cloud-restore")) {
+      button.addEventListener("click", () => setCloudTripArchived(button.dataset.tripId, false));
+    }
     for (const button of ui.tripList.querySelectorAll(".account-cloud-remote-action")) {
       button.addEventListener("click", () => handleRemoteUpdateAction(button.dataset.tripId));
     }
@@ -1051,6 +1092,49 @@
     }
     for (const button of ui.tripList.querySelectorAll(".account-cloud-promote")) {
       button.addEventListener("click", () => promoteLocalTrip(button.dataset.localTripId));
+    }
+  }
+
+  async function setCloudTripArchived(tripId, archived) {
+    const source = archived ? state.trips : state.archivedTrips;
+    const trip = source.find((item) => item.id === tripId);
+    if (!state.client || !state.session || !trip || state.busy) return;
+
+    const confirmation = archived
+      ? `確定封存「${trip.title}」？\n\n封存後將停止雲端編輯，並撤銷免登入分享與 LINE 群組連動。本機副本會保留，之後仍可復原。`
+      : `確定復原「${trip.title}」？\n\n旅程會重新開放雲端編輯；為了安全，原本的分享連結與 LINE 綁定不會自動恢復。`;
+    if (!window.confirm(confirmation)) return;
+
+    setBusy(true);
+    setMessage("");
+    try {
+      const { error } = await state.client.rpc("set_trip_archived", {
+        target_trip_id: tripId,
+        should_archive: archived
+      });
+      if (error) throw error;
+
+      delete state.remoteUpdates[tripId];
+      await getQueueApi()?.deleteDraft(tripId).catch(() => {});
+      if (archived && window.getActiveCloudTripId?.() === tripId) {
+        window.closeWorkspace?.();
+      }
+      await loadTrips();
+      setMessage(
+        archived
+          ? "雲端旅程已封存；本機副本仍保留，且不會再自動同步。"
+          : "雲端旅程已復原；分享連結與 LINE 群組需要重新設定。"
+      );
+    } catch (error) {
+      const message = error?.message || "";
+      setMessage(
+        message.includes("trip_owner_required")
+          ? "只有這趟旅程的 Owner 可以封存或復原。"
+          : message || "無法更新旅程封存狀態，請稍後再試。",
+        true
+      );
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -1524,13 +1608,12 @@
     }
     if (!state.client || !state.session) {
       state.trips = [];
+      state.archivedTrips = [];
       renderTrips();
       return;
     }
 
-    const { data, error } = await state.client
-      .from("trips")
-      .select(`
+    const tripFields = `
         id,
         title,
         destination,
@@ -1538,13 +1621,27 @@
         end_date,
         base_currency,
         updated_at,
+        archived_at,
         trip_members!inner(role, user_id)
-      `)
-      .is("archived_at", null)
-      .order("updated_at", { ascending: false });
+      `;
+    const [activeResult, archivedResult] = await Promise.all([
+      state.client
+        .from("trips")
+        .select(tripFields)
+        .is("archived_at", null)
+        .order("updated_at", { ascending: false }),
+      state.client
+        .from("trips")
+        .select(tripFields)
+        .not("archived_at", "is", null)
+        .order("archived_at", { ascending: false })
+    ]);
 
-    if (error) throw error;
-    state.trips = data || [];
+    if (activeResult.error) throw activeResult.error;
+    if (archivedResult.error) throw archivedResult.error;
+    state.trips = activeResult.data || [];
+    state.archivedTrips = (archivedResult.data || [])
+      .filter((trip) => getRole(trip) === "owner");
     renderTrips();
   }
 
@@ -1602,6 +1699,7 @@
       stopRealtimeUpdates();
       state.session = null;
       state.trips = [];
+      state.archivedTrips = [];
       state.remoteUpdates = {};
       state.preview = null;
       closeLedgerSnapshot();
@@ -1643,7 +1741,7 @@
           <button type="button" class="account-cloud-close" aria-label="關閉">✕</button>
         </div>
         <div class="account-cloud-safety">
-          此階段只讀取帳號與旅程清單，不會覆蓋或刪除這台裝置的既有旅程。
+          本機與雲端資料分開保護；雲端旅程只會在您確認後封存，並可由 Owner 復原。
         </div>
         <form class="account-cloud-auth">
           <label>

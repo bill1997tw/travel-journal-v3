@@ -581,6 +581,41 @@
   border-style: dashed;
 }
 
+.account-cloud-archive {
+  border-color: rgba(169, 74, 66, 0.24) !important;
+  color: var(--danger) !important;
+}
+
+.account-cloud-archived-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.6rem;
+  padding: 0.75rem 0.2rem 0.2rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.account-cloud-archived-heading > div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.account-cloud-archived-heading strong {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.account-cloud-archived-heading span {
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+}
+
+.account-cloud-trip-archived {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--bg-body) 82%, var(--badge-bg));
+}
+
 @media (max-width: 768px) {
   .account-cloud-shell {
     width: 100%;

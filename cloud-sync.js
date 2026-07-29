@@ -3,7 +3,7 @@
   if (bootstrapConfig.cloudMode === "account") {
     const loadAccountCloud = () => {
       const accountScript = document.createElement("script");
-      accountScript.src = bootstrapConfig.accountCloudScript || "account-cloud.js";
+      accountScript.src = bootstrapConfig.accountCloudScript || "account-cloud.js?v=v34";
       accountScript.defer = true;
       accountScript.dataset.voyageCloudMode = "account";
       accountScript.addEventListener("error", () => {
