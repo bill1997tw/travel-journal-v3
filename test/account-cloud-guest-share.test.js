@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { createGuestShareManager } from "../account-cloud-share.js";
+import {
+  createGuestShareManager,
+  getGuestTripSignature
+} from "../account-cloud-share.js";
 
 test("share manager uses only guarded RPCs", async () => {
   const calls = [];
@@ -74,6 +77,20 @@ test("invalid token never falls back to local trip data", async () => {
   assert.equal(called, false);
 });
 
+test("network errors remain retryable instead of pretending the link expired", async () => {
+  const manager = createGuestShareManager({
+    async rpc() {
+      return { data: null, error: new Error("network unavailable") };
+    }
+  });
+  const result = await manager.read("c".repeat(64));
+  assert.deepEqual(result, {
+    ok: false,
+    error: "temporarily_unavailable",
+    retryable: true
+  });
+});
+
 test("guest mode is a dedicated readonly page and exposes no local fallback", () => {
   const source = fs.readFileSync(
     new URL("../account-cloud-share.js", import.meta.url),
@@ -97,4 +114,44 @@ test("expanded guest view renders sanitized optional sections", () => {
   assert.match(source, /票券與憑證摘要/);
   assert.match(source, /QR Code、連結及備註不公開/);
   assert.doesNotMatch(source, /fileData/);
+});
+
+test("guest readers can refresh and receive visible-page updates", () => {
+  const source = fs.readFileSync(
+    new URL("../account-cloud-share.js", import.meta.url),
+    "utf8"
+  );
+  assert.match(source, /重新整理最新行程/);
+  assert.match(source, /guest-share-refresh-status/);
+  assert.match(source, /window\.setInterval\([\s\S]*60_000/);
+  assert.match(source, /document\.visibilityState === "visible"/);
+  assert.match(source, /window\.addEventListener\("online"/);
+  assert.match(source, /getGuestTripSignature\(result\)/);
+  assert.match(source, /nextSignature !== currentSignature/);
+  assert.match(source, /if \(!shareAvailable\) return/);
+  assert.match(source, /暫時無法更新，將保留目前內容/);
+  assert.doesNotMatch(source, /window\.location\.reload/);
+});
+
+test("guest refresh detects itinerary and ledger changes independently", () => {
+  const base = {
+    revision: 3,
+    trip: {
+      itinerary: { days: [{ dayNum: 1, items: [] }] },
+      ledger: { entries: [], settlements: [] }
+    }
+  };
+  const itineraryChanged = structuredClone(base);
+  itineraryChanged.revision = 4;
+  itineraryChanged.trip.itinerary.days[0].items.push({ title: "小明的午餐" });
+  const ledgerChanged = structuredClone(base);
+  ledgerChanged.trip.ledger.entries.push({
+    kind: "expense",
+    title: "午餐",
+    amount_minor: "10000",
+    currency: "TWD"
+  });
+
+  assert.notEqual(getGuestTripSignature(base), getGuestTripSignature(itineraryChanged));
+  assert.notEqual(getGuestTripSignature(base), getGuestTripSignature(ledgerChanged));
 });

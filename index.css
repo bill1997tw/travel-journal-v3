@@ -3483,6 +3483,28 @@ body.guest-readonly-active > :not(#guest-readonly-root):not(#guest-invalid-overl
   font-size: clamp(1.75rem, 5vw, 2.7rem);
 }
 
+.guest-share-hero-toolbar,
+.guest-share-refresh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.guest-share-refresh {
+  justify-content: flex-end;
+}
+
+.guest-share-refresh-button {
+  white-space: nowrap;
+}
+
+.guest-share-refresh-status {
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
 .guest-share-hero p,
 .guest-share-day p {
   line-height: 1.7;
@@ -3625,6 +3647,24 @@ body.guest-readonly-active > :not(#guest-readonly-root):not(#guest-invalid-overl
     align-items: flex-start;
     flex-direction: column;
     gap: 5px;
+  }
+
+  .guest-share-hero-toolbar,
+  .guest-share-refresh {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .guest-share-refresh {
+    gap: 6px;
+  }
+
+  .guest-share-refresh-button {
+    width: 100%;
+  }
+
+  .guest-share-refresh-status {
+    text-align: center;
   }
 }
 /* 📱 手機端專屬懸浮快捷工具膠囊 (Mobile Floating Quick Action Dock) */

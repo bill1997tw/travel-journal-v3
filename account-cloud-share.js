@@ -1,4 +1,5 @@
 const INVALID_SHARE_MESSAGE = "這份旅程邀請已失效，請向旅程建立者索取新連結。";
+const TEMPORARY_SHARE_MESSAGE = "目前無法連線讀取旅程，請確認網路後重新整理。";
 
 function createClient() {
   const config = window.VOYAGE_SUPABASE_CONFIG || {};
@@ -46,6 +47,20 @@ function parseExpiry(days) {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + count);
   return expiresAt.toISOString();
+}
+
+function formatRefreshTime(date = new Date()) {
+  return new Intl.DateTimeFormat("zh-TW", {
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
+export function getGuestTripSignature(result) {
+  return JSON.stringify({
+    revision: result?.revision ?? null,
+    trip: result?.trip ?? null
+  });
 }
 
 export function createGuestShareManager(client) {
@@ -98,13 +113,13 @@ export function createGuestShareManager(client) {
       const { data, error } = await client.rpc("get_trip_by_guest_readonly_token", {
         raw_token: token
       });
-      if (error) return { ok: false, error: "invalid_or_expired" };
+      if (error) return { ok: false, error: "temporarily_unavailable", retryable: true };
       return data;
     }
   });
 }
 
-function renderGuestTrip(result) {
+function renderGuestTrip(result, refreshStatus = "") {
   const trip = result.trip || {};
   const days = Array.isArray(trip.itinerary?.days) ? trip.itinerary.days : [];
   const alternatives = trip.alternativeSpots || {};
@@ -195,7 +210,13 @@ function renderGuestTrip(result) {
   root.innerHTML = `
     <main class="guest-share-page">
       <header class="guest-share-hero">
-        <span class="guest-share-badge">訪客唯讀模式</span>
+        <div class="guest-share-hero-toolbar">
+          <span class="guest-share-badge">訪客唯讀模式</span>
+          <div class="guest-share-refresh">
+            <button type="button" class="btn btn-secondary guest-share-refresh-button">重新整理最新行程</button>
+            <span class="guest-share-refresh-status" role="status">${escapeHtml(refreshStatus)}</span>
+          </div>
+        </div>
         <h1>${escapeHtml(trip.title || "旅程")}</h1>
         <p>${escapeHtml(trip.location || "")}</p>
         <p>${escapeHtml(trip.dateRange || trip.date || "")}</p>
@@ -246,22 +267,104 @@ function renderGuestTrip(result) {
   document.body.classList.add("guest-readonly-active");
 }
 
-function showInvalidShare() {
+function showInvalidShare(text = INVALID_SHARE_MESSAGE) {
   const overlay = document.getElementById("guest-invalid-overlay");
   const message = document.getElementById("guest-invalid-msg");
-  if (message) message.textContent = INVALID_SHARE_MESSAGE;
+  if (message) message.textContent = text;
   if (overlay) overlay.style.display = "flex";
+}
+
+function hideInvalidShare() {
+  const overlay = document.getElementById("guest-invalid-overlay");
+  if (overlay) overlay.style.display = "none";
 }
 
 async function initGuestReader(manager, token) {
   document.body.classList.add("guest-readonly-loading");
-  const result = await manager.read(token);
-  document.body.classList.remove("guest-readonly-loading");
-  if (!result?.ok || !result.trip) {
-    showInvalidShare();
-    return;
-  }
-  renderGuestTrip(result);
+  let currentSignature = null;
+  let lastCheckedAt = 0;
+  let refreshing = false;
+  let shareAvailable = true;
+
+  const updateStatus = (text) => {
+    const status = document.querySelector(".guest-share-refresh-status");
+    if (status) status.textContent = text;
+  };
+
+  const setRefreshDisabled = (disabled) => {
+    const button = document.querySelector(".guest-share-refresh-button");
+    if (button) button.disabled = disabled;
+  };
+
+  const attachRefreshButton = () => {
+    document.querySelector(".guest-share-refresh-button")
+      ?.addEventListener("click", () => refresh(true));
+  };
+
+  const refresh = async (announceUnchanged = false) => {
+    if (refreshing || !shareAvailable) return;
+    refreshing = true;
+    setRefreshDisabled(true);
+    updateStatus("更新中…");
+    try {
+      const result = await manager.read(token);
+      lastCheckedAt = Date.now();
+      if (!result?.ok || !result.trip) {
+        if (result?.retryable) {
+          if (currentSignature === null) showInvalidShare(TEMPORARY_SHARE_MESSAGE);
+          else updateStatus("暫時無法更新，將保留目前內容。");
+          return;
+        }
+        shareAvailable = false;
+        showInvalidShare();
+        return;
+      }
+
+      hideInvalidShare();
+      const nextSignature = getGuestTripSignature(result);
+      const changed = currentSignature === null || nextSignature !== currentSignature;
+      const checkedAt = formatRefreshTime();
+      const statusText = changed && currentSignature !== null
+        ? `已取得最新內容・${checkedAt}`
+        : announceUnchanged
+          ? `目前已是最新・${checkedAt}`
+          : `更新於 ${checkedAt}`;
+
+      if (changed) {
+        renderGuestTrip(result, statusText);
+        currentSignature = nextSignature;
+        attachRefreshButton();
+      } else {
+        updateStatus(statusText);
+      }
+    } finally {
+      refreshing = false;
+      setRefreshDisabled(false);
+      document.body.classList.remove("guest-readonly-loading");
+    }
+  };
+
+  await refresh(false);
+  if (!shareAvailable) return;
+
+  window.setInterval(() => {
+    if (document.visibilityState === "visible" && navigator.onLine !== false) {
+      refresh(false);
+    }
+  }, 60_000);
+
+  document.addEventListener("visibilitychange", () => {
+    if (
+      document.visibilityState === "visible"
+      && Date.now() - lastCheckedAt >= 30_000
+    ) {
+      refresh(false);
+    }
+  });
+
+  window.addEventListener("online", () => {
+    refresh(false);
+  });
 }
 
 function initOwnerShare(manager) {
