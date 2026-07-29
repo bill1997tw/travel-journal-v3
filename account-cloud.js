@@ -292,7 +292,7 @@
     const stylesheet = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
       .find((link) => link.getAttribute("href")?.split("?")[0] === "cloud-sync.css");
     if (!stylesheet) return;
-    stylesheet.href = "cloud-sync.css?v=account_cloud_v8";
+    stylesheet.href = "cloud-sync.css?v=account_cloud_v10";
   }
 
   function escapeHtml(value) {

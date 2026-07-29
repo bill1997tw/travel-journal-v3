@@ -429,6 +429,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-width: 0;
   gap: 0.75rem;
   padding: 0.85rem;
   border: 1px solid var(--border-color);
@@ -441,6 +442,10 @@
   gap: 0.2rem;
 }
 
+.account-cloud-trip > div:first-child {
+  min-width: 0;
+}
+
 .account-cloud-trip span,
 .account-cloud-empty {
   color: var(--text-secondary);
@@ -450,6 +455,10 @@
 .account-cloud-trip-actions {
   display: flex !important;
   align-items: center;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
   gap: 0.45rem !important;
 }
 
@@ -1073,6 +1082,46 @@
 }
 
 @media (max-width: 640px) {
+  .account-cloud-overlay {
+    padding: 0.75rem;
+  }
+
+  .account-cloud-modal {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    padding: 1rem;
+    overflow-x: hidden;
+  }
+
+  .account-cloud-account-actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .account-cloud-trip {
+    align-items: stretch;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .account-cloud-trip > div:first-child {
+    min-width: 0;
+  }
+
+  .account-cloud-trip-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .account-cloud-trip-actions .btn {
+    flex: 1 1 8rem;
+    min-width: 0;
+    white-space: normal;
+  }
+
   .dashboard-cloud-trips-heading,
   .dashboard-cloud-trip,
   .dashboard-cloud-trip-actions {

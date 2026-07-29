@@ -39,5 +39,5 @@ test("archived trips stop queued sync and remain recoverable", () => {
 });
 
 test("archive release assets use a fresh cache version", () => {
-  assert.match(bootstrapSource, /account-cloud\.js\?v=v34/);
+  assert.match(bootstrapSource, /account-cloud\.js\?v=v37/);
 });
