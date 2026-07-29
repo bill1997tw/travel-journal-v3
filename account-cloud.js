@@ -578,6 +578,11 @@
           <button type="button" class="btn btn-secondary dashboard-cloud-trip-ledger" data-trip-id="${escapeHtml(trip.id)}">
             查看帳本
           </button>
+          ${canEdit ? `
+            <button type="button" class="btn btn-secondary dashboard-cloud-trip-clone" data-trip-id="${escapeHtml(trip.id)}">
+              複製成我的旅程
+            </button>
+          ` : ""}
         </div>
       `;
       list.appendChild(item);
@@ -596,6 +601,12 @@
       button.addEventListener("click", () => {
         openPanel();
         loadLedgerSnapshot(button.dataset.tripId);
+      });
+    }
+    for (const button of list.querySelectorAll(".dashboard-cloud-trip-clone")) {
+      button.addEventListener("click", () => {
+        openPanel();
+        cloneTripAsOwner(button.dataset.tripId);
       });
     }
   }
@@ -849,6 +860,69 @@
     return importApi.normalizeCandidate(trip, remoteDoc).candidate;
   }
 
+  async function cloneTripAsOwner(sourceTripId) {
+    const importApi = getImportApi();
+    const sourceTrip = state.trips.find((item) => item.id === sourceTripId);
+    const role = sourceTrip ? getRole(sourceTrip) : null;
+    if (
+      !state.client
+      || !state.session
+      || !importApi
+      || !sourceTrip
+      || (role !== "owner" && role !== "editor")
+      || state.busy
+    ) return;
+
+    const confirmed = window.confirm(
+      `確定將「${sourceTrip.title}」複製成自己的旅程？\n\n`
+      + "新副本會由目前帳號擁有，並複製行程、預算、行李、票券與備忘內容。\n"
+      + "LINE 帳本交易、LINE 綁定、分享連結、旅伴權限與修改歷史不會複製；兩份旅程之後不會同步。"
+    );
+    if (!confirmed) return;
+
+    setBusy(true);
+    setMessage("");
+    try {
+      importApi.assertStorageWritable(localStorage);
+      const { data, error } = await state.client.rpc("clone_trip_as_owner", {
+        source_trip_id: sourceTripId
+      });
+      if (error) throw error;
+      if (!data?.trip_id || !Number.isSafeInteger(Number(data.revision))) {
+        throw new Error("trip_clone_response_invalid");
+      }
+
+      await loadTrips();
+      const existingLocalTrip = findImportedTrip(data.trip_id);
+      if (!existingLocalTrip) {
+        const clonedCandidate = await fetchRemoteCandidate(data.trip_id);
+        state.lastImportReceipt = importApi.importCandidate(
+          localStorage,
+          clonedCandidate
+        );
+        ui.undoButton.hidden = false;
+        window.voyageApp?.rehydrateAndRender?.();
+        renderTrips();
+      }
+
+      setMessage(
+        data.created
+          ? `已建立「${data.title || `${sourceTrip.title}（副本）`}」；目前帳號是新 Owner，可設定旅伴、免登入分享與 LINE 連動。`
+          : "這趟旅程先前已複製完成；已載入既有的新 Owner 副本，沒有重複建立。"
+      );
+    } catch (error) {
+      const message = error?.message || "";
+      setMessage(
+        message.includes("trip_clone_forbidden")
+          ? "只有這趟旅程目前的 Owner 或 Editor 可以建立自己的副本。"
+          : message || "無法複製旅程；原旅程與本機資料都沒有變更，請稍後再試。",
+        true
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function triggerRealtimeTestUpdate(tripId) {
     if (!isRealtimeTestMode() || state.busy) return;
     setBusy(true);
@@ -985,6 +1059,11 @@
           <button type="button" class="btn btn-secondary account-cloud-line-open" data-trip-id="${escapeHtml(trip.id)}">
             LINE 連動
           </button>
+          ${role === "owner" || role === "editor" ? `
+            <button type="button" class="btn btn-secondary account-cloud-clone" data-trip-id="${escapeHtml(trip.id)}">
+              複製成我的旅程
+            </button>
+          ` : ""}
           ${role === "owner" ? `
             <button type="button" class="btn btn-secondary account-cloud-collaboration-open" data-trip-id="${escapeHtml(trip.id)}">
               管理旅伴
@@ -1074,6 +1153,9 @@
     }
     for (const button of ui.tripList.querySelectorAll(".account-cloud-line-open")) {
       button.addEventListener("click", () => loadLineBinding(button.dataset.tripId));
+    }
+    for (const button of ui.tripList.querySelectorAll(".account-cloud-clone")) {
+      button.addEventListener("click", () => cloneTripAsOwner(button.dataset.tripId));
     }
     for (const button of ui.tripList.querySelectorAll(".account-cloud-collaboration-open")) {
       button.addEventListener("click", () => loadCollaboration(button.dataset.tripId));
