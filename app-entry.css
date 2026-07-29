@@ -18,6 +18,8 @@
 
 .app-entry-loading[hidden],
 .app-entry-auth[hidden],
+.app-entry-tabs[hidden],
+#app-entry-guest-options[hidden],
 #view-dashboard .stats-bar[hidden],
 #view-dashboard .dashboard-grid[hidden] {
   display: none !important;
@@ -182,6 +184,30 @@
 .app-entry-form input:focus {
   border-color: var(--accent-color);
   outline: 3px solid color-mix(in srgb, var(--accent-color) 16%, transparent);
+}
+
+.app-entry-form-intro {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.app-entry-text-button {
+  width: max-content;
+  justify-self: end;
+  padding: 0;
+  border: 0;
+  color: var(--accent-color);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.app-entry-text-button:hover {
+  text-decoration: underline;
 }
 
 .app-entry-message {

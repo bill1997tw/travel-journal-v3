@@ -24,6 +24,18 @@ test("registration stores only display name metadata and validates passwords", (
   assert.doesNotMatch(entrySource, /localStorage\.setItem\([^,]+,\s*password/);
 });
 
+test("password recovery is self-service and never stores the new password", () => {
+  assert.match(htmlSource, /id="app-entry-forgot-btn"/);
+  assert.match(htmlSource, /id="app-entry-forgot-form"/);
+  assert.match(htmlSource, /id="app-entry-reset-form"/);
+  assert.match(entrySource, /resetPasswordForEmail\(email,\s*\{\s*redirectTo: buildPasswordRecoveryUrl\(\)/);
+  assert.match(entrySource, /event === "PASSWORD_RECOVERY"/);
+  assert.match(entrySource, /client\.auth\.updateUser\(\{ password \}\)/);
+  assert.match(entrySource, /await client\.auth\.signOut\(\)/);
+  assert.match(entrySource, /history\.replaceState/);
+  assert.doesNotMatch(entrySource, /(?:localStorage|sessionStorage)\.setItem\([^,]+,\s*password/);
+});
+
 test("guest share links bypass the account entry screen", () => {
   assert.match(entrySource, /new URLSearchParams\(window\.location\.search\)\.get\("share"\)/);
   assert.match(entrySource, /if \(hasGuestShareToken\(\)\)[\s\S]*root\.hidden = true/);
@@ -48,7 +60,7 @@ test("entry assets are responsive and included in the offline shell", () => {
   assert.match(entryStyles, /\.stats-bar\[hidden\]/);
   assert.match(entryStyles, /@media \(max-width: 480px\)/);
   assert.match(entryStyles, /@media \(prefers-reduced-motion: reduce\)/);
-  assert.match(workerSource, /voyage-book-shell-v37/);
+  assert.match(workerSource, /voyage-book-shell-v39/);
   assert.match(workerSource, /"\.\/app-entry\.js"/);
   assert.match(workerSource, /"\.\/app-entry\.css"/);
 });

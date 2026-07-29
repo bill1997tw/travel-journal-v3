@@ -10,7 +10,7 @@
   <meta name="description" content="悠遊小本本是一個為自助旅行與重機愛好者設計的精美企劃工具，包含詳細日程、景點與餐廳備案庫、行李打包清單、多人費用代墊分帳以及回憶日記。">
   <link rel="stylesheet" href="index.css?v=v33">
   <link rel="stylesheet" href="cloud-sync.css?v=v37">
-  <link rel="stylesheet" href="app-entry.css?v=v31">
+  <link rel="stylesheet" href="app-entry.css?v=v33">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/app-icon.svg">
@@ -55,6 +55,7 @@
             密碼
             <input type="password" name="password" autocomplete="current-password" required>
           </label>
+          <button type="button" class="app-entry-text-button" id="app-entry-forgot-btn">忘記密碼？</button>
           <button type="submit" class="btn btn-primary">登入並開啟旅程</button>
         </form>
 
@@ -78,12 +79,37 @@
           <button type="submit" class="btn btn-primary">建立我的帳號</button>
         </form>
 
+        <form class="app-entry-form" id="app-entry-forgot-form" hidden>
+          <p class="app-entry-form-intro">輸入申請帳號時使用的 Email，我們會寄送安全的密碼重設連結。</p>
+          <label>
+            Email
+            <input type="email" name="email" autocomplete="username" required>
+          </label>
+          <button type="submit" class="btn btn-primary">寄送密碼重設信</button>
+          <button type="button" class="btn btn-secondary" id="app-entry-forgot-back">返回登入</button>
+        </form>
+
+        <form class="app-entry-form" id="app-entry-reset-form" hidden>
+          <p class="app-entry-form-intro">請設定新的密碼。完成後會登出這次重設工作階段，再請您使用新密碼登入。</p>
+          <label>
+            新密碼
+            <input type="password" name="password" autocomplete="new-password" minlength="8" required>
+          </label>
+          <label>
+            再輸入一次新密碼
+            <input type="password" name="passwordConfirm" autocomplete="new-password" minlength="8" required>
+          </label>
+          <button type="submit" class="btn btn-primary">儲存新密碼</button>
+        </form>
+
         <div class="app-entry-message" id="app-entry-message" role="alert"></div>
-        <div class="app-entry-divider"><span>或</span></div>
-        <button type="button" class="btn btn-secondary app-entry-guest" id="app-entry-guest-btn">
-          以訪客身分使用本機版
-        </button>
-        <p class="app-entry-guest-note">訪客資料只保存在這台裝置，不會自動同步到其他人的手機。</p>
+        <div id="app-entry-guest-options">
+          <div class="app-entry-divider"><span>或</span></div>
+          <button type="button" class="btn btn-secondary app-entry-guest" id="app-entry-guest-btn">
+            以訪客身分使用本機版
+          </button>
+          <p class="app-entry-guest-note">訪客資料只保存在這台裝置，不會自動同步到其他人的手機。</p>
+        </div>
       </div>
     </div>
   </div>
@@ -1523,7 +1549,7 @@
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js"></script>
-  <script src="app-entry.js?v=v31"></script>
+  <script src="app-entry.js?v=v33"></script>
   <script src="cloud-sync.js?v=v37"></script>
   <script type="module" src="account-cloud-share.js"></script>
   <script src="app.js?v=v33"></script>

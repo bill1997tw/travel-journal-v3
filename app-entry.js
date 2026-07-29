@@ -8,16 +8,27 @@
   const appContainer = document.getElementById("main-app-container");
   const loading = document.getElementById("app-entry-loading");
   const authPanel = document.getElementById("app-entry-auth");
+  const entryTitle = document.getElementById("app-entry-title");
+  const tabList = document.querySelector(".app-entry-tabs");
   const loginForm = document.getElementById("app-entry-login-form");
   const registerForm = document.getElementById("app-entry-register-form");
+  const forgotForm = document.getElementById("app-entry-forgot-form");
+  const resetForm = document.getElementById("app-entry-reset-form");
   const message = document.getElementById("app-entry-message");
+  const forgotButton = document.getElementById("app-entry-forgot-btn");
+  const forgotBackButton = document.getElementById("app-entry-forgot-back");
   const guestButton = document.getElementById("app-entry-guest-btn");
+  const guestOptions = document.getElementById("app-entry-guest-options");
   const tabButtons = [...document.querySelectorAll("[data-entry-tab]")];
   let client = null;
   let busy = false;
 
   function hasGuestShareToken() {
     return Boolean(new URLSearchParams(window.location.search).get("share"));
+  }
+
+  function hasPasswordRecoveryRequest() {
+    return new URLSearchParams(window.location.search).get("reset") === "1";
   }
 
   function setMessage(text, isError = false) {
@@ -66,8 +77,13 @@
 
   function selectTab(tabName) {
     const isLogin = tabName === "login";
+    entryTitle.textContent = isLogin ? "登入您的旅遊小本本" : "建立您的旅遊小本本帳號";
+    tabList.hidden = false;
+    guestOptions.hidden = false;
     loginForm.hidden = !isLogin;
     registerForm.hidden = isLogin;
+    forgotForm.hidden = true;
+    resetForm.hidden = true;
     setMessage("");
     for (const button of tabButtons) {
       const selected = button.dataset.entryTab === tabName;
@@ -76,6 +92,32 @@
     }
     const targetForm = isLogin ? loginForm : registerForm;
     targetForm.elements[0]?.focus();
+  }
+
+  function selectStandaloneForm(formName) {
+    entryTitle.textContent = formName === "reset" ? "設定新密碼" : "找回您的帳號";
+    tabList.hidden = true;
+    guestOptions.hidden = true;
+    loginForm.hidden = true;
+    registerForm.hidden = true;
+    forgotForm.hidden = formName !== "forgot";
+    resetForm.hidden = formName !== "reset";
+    setMessage("");
+    const targetForm = formName === "reset" ? resetForm : forgotForm;
+    targetForm.elements[0]?.focus();
+  }
+
+  function buildPasswordRecoveryUrl() {
+    const recoveryUrl = new URL(window.location.pathname || "/", window.location.origin);
+    recoveryUrl.searchParams.set("reset", "1");
+    return recoveryUrl.toString();
+  }
+
+  function clearPasswordRecoveryUrl() {
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete("reset");
+    cleanUrl.hash = "";
+    window.history.replaceState({}, "", `${cleanUrl.pathname}${cleanUrl.search}`);
   }
 
   function createClient() {
@@ -162,6 +204,55 @@
     }
   }
 
+  async function handleForgotPassword(event) {
+    event.preventDefault();
+    if (!client || busy) return;
+    const email = forgotForm.elements.email.value.trim();
+    setBusy(true);
+    setMessage("");
+    try {
+      const { error } = await client.auth.resetPasswordForEmail(email, {
+        redirectTo: buildPasswordRecoveryUrl()
+      });
+      if (error) throw error;
+      setMessage("如果此 Email 已註冊，密碼重設信會在幾分鐘內寄達。請也檢查垃圾郵件。");
+    } catch (error) {
+      setMessage(friendlyAuthError(error), true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePasswordReset(event) {
+    event.preventDefault();
+    if (!client || busy) return;
+    const password = resetForm.elements.password.value;
+    const passwordConfirm = resetForm.elements.passwordConfirm.value;
+    if (password.length < 8) {
+      setMessage("密碼至少需要 8 個字元。", true);
+      return;
+    }
+    if (password !== passwordConfirm) {
+      setMessage("兩次輸入的密碼不一致。", true);
+      return;
+    }
+
+    setBusy(true);
+    setMessage("");
+    try {
+      const { error } = await client.auth.updateUser({ password });
+      if (error) throw error;
+      await client.auth.signOut();
+      clearPasswordRecoveryUrl();
+      selectTab("login");
+      setMessage("密碼已更新，請使用新密碼登入。");
+    } catch (error) {
+      setMessage(friendlyAuthError(error), true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function initialize() {
     if (!root) return;
     if (hasGuestShareToken()) {
@@ -175,6 +266,10 @@
     }
     loginForm.addEventListener("submit", handleLogin);
     registerForm.addEventListener("submit", handleRegister);
+    forgotForm.addEventListener("submit", handleForgotPassword);
+    resetForm.addEventListener("submit", handlePasswordReset);
+    forgotButton.addEventListener("click", () => selectStandaloneForm("forgot"));
+    forgotBackButton.addEventListener("click", () => selectTab("login"));
     guestButton.addEventListener("click", () => {
       sessionStorage.setItem(GUEST_SESSION_KEY, "true");
       dismissEntry();
@@ -192,9 +287,25 @@
       return;
     }
 
+    client.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        showAuth().then(() => selectStandaloneForm("reset"));
+      }
+    });
+
     try {
       const { data, error } = await client.auth.getSession();
       if (error) throw error;
+      if (hasPasswordRecoveryRequest()) {
+        await showAuth();
+        if (data.session) {
+          selectStandaloneForm("reset");
+        } else {
+          selectTab("login");
+          setMessage("這個密碼重設連結已失效，請重新申請。", true);
+        }
+        return;
+      }
       if (data.session) {
         syncDisplayNameFromSession(data.session);
         await dismissEntry();
