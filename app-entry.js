@@ -18,6 +18,7 @@
   const resetForm = document.getElementById("app-entry-reset-form");
   const message = document.getElementById("app-entry-message");
   const forgotButton = document.getElementById("app-entry-forgot-btn");
+  const passwordToggle = document.getElementById("app-entry-password-toggle");
   const forgotBackButton = document.getElementById("app-entry-forgot-back");
   const guestButton = document.getElementById("app-entry-guest-btn");
   const guestOptions = document.getElementById("app-entry-guest-options");
@@ -181,6 +182,15 @@
     localStorage.removeItem(REMEMBERED_EMAIL_KEY);
   }
 
+  function togglePasswordVisibility() {
+    const passwordInput = loginForm.elements.password;
+    const shouldReveal = passwordInput.type === "password";
+    passwordInput.type = shouldReveal ? "text" : "password";
+    passwordToggle.textContent = shouldReveal ? "隱藏" : "顯示";
+    passwordToggle.setAttribute("aria-label", shouldReveal ? "隱藏密碼" : "顯示密碼");
+    passwordToggle.setAttribute("aria-pressed", shouldReveal ? "true" : "false");
+  }
+
   function syncDisplayNameFromSession(session) {
     const displayName = String(session?.user?.user_metadata?.display_name || "").trim();
     const currentName = localStorage.getItem("voyage_user_name");
@@ -321,6 +331,7 @@
       button.addEventListener("click", () => selectTab(button.dataset.entryTab));
     }
     restoreRememberedLogin();
+    passwordToggle.addEventListener("click", togglePasswordVisibility);
     loginForm.addEventListener("submit", handleLogin);
     registerForm.addEventListener("submit", handleRegister);
     forgotForm.addEventListener("submit", handleForgotPassword);

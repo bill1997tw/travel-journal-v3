@@ -186,6 +186,29 @@
   outline: 3px solid color-mix(in srgb, var(--accent-color) 16%, transparent);
 }
 
+.app-entry-password-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 0.45rem;
+}
+
+.app-entry-password-toggle {
+  min-width: 3.5rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  color: var(--accent-color);
+  background: var(--bg-card);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.app-entry-password-toggle:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent-color) 16%, transparent);
+}
+
 .app-entry-login-options {
   display: flex;
   align-items: center;

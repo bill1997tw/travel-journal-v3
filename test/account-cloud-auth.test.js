@@ -37,6 +37,14 @@ test("the header identifies the active account without exposing the full email",
   assert.doesNotMatch(cloudSource, /setStatus\(signedIn \? state\.session\?\.user\?\.email/);
 });
 
+test("secondary cloud login can reveal and hide the password accessibly", () => {
+  assert.match(cloudSource, /class="account-cloud-password-toggle"/);
+  assert.match(cloudSource, /function toggleCloudPasswordVisibility\(\)/);
+  assert.match(cloudSource, /ui\.password\.type = shouldReveal \? "text" : "password"/);
+  assert.match(cloudSource, /setAttribute\("aria-pressed", shouldReveal \? "true" : "false"\)/);
+  assert.match(cloudStyles, /\.account-cloud-password-field/);
+});
+
 test("secondary remember-me control stays compact and accessible", () => {
   assert.match(cloudStyles, /\.account-cloud-login-options/);
   assert.match(cloudStyles, /\.account-cloud-auth \.account-cloud-remember/);

@@ -9,8 +9,8 @@
   <title>悠遊小本本 Voyage Book | 您的專屬旅行規劃與分帳管家</title>
   <meta name="description" content="悠遊小本本是一個為自助旅行與重機愛好者設計的精美企劃工具，包含詳細日程、景點與餐廳備案庫、行李打包清單、多人費用代墊分帳以及回憶日記。">
   <link rel="stylesheet" href="index.css?v=v34">
-  <link rel="stylesheet" href="cloud-sync.css?v=v37">
-  <link rel="stylesheet" href="app-entry.css?v=v34">
+  <link rel="stylesheet" href="cloud-sync.css?v=v38">
+  <link rel="stylesheet" href="app-entry.css?v=v35">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/app-icon.svg">
@@ -53,7 +53,11 @@
           </label>
           <label>
             密碼
-            <input type="password" name="password" autocomplete="current-password" required>
+            <span class="app-entry-password-field">
+              <input type="password" name="password" autocomplete="current-password" required>
+              <button type="button" class="app-entry-password-toggle" id="app-entry-password-toggle"
+                aria-label="顯示密碼" aria-pressed="false">顯示</button>
+            </span>
           </label>
           <div class="app-entry-login-options">
             <label class="app-entry-remember">
@@ -1556,7 +1560,7 @@
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js"></script>
-  <script src="app-entry.js?v=v34"></script>
+  <script src="app-entry.js?v=v35"></script>
   <script src="cloud-sync.js?v=v37"></script>
   <script type="module" src="account-cloud-share.js?v=v2"></script>
   <script src="app.js?v=v33"></script>

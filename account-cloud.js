@@ -380,6 +380,15 @@
     return `${localPart.slice(0, visibleLength)}***@${domain}`;
   }
 
+  function toggleCloudPasswordVisibility() {
+    if (!ui?.password || !ui?.passwordToggle) return;
+    const shouldReveal = ui.password.type === "password";
+    ui.password.type = shouldReveal ? "text" : "password";
+    ui.passwordToggle.textContent = shouldReveal ? "隱藏" : "顯示";
+    ui.passwordToggle.setAttribute("aria-label", shouldReveal ? "隱藏密碼" : "顯示密碼");
+    ui.passwordToggle.setAttribute("aria-pressed", shouldReveal ? "true" : "false");
+  }
+
   function memberDisplayName(member) {
     const profile = Array.isArray(member?.profiles)
       ? member.profiles[0]
@@ -1882,7 +1891,11 @@
           </label>
           <label>
             密碼
-            <input type="password" autocomplete="current-password" required>
+            <span class="account-cloud-password-field">
+              <input type="password" autocomplete="current-password" required>
+              <button type="button" class="account-cloud-password-toggle"
+                aria-label="顯示密碼" aria-pressed="false">顯示</button>
+            </span>
           </label>
           <div class="account-cloud-login-options">
             <label class="account-cloud-remember">
@@ -1990,6 +2003,7 @@
       authForm: overlay.querySelector(".account-cloud-auth"),
       email: overlay.querySelector('input[type="email"]'),
       password: overlay.querySelector('input[type="password"]'),
+      passwordToggle: overlay.querySelector(".account-cloud-password-toggle"),
       rememberMe: overlay.querySelector(".account-cloud-remember input"),
       accountPanel: overlay.querySelector(".account-cloud-account"),
       accountEmail: overlay.querySelector(".account-cloud-email"),
@@ -2026,6 +2040,7 @@
     };
 
     restoreAuthPreferences();
+    ui.passwordToggle.addEventListener("click", toggleCloudPasswordVisibility);
     ui.authButton.addEventListener("click", openPanel);
     ui.closeButton.addEventListener("click", closePanel);
     ui.authForm.addEventListener("submit", signIn);

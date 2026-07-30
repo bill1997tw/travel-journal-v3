@@ -36,6 +36,15 @@ test("remember me persists the session and email without storing the password", 
   assert.match(entryStyles, /\.app-entry-remember/);
 });
 
+test("login password visibility is explicit and accessible", () => {
+  assert.match(htmlSource, /id="app-entry-password-toggle"/);
+  assert.match(htmlSource, /aria-label="顯示密碼" aria-pressed="false"/);
+  assert.match(entrySource, /function togglePasswordVisibility\(\)/);
+  assert.match(entrySource, /passwordInput\.type = shouldReveal \? "text" : "password"/);
+  assert.match(entrySource, /passwordToggle\.setAttribute\("aria-pressed", shouldReveal \? "true" : "false"\)/);
+  assert.match(entryStyles, /\.app-entry-password-field/);
+});
+
 test("password recovery is self-service and never stores the new password", () => {
   assert.match(htmlSource, /id="app-entry-forgot-btn"/);
   assert.match(htmlSource, /id="app-entry-forgot-form"/);
@@ -72,7 +81,7 @@ test("entry assets are responsive and included in the offline shell", () => {
   assert.match(entryStyles, /\.stats-bar\[hidden\]/);
   assert.match(entryStyles, /@media \(max-width: 480px\)/);
   assert.match(entryStyles, /@media \(prefers-reduced-motion: reduce\)/);
-  assert.match(workerSource, /voyage-book-shell-v45/);
+  assert.match(workerSource, /voyage-book-shell-v46/);
   assert.match(workerSource, /"\.\/app-entry\.js"/);
   assert.match(workerSource, /"\.\/app-entry\.css"/);
 });
