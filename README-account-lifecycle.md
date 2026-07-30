@@ -11,6 +11,10 @@
   - 若 Auth 使用者已刪除，完成匿名化；若 Auth 使用者仍存在，安全退回待處理狀態。
   - 無法確認 Auth 狀態時不修改資料，留待下一次重試。
 
+`account-lifecycle.js` 是給畫面層使用的瀏覽器 adapter。它只呼叫登入者可用的
+Supabase RPC，並以目前 session 的 access token 呼叫永久刪除 API。UI 不應自行
+複製 RPC 名稱、組合 service-role 請求或儲存 access token。
+
 ## 部署前必要條件
 
 先套用 `travel-bill-platform` 專案截至
