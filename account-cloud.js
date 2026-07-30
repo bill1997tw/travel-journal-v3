@@ -2,6 +2,7 @@
   "use strict";
 
   const config = window.VOYAGE_SUPABASE_CONFIG || {};
+  const GUEST_SESSION_KEY = "voyage_guest_session";
   const REMEMBER_ME_KEY = "voyage_auth_remember_me";
   const REMEMBERED_EMAIL_KEY = "voyage_auth_remembered_email";
   const state = {
@@ -1787,6 +1788,7 @@
       });
       if (error) throw error;
       state.session = data.session;
+      sessionStorage.removeItem(GUEST_SESSION_KEY);
       ui.password.value = "";
       await loadTrips();
       startRealtimeUpdates();
@@ -1800,6 +1802,11 @@
 
   async function signOut() {
     if (!state.client || state.busy) return;
+    const accountEmail = state.session?.user?.email || "目前帳號";
+    const confirmed = window.confirm(
+      `確定要登出 ${accountEmail}？\n\n雲端旅程不會被刪除，這台裝置的本機資料也會保留。`
+    );
+    if (!confirmed) return;
     setBusy(true);
     setMessage("");
     try {
@@ -1813,7 +1820,7 @@
       state.preview = null;
       closeLedgerSnapshot();
       closeCollaboration();
-      renderSession();
+      window.location.reload();
     } catch (error) {
       setMessage(error.message || "登出失敗，請稍後再試。", true);
     } finally {

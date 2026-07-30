@@ -18,6 +18,16 @@ test("secondary cloud login uses the same remember-me preference", () => {
   );
 });
 
+test("account switching clears guest mode and returns sign-out to the entry screen", () => {
+  assert.match(cloudSource, /const GUEST_SESSION_KEY = "voyage_guest_session"/);
+  assert.match(cloudSource, /sessionStorage\.removeItem\(GUEST_SESSION_KEY\)/);
+  assert.match(cloudSource, /const accountEmail = state\.session\?\.user\?\.email/);
+  assert.match(cloudSource, /雲端旅程不會被刪除/);
+  assert.match(cloudSource, /if \(!confirmed\) return/);
+  assert.match(cloudSource, /await state\.client\.auth\.signOut\(\)/);
+  assert.match(cloudSource, /window\.location\.reload\(\)/);
+});
+
 test("secondary remember-me control stays compact and accessible", () => {
   assert.match(cloudStyles, /\.account-cloud-login-options/);
   assert.match(cloudStyles, /\.account-cloud-auth \.account-cloud-remember/);
