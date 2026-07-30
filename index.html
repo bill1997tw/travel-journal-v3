@@ -279,10 +279,16 @@
 
       <!-- ================= 3. 旅程企劃室 (Trip Workspace) ================= -->
       <section id="view-workspace" class="view-section">
-        <div class="workspace-back-bar">
+        <div class="workspace-back-bar" style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; margin-bottom:1rem;">
           <button class="btn btn-secondary" id="workspace-back-btn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
             返回我的旅程
+          </button>
+          <button class="btn btn-primary" data-ws-tab="diary" style="font-size:0.85rem; padding:0.45rem 0.9rem; border-radius:10px; display:inline-flex; align-items:center; gap:0.35rem; font-weight:700; box-shadow:0 3px 10px rgba(200,92,50,0.3); cursor:pointer;">
+            ✍️ 書寫回憶
+          </button>
+          <button class="btn btn-secondary" data-ws-tab="diary" style="font-size:0.85rem; padding:0.45rem 0.9rem; border-radius:10px; display:inline-flex; align-items:center; gap:0.35rem; font-weight:700; cursor:pointer; background:rgba(255,255,255,0.85);">
+            🔖 記憶書籤
           </button>
         </div>
 
@@ -309,6 +315,9 @@
             <div class="ws-menu-group">
               <button class="ws-menu-item active" data-ws-tab="itinerary">
                 <span>📅 詳細行程與備案</span>
+              </button>
+              <button class="ws-menu-item" data-ws-tab="guides">
+                <span>📚 旅行攻略庫</span>
               </button>
               <button class="ws-menu-item" data-ws-tab="checklists">
                 <span>🧳 行李與待辦清單</span>
@@ -341,6 +350,7 @@
               <div class="panel-section-header">
                 <h2>📅 每日詳細行程規劃</h2>
                 <div style="display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:flex-end;">
+                  <button class="btn btn-secondary quick-guide-shortcut-btn" data-ws-tab="guides" style="font-size:0.8rem; padding:0.45rem 0.8rem; background:linear-gradient(135deg, rgba(200,92,50,0.12), rgba(245,158,11,0.15)); border-color:rgba(200,92,50,0.3); color:var(--accent-color); font-weight:700;">📚 旅行攻略庫</button>
                   <button class="btn btn-secondary" id="iti-import-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">🔌 智慧匯入</button>
                   <button class="btn btn-secondary" id="ws-route-import-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">🗺️ 匯入 Google 路線</button>
                   <button class="btn btn-primary" id="ws-add-schedule-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">➕ 新增日程項目</button>
@@ -430,7 +440,170 @@
               </div>
             </div>
 
-            <!-- B. 行李與待辦清單 -->
+            <!-- B. 旅行攻略庫 (Guides & Travel Vault) -->
+            <div class="ws-tab-panel" id="ws-panel-guides">
+              <div class="panel-section-header">
+                <div>
+                  <h2 style="font-size:1.4rem; font-weight:800; color:var(--text-primary);">📚 旅行攻略庫 (Guides & Travel Vault)</h2>
+                  <p style="font-size:0.86rem; color:var(--text-secondary); margin-top:0.25rem;">
+                    集合景點地圖、IG/TikTok 影音短片與個人重點備忘，隨時翻閱查閱，路上彈性調整！
+                  </p>
+                </div>
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:flex-end;">
+                  <button class="btn btn-primary" id="guides-add-btn" style="font-size:0.8rem; padding:0.45rem 0.85rem;">➕ 新增攻略項目</button>
+                </div>
+              </div>
+
+              <!-- 1. 🖼️ 圖片攻略區塊 -->
+              <div class="guides-section-box">
+                <div class="guides-section-title">
+                  <h3>🖼️ 圖片攻略與路線地圖</h3>
+                  <span class="guides-badge-count">4 張高畫質地圖</span>
+                </div>
+                <div class="guides-image-grid">
+                  <!-- 圖片卡片 1 -->
+                  <div class="guide-card guide-card-image glass">
+                    <div class="guide-image-wrap">
+                      <img src="assets/kyoto_street.png" alt="伊勢神宮參拜路線與托福橫丁地圖" loading="lazy">
+                      <span class="guide-type-tag">📍 路線地圖</span>
+                    </div>
+                    <div class="guide-card-body">
+                      <h4>伊勢神宮參拜路線與托福橫丁散策地圖</h4>
+                      <p>內宮參拜約需 60 分鐘，順路步行至托福橫丁享用赤福餅與伊勢烏龍麵。</p>
+                      <div class="guide-card-footer">
+                        <span class="guide-day-chip">DAY 1 必看</span>
+                        <button class="guide-action-btn" title="查看大圖">🔍 放大檢視</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 圖片卡片 2 -->
+                  <div class="guide-card guide-card-image glass">
+                    <div class="guide-image-wrap">
+                      <img src="assets/hero_bg.jpg" alt="名古屋手羽先與鰻魚飯三吃攻略圖" loading="lazy">
+                      <span class="guide-type-tag">🍜 美食地圖</span>
+                    </div>
+                    <div class="guide-card-body">
+                      <h4>名古屋手羽先 (風來坊 vs 矢場) 名店評比</h4>
+                      <p>手羽先以胡椒香氣為主；鰻魚飯三吃首推蓬萊軒熱田神宮店，建議11點前抽取號碼牌。</p>
+                      <div class="guide-card-footer">
+                        <span class="guide-day-chip">DAY 2 必看</span>
+                        <button class="guide-action-btn" title="查看大圖">🔍 放大檢視</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 圖片卡片 3 -->
+                  <div class="guide-card guide-card-image glass">
+                    <div class="guide-image-wrap">
+                      <img src="assets/kyoto_street.png" alt="日本重機國道 ETC 匝道過閘提示" loading="lazy">
+                      <span class="guide-type-tag">🏍️ 交通須知</span>
+                    </div>
+                    <div class="guide-card-body">
+                      <h4>日本重機國道 ETC 專用車道過閘與速限圖解</h4>
+                      <p>過閘速限 20km/h 以下，兩車請保持前後縱隊排隊過閘，不可併排過閘。</p>
+                      <div class="guide-card-footer">
+                        <span class="guide-day-chip">通用指南</span>
+                        <button class="guide-action-btn" title="查看大圖">🔍 放大檢視</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 圖片卡片 4 -->
+                  <div class="guide-card guide-card-image glass">
+                    <div class="guide-image-wrap">
+                      <img src="assets/hero_bg.jpg" alt="阿里山觀日出與祝山步道路線圖" loading="lazy">
+                      <span class="guide-type-tag">🏞️ 步道地圖</span>
+                    </div>
+                    <div class="guide-card-body">
+                      <h4>阿里山祝山觀日平台與小笠原山360度展望台</h4>
+                      <p>搭乘首班小火車至祝山站後，步行 10 分鐘至小笠原山展望台看玉山日出視野最佳。</p>
+                      <div class="guide-card-footer">
+                        <span class="guide-day-chip">DAY 2 必看</span>
+                        <button class="guide-action-btn" title="查看大圖">🔍 放大檢視</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2. 🎬 短影片／文章連結區塊 -->
+              <div class="guides-section-box" style="margin-top:2rem;">
+                <div class="guides-section-title">
+                  <h3>🎬 影音短片與專欄連結</h3>
+                  <span class="guides-badge-count">3 則推薦內容</span>
+                </div>
+                <div class="guides-media-grid">
+                  <!-- 媒體卡片 1 -->
+                  <div class="guide-card guide-card-media glass">
+                    <div class="guide-media-badge platform-tiktok">📱 TikTok 短影音</div>
+                    <h4>【15秒短片】伊勢神宮赤福餅現做直擊！排隊免等小撇步</h4>
+                    <p>短影片示範赤福本店內用川側茶席號碼牌領取地點與必點限定組合。</p>
+                    <div class="guide-media-meta">
+                      <span>🔥 12.4K 觀看</span>
+                      <a href="https://tiktok.com" target="_blank" rel="noopener noreferrer" class="guide-link-btn">▶️ 觀看短片</a>
+                    </div>
+                  </div>
+
+                  <!-- 媒體卡片 2 -->
+                  <div class="guide-card guide-card-media glass">
+                    <div class="guide-media-badge platform-ig">📷 IG Reel 爆款</div>
+                    <h4>【Reel 實測】CB400 重機騎乘伊勢志摩 Sky Line 海岸線實錄</h4>
+                    <p>絕美海景公路彎道鏡頭，標示最佳停靠展望台與拍攝點。</p>
+                    <div class="guide-media-meta">
+                      <span>❤️ 8.9K 點讚</span>
+                      <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" class="guide-link-btn">▶️ 開啟 IG</a>
+                    </div>
+                  </div>
+
+                  <!-- 媒體卡片 3 -->
+                  <div class="guide-card guide-card-media glass">
+                    <div class="guide-media-badge platform-blog">📝 深度部落格</div>
+                    <h4>【食記專欄】茶田35號日出精緻早餐與阿里山高山茶品茗完整攻略</h4>
+                    <p>詳細記錄日出早餐預約機制、用餐環境與高山烏龍茶品茗體驗。</p>
+                    <div class="guide-media-meta">
+                      <span>⭐ 4.9 顆星推薦</span>
+                      <a href="https://blog.com" target="_blank" rel="noopener noreferrer" class="guide-link-btn">🔗 閱讀專欄</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 3. 📝 個人重點筆記區塊 -->
+              <div class="guides-section-box" style="margin-top:2rem;">
+                <div class="guides-section-title">
+                  <h3>📝 個人重點筆記與提醒</h3>
+                  <span class="guides-badge-count">2 則隨手備忘</span>
+                </div>
+                <div class="guides-notes-grid">
+                  <!-- 筆記卡片 1 -->
+                  <div class="guide-note-card note-color-amber glass">
+                    <div class="note-card-header">
+                      <span class="note-pin">📌</span>
+                      <h4>【現金與支付提醒】老街店家備妥日幣</h4>
+                    </div>
+                    <p>托福橫丁與老街部分老店僅收日幣現金或 Paypay，建議隨身預備 10,000 日圓現金。</p>
+                    <div class="note-card-footer">
+                      <span>建立時間: 2026-07-28</span>
+                    </div>
+                  </div>
+
+                  <!-- 筆記卡片 2 -->
+                  <div class="guide-note-card note-color-emerald glass">
+                    <div class="note-card-header">
+                      <span class="note-pin">📌</span>
+                      <h4>【雨備行程方案】鳥羽水族館備案</h4>
+                    </div>
+                    <p>若遇大雨不便騎車，備案改往「鳥羽水族館」，門票約 2,800 日圓，室內展區超豐富。</p>
+                    <div class="note-card-footer">
+                      <span>建立時間: 2026-07-28</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- C. 行李與待辦清單 -->
             <div class="ws-tab-panel" id="ws-panel-checklists">
               <div class="checklist-workspace-layout">
                 <!-- 1. 行前行李清單 -->
@@ -615,14 +788,124 @@
             <!-- D. 票券憑證與備忘 -->
             <div class="ws-tab-panel" id="ws-panel-vouchers">
               <div class="panel-section-header">
-                <h2>🎫 票券憑證與旅途備忘錄</h2>
-                <button class="btn btn-primary" id="ws-add-voucher-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">➕ 新增憑證與備忘</button>
+                <div>
+                  <h2 style="font-size:1.4rem; font-weight:800; color:var(--text-primary);">🎫 票券憑證與旅途備忘錄</h2>
+                  <p style="font-size:0.86rem; color:var(--text-secondary); margin-top:0.25rem;">
+                    存放機票、航班資訊、飯店訂車訂單截圖，隨時隨地方便出門在外查閱。
+                  </p>
+                </div>
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:flex-end;">
+                  <button class="btn btn-primary" id="ws-add-voucher-btn" style="font-size:0.8rem; padding:0.45rem 0.85rem;">➕ 新增憑證與備忘</button>
+                </div>
               </div>
-              <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.25rem;">
-                您可以在此存放機票、車票、飯店訂單截圖，或行程成立的 PDF 憑證，方便出門在外隨時查閱。
-              </p>
-              <div class="vouchers-grid" id="ws-vouchers-grid" style="margin-top:1.5rem;">
-                <!-- 動態注入憑證卡片 -->
+
+              <!-- 憑證與登機證網格 -->
+              <div class="vouchers-grid-custom" id="ws-vouchers-grid" style="margin-top:1.5rem; display:flex; flex-direction:column; gap:1.5rem;">
+                <!-- 憑證 1：航空登機證質感卡片 (Boarding Pass Card) -->
+                <div class="voucher-card-boarding-pass glass">
+                  <div class="boarding-pass-header">
+                    <div class="boarding-airline-logo">
+                      <span class="airline-icon">✈️</span>
+                      <div>
+                        <h4>日本中部國際機場來回電子機票憑證</h4>
+                        <span class="boarding-subtag">機票憑證 · 預訂確認單</span>
+                      </div>
+                    </div>
+                    <span class="boarding-status-chip">已出票·確認有效</span>
+                  </div>
+
+                  <div class="boarding-pass-body">
+                    <!-- 去程航班資訊 -->
+                    <div class="flight-route-box">
+                      <div class="flight-route-title">
+                        <span class="flight-dir-badge dir-out">🛫 去程 OUTBOUND</span>
+                        <span class="flight-pnr">訂位代號 (PNR): <strong>6X9K2P</strong></span>
+                      </div>
+                      <div class="flight-info-row">
+                        <div class="flight-city">
+                          <span class="city-code">TPE</span>
+                          <span class="city-name">台北 (桃園)</span>
+                        </div>
+                        <div class="flight-arrow">
+                          <span class="airline-name">台灣虎航 IT226</span>
+                          <div class="flight-line"><span class="plane">✈️</span></div>
+                          <span class="flight-type">A320neo / 直飛</span>
+                        </div>
+                        <div class="flight-city">
+                          <span class="city-code">NGO</span>
+                          <span class="city-name">名古屋 (中部)</span>
+                        </div>
+                      </div>
+                      <div class="flight-time-bar">
+                        ⏰ 起飛與到達時間：<strong>2026 / 08 / 01 (六) 12:00 - 14:00</strong>
+                      </div>
+                    </div>
+
+                    <!-- 回程航班資訊 -->
+                    <div class="flight-route-box" style="margin-top:1rem;">
+                      <div class="flight-route-title">
+                        <span class="flight-dir-badge dir-in">🛬 回程 INBOUND</span>
+                        <span class="flight-pnr">訂位代號 (PNR): <strong>MA9981</strong></span>
+                      </div>
+                      <div class="flight-info-row">
+                        <div class="flight-city">
+                          <span class="city-code">NGO</span>
+                          <span class="city-name">名古屋 (中部)</span>
+                        </div>
+                        <div class="flight-arrow">
+                          <span class="airline-name">樂桃航空 MA123</span>
+                          <div class="flight-line"><span class="plane">✈️</span></div>
+                          <span class="flight-type">A320 / 直飛</span>
+                        </div>
+                        <div class="flight-city">
+                          <span class="city-code">TPE</span>
+                          <span class="city-name">台北 (桃園)</span>
+                        </div>
+                      </div>
+                      <div class="flight-time-bar">
+                        ⏰ 起飛與到達時間：<strong>2026 / 08 / 06 (四) 10:00 - 12:00</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="boarding-pass-footer">
+                    <div class="voucher-thumb-wrap">
+                      <img src="assets/hero_bg.jpg" alt="電子機票截圖" loading="lazy">
+                      <span class="thumb-label">📷 附加憑證截圖 (已成功上傳)</span>
+                    </div>
+                    <div class="boarding-actions">
+                      <button class="btn btn-secondary" style="font-size:0.78rem; padding:0.35rem 0.75rem;">🔍 查看完整圖片截圖</button>
+                      <button class="btn btn-secondary" style="font-size:0.78rem; padding:0.35rem 0.75rem;">✏️ 編輯憑證</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 憑證 2：飯店住宿訂單憑證 -->
+                <div class="voucher-card-standard glass">
+                  <div class="voucher-std-header">
+                    <div style="display:flex; align-items:center; gap:0.6rem;">
+                      <span class="voucher-icon">🏨</span>
+                      <div>
+                        <h4>伊勢站前高級溫泉飯店 (2晚預約單)</h4>
+                        <span class="voucher-meta-text">📅 相關日期: 2026-08-01 ~ 2026-08-03 | 預訂確認號: #HT889120</span>
+                      </div>
+                    </div>
+                    <span class="guide-day-chip" style="background:rgba(16,185,129,0.12); color:#059669;">住宿憑證</span>
+                  </div>
+                  <div class="voucher-std-body">
+                    <div class="voucher-img-preview">
+                      <img src="assets/kyoto_street.png" alt="飯店訂房確認單截圖" loading="lazy">
+                    </div>
+                    <div class="voucher-std-info">
+                      <p>內含雙人日式大床房、含日式早餐與溫泉泡湯券。下午15:00即可辦理入住。</p>
+                      <div class="voucher-actions-row">
+                        <a href="https://booking.com" target="_blank" class="guide-link-btn">🔗 開啟 Booking.com 訂單</a>
+                        <button class="btn btn-secondary" style="font-size:0.75rem; padding:0.3rem 0.65rem;">✏️ 編輯明細</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
               </div>
             </div>
 
@@ -1340,6 +1623,76 @@
             <div class="form-group">
               <label for="v-date">相關日期</label>
               <input type="date" class="form-input" id="v-date">
+            </div>
+          </div>
+
+          <!-- ✈️ 航班資訊動態摺疊區塊 (選填) -->
+          <div class="voucher-flight-section glass" id="v-flight-details-container" style="padding: 1rem; border-radius: 12px; background: rgba(200, 92, 50, 0.04); border: 1px dashed rgba(200, 92, 50, 0.3); margin-bottom: 1rem;">
+            <div style="font-size: 0.88rem; font-weight: 700; color: var(--accent-color); margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between;">
+              <span>✈️ 航班預訂詳細資訊 (機票憑證選填)</span>
+              <span style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);">出國機票適用</span>
+            </div>
+
+            <!-- 去程航班 -->
+            <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.4rem; padding-bottom: 0.2rem; border-bottom: 1px solid rgba(0,0,0,0.06);">🛫 去程航班資訊</div>
+            <div class="form-grid" style="grid-template-columns: 1fr 1.2fr 1fr; gap: 0.5rem; margin-bottom: 0.75rem;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label style="font-size:0.75rem;">訂位代號 (PNR)</label>
+                <input type="text" class="form-input" id="v-flight-out-pnr" placeholder="例如：6X9K2P" style="padding: 0.35rem 0.5rem; font-size: 0.82rem;">
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label style="font-size:0.75rem;">航空公司下拉選單</label>
+                <select class="form-select" id="v-flight-out-airline" style="padding: 0.35rem 0.5rem; font-size: 0.82rem;">
+                  <option value="台灣虎航">台灣虎航 Tigerair</option>
+                  <option value="樂桃航空">樂桃航空 Peach</option>
+                  <option value="長榮航空">長榮航空 EVA Air</option>
+                  <option value="中華航空">中華航空 China Airlines</option>
+                  <option value="星宇航空">星宇航空 STARLUX</option>
+                  <option value="國泰航空">國泰航空 Cathay Pacific</option>
+                  <option value="日本航空">日本航空 JAL</option>
+                  <option value="全日空">全日空 ANA</option>
+                  <option value="其他航空公司">其他航空公司 (手動輸入)</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label style="font-size:0.75rem;">飛機型號/航班號</label>
+                <input type="text" class="form-input" id="v-flight-out-no" placeholder="例如：IT226" style="padding: 0.35rem 0.5rem; font-size: 0.82rem;">
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom:0.75rem;">
+              <label style="font-size:0.75rem;">起飛與到達時間</label>
+              <input type="text" class="form-input" id="v-flight-out-time" placeholder="例如：2026 / 08 / 01 12:00 - 14:00" style="padding: 0.35rem 0.5rem; font-size: 0.82rem;">
+            </div>
+
+            <!-- 回程航班 -->
+            <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.4rem; padding-bottom: 0.2rem; border-bottom: 1px solid rgba(0,0,0,0.06);">🛬 回程航班資訊</div>
+            <div class="form-grid" style="grid-template-columns: 1fr 1.2fr 1fr; gap: 0.5rem; margin-bottom: 0.75rem;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label style="font-size:0.75rem;">訂位代號 (PNR)</label>
+                <input type="text" class="form-input" id="v-flight-in-pnr" placeholder="例如：MA9981" style="padding: 0.35rem 0.5rem; font-size: 0.82rem;">
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label style="font-size:0.75rem;">航空公司下拉選單</label>
+                <select class="form-select" id="v-flight-in-airline" style="padding: 0.35rem 0.5rem; font-size: 0.82rem;">
+                  <option value="樂桃航空">樂桃航空 Peach</option>
+                  <option value="台灣虎航">台灣虎航 Tigerair</option>
+                  <option value="長榮航空">長榮航空 EVA Air</option>
+                  <option value="中華航空">中華航空 China Airlines</option>
+                  <option value="星宇航空">星宇航空 STARLUX</option>
+                  <option value="國泰航空">國泰航空 Cathay Pacific</option>
+                  <option value="日本航空">日本航空 JAL</option>
+                  <option value="全日空">全日空 ANA</option>
+                  <option value="其他航空公司">其他航空公司 (手動輸入)</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label style="font-size:0.75rem;">飛機型號/航班號</label>
+                <input type="text" class="form-input" id="v-flight-in-no" placeholder="例如：MA123" style="padding: 0.35rem 0.5rem; font-size: 0.82rem;">
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label style="font-size:0.75rem;">起飛與到達時間</label>
+              <input type="text" class="form-input" id="v-flight-in-time" placeholder="例如：2026 / 08 / 06 10:00 - 12:00" style="padding: 0.35rem 0.5rem; font-size: 0.82rem;">
             </div>
           </div>
           <div class="form-group">
