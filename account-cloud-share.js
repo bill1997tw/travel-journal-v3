@@ -279,6 +279,25 @@ function hideInvalidShare() {
   if (overlay) overlay.style.display = "none";
 }
 
+function selectShareLinkForManualCopy(input) {
+  input.focus();
+  input.select();
+  input.setSelectionRange?.(0, input.value.length);
+}
+
+async function copyShareLink(input) {
+  const value = input?.value || "";
+  if (!value) return false;
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error("clipboard_unavailable");
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    selectShareLinkForManualCopy(input);
+    return false;
+  }
+}
+
 async function initGuestReader(manager, token) {
   document.body.classList.add("guest-readonly-loading");
   let currentSignature = null;
@@ -437,8 +456,13 @@ function initOwnerShare(manager) {
 
   document.getElementById("share-copy-btn")?.addEventListener("click", async () => {
     if (!linkInput.value) return;
-    await navigator.clipboard.writeText(linkInput.value);
-    window.showToast?.("已複製分享連結。", "success");
+    const copied = await copyShareLink(linkInput);
+    window.showToast?.(
+      copied
+        ? "已複製分享連結。"
+        : "瀏覽器未允許自動複製，網址已選取；請長按複製或按 Ctrl+C。",
+      copied ? "success" : "info"
+    );
   });
 
   revokeButton?.addEventListener("click", async () => {

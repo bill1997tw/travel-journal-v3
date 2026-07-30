@@ -91,6 +91,18 @@ test("network errors remain retryable instead of pretending the link expired", a
   });
 });
 
+test("share link copying falls back to an explicitly selected URL", () => {
+  const source = fs.readFileSync(
+    new URL("../account-cloud-share.js", import.meta.url),
+    "utf8"
+  );
+  assert.match(source, /async function copyShareLink\(input\)/);
+  assert.match(source, /navigator\.clipboard\?\.writeText/);
+  assert.match(source, /selectShareLinkForManualCopy\(input\)/);
+  assert.match(source, /input\.setSelectionRange\?\.\(0, input\.value\.length\)/);
+  assert.match(source, /瀏覽器未允許自動複製/);
+});
+
 test("guest mode is a dedicated readonly page and exposes no local fallback", () => {
   const source = fs.readFileSync(
     new URL("../account-cloud-share.js", import.meta.url),
