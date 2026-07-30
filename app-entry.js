@@ -108,6 +108,8 @@
 
   async function showAuth() {
     await waitForSplash();
+    root.hidden = false;
+    appContainer?.setAttribute("inert", "");
     loading.hidden = true;
     authPanel.hidden = false;
     loginForm.elements.email.focus();
@@ -227,9 +229,10 @@
       if (!data.session) throw new Error("login_session_missing");
       syncDisplayNameFromSession(data.session);
       sessionStorage.removeItem(GUEST_SESSION_KEY);
-      window.location.reload();
+      await dismissEntry();
     } catch (error) {
       setMessage(friendlyAuthError(error), true);
+    } finally {
       setBusy(false);
     }
   }
@@ -269,7 +272,7 @@
       if (data.session) {
         syncDisplayNameFromSession(data.session);
         sessionStorage.removeItem(GUEST_SESSION_KEY);
-        window.location.reload();
+        await dismissEntry();
         return;
       }
       selectTab("login");
@@ -367,17 +370,24 @@
       return;
     }
 
-    client.auth.onAuthStateChange((event) => {
+    client.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY") {
         showAuth().then(() => selectStandaloneForm("reset"));
         return;
       }
       if (event === "SIGNED_OUT" && root.hidden) {
-        window.setTimeout(() => window.location.reload(), 0);
+        sessionStorage.removeItem(GUEST_SESSION_KEY);
+        window.setTimeout(() => {
+          showAuth().then(() => selectTab("login"));
+        }, 0);
         return;
       }
-      if (event === "SIGNED_IN" && !root.hidden) {
-        window.setTimeout(() => window.location.reload(), 0);
+      if (event === "SIGNED_IN" && session && !root.hidden) {
+        syncDisplayNameFromSession(session);
+        sessionStorage.removeItem(GUEST_SESSION_KEY);
+        window.setTimeout(() => {
+          dismissEntry();
+        }, 0);
       }
     });
 

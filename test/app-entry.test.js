@@ -47,8 +47,10 @@ test("login password visibility is explicit and accessible", () => {
 
 test("entry screen reacts to sign-in and sign-out changes from other tabs", () => {
   assert.match(entrySource, /event === "SIGNED_OUT" && root\.hidden/);
-  assert.match(entrySource, /event === "SIGNED_IN" && !root\.hidden/);
-  assert.match(entrySource, /window\.location\.reload\(\)/);
+  assert.match(entrySource, /event === "SIGNED_IN" && session && !root\.hidden/);
+  assert.match(entrySource, /showAuth\(\)\.then\(\(\) => selectTab\("login"\)\)/);
+  assert.match(entrySource, /window\.setTimeout\(\(\) => \{\s*dismissEntry\(\)/);
+  assert.doesNotMatch(entrySource, /window\.location\.reload\(\)/);
 });
 
 test("entry login explains offline authentication without blaming the password", () => {
@@ -94,7 +96,7 @@ test("entry assets are responsive and included in the offline shell", () => {
   assert.match(entryStyles, /\.stats-bar\[hidden\]/);
   assert.match(entryStyles, /@media \(max-width: 480px\)/);
   assert.match(entryStyles, /@media \(prefers-reduced-motion: reduce\)/);
-  assert.match(workerSource, /voyage-book-shell-v52/);
+  assert.match(workerSource, /voyage-book-shell-v53/);
   assert.match(workerSource, /"\.\/app-entry\.js"/);
   assert.match(workerSource, /"\.\/app-entry\.css"/);
 });
