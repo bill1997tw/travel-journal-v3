@@ -1572,6 +1572,23 @@ window.getActiveCloudTripId = function() {
   return trip?._cloud?.tripId || null;
 };
 
+window.refreshWorkspaceCloudPermissions = function() {
+  const trip = trips.find(item => item.id === activeTripId);
+  const cloudTripId = trip?._cloud?.tripId || null;
+  const role = cloudTripId
+    ? window.voyageAccountCloud?.getRoleForTrip?.(cloudTripId) || null
+    : null;
+  const shareButton = document.getElementById("ws-share-trip-btn");
+  if (shareButton) {
+    shareButton.hidden = role !== "owner";
+    shareButton.disabled = Boolean(cloudTripId && !role);
+    shareButton.title = role === "owner"
+      ? "建立或管理這趟旅程的免登入唯讀連結"
+      : "";
+  }
+  document.body.dataset.activeCloudRole = role || "local";
+};
+
 function CONTINENT_NAME(code) {
   const names = { Asia: "亞洲", Europe: "歐洲", NorthAmerica: "北美", SouthAmerica: "南美", Africa: "非洲", Oceania: "大洋洲" };
   return names[code] || code;
@@ -1629,6 +1646,7 @@ window.enterWorkspace = function(tripId) {
   baseEnterWorkspace(tripId);
   if (!activeTripId) return;
 
+  window.refreshWorkspaceCloudPermissions();
   refreshResponsiveShell();
   window.scrollTo({ top: 0, behavior: "smooth" });
 };

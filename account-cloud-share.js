@@ -441,6 +441,10 @@ function initOwnerShare(manager) {
       window.showToast?.("請先將這趟旅程儲存到雲端，再建立分享連結。", "error");
       return;
     }
+    if (window.voyageAccountCloud?.getRoleForTrip?.(tripId) !== "owner") {
+      window.showToast?.("只有這趟旅程的 Owner 可以建立免登入分享連結。", "error");
+      return;
+    }
     modal?.classList.add("active");
     linkBox.style.display = "none";
     if (statusText) {

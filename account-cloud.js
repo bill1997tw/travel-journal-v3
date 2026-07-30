@@ -1103,6 +1103,7 @@
   function renderTrips() {
     if (!ui) return;
     renderCloudHomeTrips();
+    window.refreshWorkspaceCloudPermissions?.();
     ui.tripList.replaceChildren();
     const importApi = getImportApi();
     let localTrips = [];
