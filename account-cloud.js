@@ -13,6 +13,7 @@
     queuedDrafts: [],
     remoteUpdates: {},
     realtimeChannel: null,
+    authSubscription: null,
     savingTripIds: new Set(),
     ledgerTripId: null,
     ledgerSnapshot: null,
@@ -1734,6 +1735,43 @@
     renderCloudHomeTrips();
   }
 
+  function clearSignedOutState() {
+    stopRealtimeUpdates();
+    state.session = null;
+    state.trips = [];
+    state.archivedTrips = [];
+    state.remoteUpdates = {};
+    state.preview = null;
+    closeLedgerSnapshot();
+    closeCollaboration();
+    renderSession();
+  }
+
+  function startAuthUpdates() {
+    if (!state.client || state.authSubscription) return;
+    const { data } = state.client.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        clearSignedOutState();
+        return;
+      }
+      if (event !== "SIGNED_IN" || !session?.user?.id || session.user.id === state.session?.user?.id) {
+        return;
+      }
+      state.session = session;
+      sessionStorage.removeItem(GUEST_SESSION_KEY);
+      window.setTimeout(async () => {
+        try {
+          await loadTrips();
+          startRealtimeUpdates();
+          renderSession();
+        } catch (error) {
+          setStatus(error.message || "帳號資料重新載入失敗，請重新整理頁面。", "error");
+        }
+      }, 0);
+    });
+    state.authSubscription = data?.subscription || null;
+  }
+
   async function loadTrips() {
     if (state.ledgerTestMode) {
       renderTrips();
@@ -1837,14 +1875,7 @@
     try {
       const { error } = await state.client.auth.signOut();
       if (error) throw error;
-      stopRealtimeUpdates();
-      state.session = null;
-      state.trips = [];
-      state.archivedTrips = [];
-      state.remoteUpdates = {};
-      state.preview = null;
-      closeLedgerSnapshot();
-      closeCollaboration();
+      clearSignedOutState();
       window.location.reload();
     } catch (error) {
       setMessage(error.message || "登出失敗，請稍後再試。", true);
@@ -2079,6 +2110,7 @@
       setStatus("雲端設定未完成", "error");
       return;
     }
+    startAuthUpdates();
 
     try {
       const { data, error } = await client.auth.getSession();

@@ -358,6 +358,14 @@
     client.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
         showAuth().then(() => selectStandaloneForm("reset"));
+        return;
+      }
+      if (event === "SIGNED_OUT" && root.hidden) {
+        window.setTimeout(() => window.location.reload(), 0);
+        return;
+      }
+      if (event === "SIGNED_IN" && !root.hidden) {
+        window.setTimeout(() => window.location.reload(), 0);
       }
     });
 

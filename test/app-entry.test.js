@@ -45,6 +45,12 @@ test("login password visibility is explicit and accessible", () => {
   assert.match(entryStyles, /\.app-entry-password-field/);
 });
 
+test("entry screen reacts to sign-in and sign-out changes from other tabs", () => {
+  assert.match(entrySource, /event === "SIGNED_OUT" && root\.hidden/);
+  assert.match(entrySource, /event === "SIGNED_IN" && !root\.hidden/);
+  assert.match(entrySource, /window\.location\.reload\(\)/);
+});
+
 test("password recovery is self-service and never stores the new password", () => {
   assert.match(htmlSource, /id="app-entry-forgot-btn"/);
   assert.match(htmlSource, /id="app-entry-forgot-form"/);
@@ -81,7 +87,7 @@ test("entry assets are responsive and included in the offline shell", () => {
   assert.match(entryStyles, /\.stats-bar\[hidden\]/);
   assert.match(entryStyles, /@media \(max-width: 480px\)/);
   assert.match(entryStyles, /@media \(prefers-reduced-motion: reduce\)/);
-  assert.match(workerSource, /voyage-book-shell-v46/);
+  assert.match(workerSource, /voyage-book-shell-v47/);
   assert.match(workerSource, /"\.\/app-entry\.js"/);
   assert.match(workerSource, /"\.\/app-entry\.css"/);
 });

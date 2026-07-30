@@ -45,6 +45,16 @@ test("secondary cloud login can reveal and hide the password accessibly", () => 
   assert.match(cloudStyles, /\.account-cloud-password-field/);
 });
 
+test("cloud account state follows sign-in and sign-out events across tabs", () => {
+  assert.match(cloudSource, /authSubscription: null/);
+  assert.match(cloudSource, /function startAuthUpdates\(\)/);
+  assert.match(cloudSource, /auth\.onAuthStateChange\(\(event, session\) =>/);
+  assert.match(cloudSource, /event === "SIGNED_OUT"/);
+  assert.match(cloudSource, /clearSignedOutState\(\)/);
+  assert.match(cloudSource, /event !== "SIGNED_IN"/);
+  assert.match(cloudSource, /sessionStorage\.removeItem\(GUEST_SESSION_KEY\)/);
+});
+
 test("secondary remember-me control stays compact and accessible", () => {
   assert.match(cloudStyles, /\.account-cloud-login-options/);
   assert.match(cloudStyles, /\.account-cloud-auth \.account-cloud-remember/);

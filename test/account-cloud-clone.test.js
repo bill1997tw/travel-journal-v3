@@ -32,6 +32,6 @@ test("clone retries reuse an existing owner copy instead of duplicating it", () 
 });
 
 test("clone release uses fresh script and offline cache versions", () => {
-  assert.match(configSource, /account-cloud\.js\?v=account_cloud_v24/);
-  assert.match(serviceWorkerSource, /voyage-book-shell-v46/);
+  assert.match(configSource, /account-cloud\.js\?v=account_cloud_v25/);
+  assert.match(serviceWorkerSource, /voyage-book-shell-v47/);
 });
