@@ -155,15 +155,26 @@
       ?.addEventListener("click", revokeLineBinding);
     ui.lineBindingContent.querySelector(".account-cloud-line-copy")
       ?.addEventListener("click", async () => {
-        await navigator.clipboard.writeText(`綁定旅程 ${state.linePairingCode}`);
-        setMessage("配對碼已複製，請貼到要連動的小二算帳 LINE 群組。");
+        const command = `綁定旅程 ${state.linePairingCode}`;
+        const codeElement = ui.lineBindingContent.querySelector(".account-cloud-line-code strong");
+        const copied = await copyTextWithFallback(command, codeElement);
+        setMessage(copied
+          ? "配對碼已複製，請貼到要連動的小二算帳 LINE 群組。"
+          : `瀏覽器未允許自動複製，代碼已選取；請在 LINE 手動輸入「${command}」。`
+        );
       });
     ui.lineBindingContent.querySelector(".account-cloud-line-member-create")
       ?.addEventListener("click", createLineMemberClaim);
     ui.lineBindingContent.querySelector(".account-cloud-line-member-copy")
       ?.addEventListener("click", async () => {
-        await navigator.clipboard.writeText(`連結成員 ${state.lineMemberPairingCode}`);
-        setMessage("成員連結指令已複製，請用自己的 LINE 帳號貼到已綁定的小二群組。");
+        const command = `連結成員 ${state.lineMemberPairingCode}`;
+        const codeElements = ui.lineBindingContent.querySelectorAll(".account-cloud-line-code strong");
+        const codeElement = codeElements[codeElements.length - 1] || null;
+        const copied = await copyTextWithFallback(command, codeElement);
+        setMessage(copied
+          ? "成員連結指令已複製，請用自己的 LINE 帳號貼到已綁定的小二群組。"
+          : `瀏覽器未允許自動複製，代碼已選取；請在 LINE 手動輸入「${command}」。`
+        );
       });
   }
 
@@ -306,6 +317,26 @@
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#039;");
+  }
+
+  function selectTextForManualCopy(element) {
+    if (!element || !window.getSelection || !document.createRange) return;
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  async function copyTextWithFallback(text, fallbackElement) {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("clipboard_unavailable");
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      selectTextForManualCopy(fallbackElement);
+      return false;
+    }
   }
 
   function setStatus(message, tone = "neutral") {
