@@ -3919,10 +3919,16 @@ function openExpenseModal(itemId = null) {
         document.getElementById("exp-name").value = item.name;
         document.getElementById("exp-day").value = item.day;
         document.getElementById("exp-category").value = item.category;
-        document.getElementById("exp-price").value = item.cost;
+        const originalCurrency = item.originalCurrency || "TWD";
+        const originalAmount = Number(item.originalAmount);
+        document.getElementById("exp-currency").value = originalCurrency;
+        document.getElementById("exp-price").value = Number.isFinite(originalAmount)
+          ? originalAmount
+          : item.cost;
         document.getElementById("exp-qty").value = item.splitCount;
         document.getElementById("exp-notes").value = item.notes || "";
         if (payerInput) payerInput.value = item.payer || "";
+        onExpenseCurrencyOrAmountChange();
       }
     }
   } else {
@@ -3960,9 +3966,18 @@ function handleExpenseSubmit(e) {
   const payer = payerInput ? payerInput.value.trim() : "";
 
   let cost = inputCost;
+  let exchangeRateSnapshot = null;
   if (currency !== "TWD" && inputCost > 0) {
-    const rate = LIVE_EXCHANGE_RATES[currency] || 1;
+    const rate = getExchangeRate(currency);
+    if (!rate) {
+      showToast("目前無法取得有效匯率，這筆外幣支出尚未儲存。", "error");
+      return;
+    }
     cost = Math.round(inputCost / rate);
+    exchangeRateSnapshot = window.VoyageExchangeRates?.createRateAudit(
+      EXCHANGE_RATE_SNAPSHOT,
+      currency
+    ) || null;
     const foreignTag = `[${inputCost.toLocaleString()} ${currency}]`;
     if (!notes.includes(foreignTag)) {
       notes = notes ? `${notes} ${foreignTag}` : foreignTag;
@@ -3973,18 +3988,30 @@ function handleExpenseSubmit(e) {
   if (!trip.advances) trip.advances = [];
 
   let savedExpenseId = id;
+  const expensePayload = {
+    name,
+    day,
+    category,
+    cost,
+    splitCount,
+    notes,
+    payer,
+    originalCurrency: currency,
+    originalAmount: inputCost,
+    exchangeRateSnapshot
+  };
 
   if (id) {
     const idx = trip.ledger.findIndex(item => item.id === id);
     if (idx !== -1) {
-      trip.ledger[idx] = { id, name, day, category, cost, splitCount, notes, payer };
+      trip.ledger[idx] = { id, ...expensePayload };
     }
     showToast("帳目明細已修改！", "success");
   } else {
     savedExpenseId = "exp-" + Date.now();
     trip.ledger.push({
       id: savedExpenseId,
-      name, day, category, cost, splitCount, notes, payer
+      ...expensePayload
     });
     showToast("記帳成功！", "success");
   }
@@ -6956,30 +6983,63 @@ function startGreetingEdit() {
 }
 
 // ==================== 💱 即時匯率換算器與連動功能 ====================
-let LIVE_EXCHANGE_RATES = {
-  "TWD": 1,
-  "JPY": 4.65,     // 1 TWD = 4.65 JPY => 1 JPY = 0.215 TWD
-  "USD": 0.031,    // 1 TWD = 0.031 USD => 1 USD = 32.25 TWD
-  "EUR": 0.0285,
-  "KRW": 42.5,
-  "THB": 1.12,
-  "NZD": 0.052,    // 1 TWD = 0.052 NZD => 1 NZD = 19.23 TWD
-  "HKD": 0.242,
-  "GBP": 0.0245
-};
+const exchangeRateApi = window.VoyageExchangeRates;
+let EXCHANGE_RATE_SNAPSHOT = exchangeRateApi?.loadSnapshot(localStorage)
+  || exchangeRateApi?.fallbackSnapshot()
+  || { rates: { TWD: 1 }, status: "estimate", provider: "unavailable" };
+let LIVE_EXCHANGE_RATES = EXCHANGE_RATE_SNAPSHOT.rates;
+
+function getExchangeRate(currency) {
+  const rate = Number(LIVE_EXCHANGE_RATES?.[currency]);
+  return Number.isFinite(rate) && rate > 0 ? rate : null;
+}
+
+function updateExchangeRateStatus() {
+  const tag = document.getElementById("modal-rate-time-tag");
+  if (!tag) return;
+  if (EXCHANGE_RATE_SNAPSHOT.status === "live") {
+    const observedAt = new Date(EXCHANGE_RATE_SNAPSHOT.observedAt);
+    tag.textContent = `即時匯率 · ${observedAt.toLocaleString("zh-TW")}`;
+    tag.title = `資料來源：${EXCHANGE_RATE_SNAPSHOT.provider}`;
+    return;
+  }
+  if (EXCHANGE_RATE_SNAPSHOT.status === "cached") {
+    const observedAt = new Date(EXCHANGE_RATE_SNAPSHOT.observedAt);
+    tag.textContent = `最近匯率 · ${observedAt.toLocaleString("zh-TW")}`;
+    tag.title = `目前離線或更新失敗，沿用 ${EXCHANGE_RATE_SNAPSHOT.provider} 最近成功資料`;
+    return;
+  }
+  tag.textContent = "離線估算（非即時）";
+  tag.title = "目前沒有可用的近期匯率，僅供粗略參考";
+}
 
 async function fetchLiveExchangeRates() {
+  if (!exchangeRateApi) {
+    updateExchangeRateStatus();
+    return;
+  }
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 8000);
   try {
-    const res = await fetch("https://open.er-api.com/v6/latest/TWD");
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.rates) {
-        LIVE_EXCHANGE_RATES = data.rates;
-        LIVE_EXCHANGE_RATES["TWD"] = 1;
-      }
-    }
+    const res = await fetch("https://open.er-api.com/v6/latest/TWD", {
+      cache: "no-store",
+      signal: controller.signal
+    });
+    if (!res.ok) throw new Error(`exchange_rate_http_${res.status}`);
+    EXCHANGE_RATE_SNAPSHOT = exchangeRateApi.normalizeApiResponse(
+      await res.json(),
+      new Date()
+    );
+    LIVE_EXCHANGE_RATES = EXCHANGE_RATE_SNAPSHOT.rates;
+    exchangeRateApi.saveSnapshot(localStorage, EXCHANGE_RATE_SNAPSHOT);
+    updateExchangeRateStatus();
+    calculateExchangeRateResult();
+    onExpenseCurrencyOrAmountChange();
   } catch (err) {
-    console.warn("離線環境，使用備份匯率數據:", err);
+    console.warn("Could not refresh exchange rates; using the labeled local fallback.", err);
+    updateExchangeRateStatus();
+  } finally {
+    window.clearTimeout(timeoutId);
   }
 }
 fetchLiveExchangeRates();
@@ -6990,6 +7050,7 @@ window.toggleExchangeRateModal = function() {
   const isHidden = getComputedStyle(modal).display === "none";
   modal.style.display = isHidden ? "flex" : "none";
   if (isHidden) {
+    updateExchangeRateStatus();
     calculateExchangeRateResult();
   }
 };
@@ -7015,14 +7076,19 @@ window.calculateExchangeRateResult = function() {
     { code: "GBP", name: "英鎊 GBP", icon: "🇬🇧", symbol: "£" }
   ];
 
-  const rateFrom = LIVE_EXCHANGE_RATES[fromCurr] || 1;
+  const rateFrom = getExchangeRate(fromCurr);
+  if (!rateFrom) {
+    listContainer.textContent = "目前沒有這個幣別的有效匯率。";
+    return;
+  }
   const amountInTWD = amount / rateFrom;
 
   let html = "";
   targetCurrencies.forEach(curr => {
     if (curr.code === fromCurr) return; // 跳過基準幣別自己
 
-    const rateTo = LIVE_EXCHANGE_RATES[curr.code] || 1;
+    const rateTo = getExchangeRate(curr.code);
+    if (!rateTo) return;
     const targetAmount = amountInTWD * rateTo;
     const unitRate = (1 / rateFrom) * rateTo;
 
@@ -7084,12 +7150,22 @@ window.onExpenseCurrencyOrAmountChange = function() {
     return;
   }
   
-  const rate = LIVE_EXCHANGE_RATES[curr] || 1;
+  const rate = getExchangeRate(curr);
+  if (!rate) {
+    hintEl.style.display = "block";
+    hintEl.textContent = "目前沒有有效匯率，暫時無法換算或儲存此外幣金額。";
+    return;
+  }
   const twdVal = Math.round(val / rate);
   const unitRate = (1 / rate).toFixed(4);
+  const rateLabel = EXCHANGE_RATE_SNAPSHOT.status === "live"
+    ? "即時匯率"
+    : EXCHANGE_RATE_SNAPSHOT.status === "cached"
+      ? "最近成功匯率"
+      : "離線估算匯率（非即時）";
   
   hintEl.style.display = "block";
-  hintEl.innerHTML = `💡 外幣 <strong>${val.toLocaleString()} ${curr}</strong> 依即時匯率 (1 ${curr} ≈ ${unitRate} TWD) 折合約 <strong>NT$ ${twdVal.toLocaleString()}</strong>`;
+  hintEl.innerHTML = `💡 外幣 <strong>${val.toLocaleString()} ${curr}</strong> 依${rateLabel} (1 ${curr} ≈ ${unitRate} TWD) 折合約 <strong>NT$ ${twdVal.toLocaleString()}</strong>`;
 };
 
 // 📱 手機端懸浮快捷工具膠囊切換

@@ -1,4 +1,4 @@
-const CACHE_NAME = "voyage-book-shell-v59";
+const CACHE_NAME = "voyage-book-shell-v60";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -8,6 +8,7 @@ const APP_SHELL = [
   "./app.js",
   "./app-entry.js",
   "./cloud-sync.js",
+  "./exchange-rate.js",
   "./supabase-config.js",
   "./manifest.webmanifest",
   "./assets/app-icon.svg",
