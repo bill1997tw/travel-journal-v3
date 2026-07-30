@@ -2354,6 +2354,12 @@
     openLedgerForLocalTrip,
     refresh: loadTrips,
     scheduleTripSave,
+    createLifecycleService: () => {
+      const lifecycleApi = window.VoyageAccountLifecycle;
+      const client = ensureClient();
+      if (!lifecycleApi?.create || !client) return null;
+      return lifecycleApi.create(client);
+    },
     getSession: () => state.session,
     getTrips: () => state.trips.map((trip) => ({ ...trip })),
     getRoleForTrip: (tripId) => {

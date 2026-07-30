@@ -11,14 +11,32 @@
       });
       document.head.appendChild(accountScript);
     };
+    const loadAccountLifecycle = () => {
+      const lifecycleScript = document.createElement("script");
+      lifecycleScript.src =
+        bootstrapConfig.accountLifecycleScript || "account-lifecycle.js";
+      lifecycleScript.defer = true;
+      lifecycleScript.addEventListener("load", loadAccountCloud, {
+        once: true
+      });
+      lifecycleScript.addEventListener("error", () => {
+        console.error(
+          "Account lifecycle module could not be loaded; account deletion remains unavailable."
+        );
+        loadAccountCloud();
+      }, { once: true });
+      document.head.appendChild(lifecycleScript);
+    };
     const loadLedgerModule = () => {
       const ledgerScript = document.createElement("script");
       ledgerScript.src = bootstrapConfig.accountCloudLedgerScript || "account-cloud-ledger.js";
       ledgerScript.defer = true;
-      ledgerScript.addEventListener("load", loadAccountCloud, { once: true });
+      ledgerScript.addEventListener("load", loadAccountLifecycle, {
+        once: true
+      });
       ledgerScript.addEventListener("error", () => {
         console.error("Read-only ledger module could not be loaded; account cloud remains available.");
-        loadAccountCloud();
+        loadAccountLifecycle();
       }, { once: true });
       document.head.appendChild(ledgerScript);
     };

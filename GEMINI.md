@@ -52,7 +52,35 @@ on 2026-07-25. Clean local copies require an explicit
 `比較版本`. `cloudTestRealtime=1` is localhost-only and must remain ignored
 on deployed hosts. The acceptance run restored the original two local trips.
 
-Steps A-D are complete. Automatic synchronization remains disabled. Before
-adding background writes, re-evaluate that requirement at an architecture
-checkpoint; the planned next product layer is `packages/ledger-core` in the
-cloud platform repository.
+Steps A-D and guarded automatic saving are complete. Automatic writes must
+remain restricted to signed-in owners and editors, preserve queued offline
+drafts, and keep revision-conflict recovery intact. Ledger mutations remain in
+the cloud platform RPC layer and must not be reimplemented in the UI.
+
+## 2026-07-31 release-candidate integration contract
+
+The system branch is `codex/unified-remember-login`. The UI branch must merge
+this branch, not copy individual functions out of it.
+
+System-owned browser modules now include:
+
+- `account-lifecycle.js`
+- `api/account-permanent-deletion.js`
+- `api/account-deletion-recovery.js`
+- `exchange-rate.js`
+- `local-account-vault.js`
+
+`cloud-sync.js` loads `account-lifecycle.js` before `account-cloud.js`.
+Account-settings UI may call:
+
+```js
+const lifecycle = window.voyageAccountCloud?.createLifecycleService?.();
+```
+
+If it returns `null`, show an unavailable state and do not simulate success.
+Do not call the service-role endpoints directly, duplicate confirmation
+phrases, store passwords, or expose server environment variables.
+
+The final UI merge must bump the HTML and service-worker cache versions for all
+changed release assets. It must retain the account lifecycle load chain and
+run `node --test` before deployment.
