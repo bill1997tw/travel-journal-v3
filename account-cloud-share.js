@@ -49,6 +49,33 @@ function parseExpiry(days) {
   return expiresAt.toISOString();
 }
 
+function formatOwnerShareStatus(status) {
+  if (status?.is_active) {
+    if (!status.expires_at) {
+      return { text: "目前已有有效的免登入連結（無期限）。", tone: "live" };
+    }
+    const expiresAt = new Date(status.expires_at);
+    const formatted = Number.isNaN(expiresAt.getTime())
+      ? "已設定期限"
+      : expiresAt.toLocaleString("zh-TW");
+    return { text: `目前連結有效，到期時間：${formatted}`, tone: "live" };
+  }
+  if (status?.has_share) {
+    return {
+      text: "先前的分享連結已過期或停用，可重新建立新連結。",
+      tone: "expired"
+    };
+  }
+  return { text: "尚未建立免登入分享連結。", tone: "neutral" };
+}
+
+function renderOwnerShareStatus(element, status) {
+  if (!element) return;
+  const display = formatOwnerShareStatus(status);
+  element.textContent = display.text;
+  element.dataset.tone = display.tone;
+}
+
 function formatRefreshTime(date = new Date()) {
   return new Intl.DateTimeFormat("zh-TW", {
     hour: "2-digit",
@@ -399,6 +426,7 @@ function initOwnerShare(manager) {
   const ledgerInput = document.getElementById("share-scope-ledger");
   const vouchersInput = document.getElementById("share-scope-tickets");
   const expiryInput = document.getElementById("share-expires-days");
+  const statusText = document.getElementById("share-owner-status");
   let hasActiveShare = false;
 
   const getTripId = () => window.getActiveCloudTripId?.() || null;
@@ -415,9 +443,17 @@ function initOwnerShare(manager) {
     }
     modal?.classList.add("active");
     linkBox.style.display = "none";
+    if (statusText) {
+      statusText.textContent = "正在確認目前分享狀態…";
+      statusText.dataset.tone = "neutral";
+    }
     try {
       const status = await manager.status(tripId);
       hasActiveShare = Boolean(status?.is_active);
+      renderOwnerShareStatus(statusText, status);
+      generateButton.textContent = hasActiveShare
+        ? "重新產生分享連結"
+        : "產生分享連結";
       revokeButton.style.display = status?.is_active ? "inline-block" : "none";
       alternativesInput.checked = status?.has_share
         ? Boolean(status.include_alternatives)
@@ -455,6 +491,12 @@ function initOwnerShare(manager) {
       linkBox.style.display = "block";
       revokeButton.style.display = "inline-block";
       hasActiveShare = true;
+      renderOwnerShareStatus(statusText, {
+        has_share: true,
+        is_active: true,
+        expires_at: result.expires_at || null
+      });
+      generateButton.textContent = "重新產生分享連結";
       window.showToast?.("唯讀分享連結已建立。舊連結已立即失效。", "success");
     } catch {
       window.showToast?.("建立分享連結失敗，請確認你是旅程擁有者。", "error");
@@ -483,6 +525,8 @@ function initOwnerShare(manager) {
       linkBox.style.display = "none";
       revokeButton.style.display = "none";
       hasActiveShare = false;
+      renderOwnerShareStatus(statusText, { has_share: true, is_active: false });
+      generateButton.textContent = "產生分享連結";
       window.showToast?.("分享連結已停用。", "success");
     } catch {
       window.showToast?.("停用失敗，請稍後再試。", "error");

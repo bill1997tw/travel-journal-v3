@@ -181,3 +181,29 @@ test("guest refresh detects itinerary and ledger changes independently", () => {
   assert.notEqual(getGuestTripSignature(base), getGuestTripSignature(itineraryChanged));
   assert.notEqual(getGuestTripSignature(base), getGuestTripSignature(ledgerChanged));
 });
+
+test("owners can see whether a share is active, expired, or not created", () => {
+  const source = fs.readFileSync(
+    new URL("../account-cloud-share.js", import.meta.url),
+    "utf8"
+  );
+  const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const styles = fs.readFileSync(
+    new URL("../cloud-sync.css", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    html,
+    /id="share-owner-status" role="status" aria-live="polite"/
+  );
+  assert.match(source, /function formatOwnerShareStatus\(status\)/);
+  assert.match(source, /目前連結有效，到期時間/);
+  assert.match(source, /先前的分享連結已過期或停用/);
+  assert.match(source, /尚未建立免登入分享連結/);
+  assert.match(
+    source,
+    /generateButton\.textContent = hasActiveShare[\s\S]*重新產生分享連結/
+  );
+  assert.match(styles, /\.guest-share-owner-status\[data-tone="live"\]/);
+});

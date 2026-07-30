@@ -383,6 +383,26 @@
   color: var(--danger);
 }
 
+.guest-share-owner-status {
+  margin: -0.45rem 0 1rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  color: var(--text-secondary);
+  background: var(--bg-body);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.guest-share-owner-status[data-tone="live"] {
+  border-color: color-mix(in srgb, #2f7d55 35%, var(--border-color));
+  color: #2f7d55;
+}
+
+.guest-share-owner-status[data-tone="expired"] {
+  color: var(--danger);
+}
+
 .account-cloud-trip-list {
   display: grid;
   gap: 0.65rem;
