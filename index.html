@@ -310,6 +310,9 @@
               <button class="ws-menu-item active" data-ws-tab="itinerary">
                 <span>📅 詳細行程與備案</span>
               </button>
+              <button class="ws-menu-item" data-ws-tab="guides">
+                <span>📚 攻略收藏庫</span>
+              </button>
               <button class="ws-menu-item" data-ws-tab="checklists">
                 <span>🧳 行李與待辦清單</span>
               </button>
@@ -341,6 +344,7 @@
               <div class="panel-section-header">
                 <h2>📅 每日詳細行程規劃</h2>
                 <div style="display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:flex-end;">
+                  <button class="btn btn-secondary quick-guide-shortcut-btn" data-ws-tab="guides" style="font-size:0.8rem; padding:0.45rem 0.8rem; background:linear-gradient(135deg, rgba(200,92,50,0.12), rgba(245,158,11,0.15)); border-color:rgba(200,92,50,0.3); color:var(--accent-color); font-weight:700;">💡 DAY 1 攻略 3 則</button>
                   <button class="btn btn-secondary" id="iti-import-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">🔌 智慧匯入</button>
                   <button class="btn btn-secondary" id="ws-route-import-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">🗺️ 匯入 Google 路線</button>
                   <button class="btn btn-primary" id="ws-add-schedule-btn" style="font-size:0.8rem; padding:0.45rem 0.8rem;">➕ 新增日程項目</button>
@@ -430,7 +434,170 @@
               </div>
             </div>
 
-            <!-- B. 行李與待辦清單 -->
+            <!-- B. 攻略收藏庫 (Guides & Travel Vault) -->
+            <div class="ws-tab-panel" id="ws-panel-guides">
+              <div class="panel-section-header">
+                <div>
+                  <h2 style="font-size:1.4rem; font-weight:800; color:var(--text-primary);">📚 旅程攻略收藏庫 (Guides & Travel Vault)</h2>
+                  <p style="font-size:0.86rem; color:var(--text-secondary); margin-top:0.25rem;">
+                    集合景點地圖、IG/TikTok 影音短片與個人重點備忘，隨時翻閱查閱，路上彈性調整！
+                  </p>
+                </div>
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:flex-end;">
+                  <button class="btn btn-primary" id="guides-add-btn" style="font-size:0.8rem; padding:0.45rem 0.85rem;">➕ 新增攻略項目</button>
+                </div>
+              </div>
+
+              <!-- 1. 🖼️ 圖片攻略區塊 -->
+              <div class="guides-section-box">
+                <div class="guides-section-title">
+                  <h3>🖼️ 圖片攻略與路線地圖</h3>
+                  <span class="guides-badge-count">4 張高畫質地圖</span>
+                </div>
+                <div class="guides-image-grid">
+                  <!-- 圖片卡片 1 -->
+                  <div class="guide-card guide-card-image glass">
+                    <div class="guide-image-wrap">
+                      <img src="assets/kyoto_street.png" alt="伊勢神宮參拜路線與托福橫丁地圖" loading="lazy">
+                      <span class="guide-type-tag">📍 路線地圖</span>
+                    </div>
+                    <div class="guide-card-body">
+                      <h4>伊勢神宮參拜路線與托福橫丁散策地圖</h4>
+                      <p>內宮參拜約需 60 分鐘，順路步行至托福橫丁享用赤福餅與伊勢烏龍麵。</p>
+                      <div class="guide-card-footer">
+                        <span class="guide-day-chip">DAY 1 必看</span>
+                        <button class="guide-action-btn" title="查看大圖">🔍 放大檢視</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 圖片卡片 2 -->
+                  <div class="guide-card guide-card-image glass">
+                    <div class="guide-image-wrap">
+                      <img src="assets/hero_bg.jpg" alt="名古屋手羽先與鰻魚飯三吃攻略圖" loading="lazy">
+                      <span class="guide-type-tag">🍜 美食地圖</span>
+                    </div>
+                    <div class="guide-card-body">
+                      <h4>名古屋手羽先 (風來坊 vs 矢場) 名店評比</h4>
+                      <p>手羽先以胡椒香氣為主；鰻魚飯三吃首推蓬萊軒熱田神宮店，建議11點前抽取號碼牌。</p>
+                      <div class="guide-card-footer">
+                        <span class="guide-day-chip">DAY 2 必看</span>
+                        <button class="guide-action-btn" title="查看大圖">🔍 放大檢視</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 圖片卡片 3 -->
+                  <div class="guide-card guide-card-image glass">
+                    <div class="guide-image-wrap">
+                      <img src="assets/kyoto_street.png" alt="日本重機國道 ETC 匝道過閘提示" loading="lazy">
+                      <span class="guide-type-tag">🏍️ 交通須知</span>
+                    </div>
+                    <div class="guide-card-body">
+                      <h4>日本重機國道 ETC 專用車道過閘與速限圖解</h4>
+                      <p>過閘速限 20km/h 以下，兩車請保持前後縱隊排隊過閘，不可併排過閘。</p>
+                      <div class="guide-card-footer">
+                        <span class="guide-day-chip">通用指南</span>
+                        <button class="guide-action-btn" title="查看大圖">🔍 放大檢視</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 圖片卡片 4 -->
+                  <div class="guide-card guide-card-image glass">
+                    <div class="guide-image-wrap">
+                      <img src="assets/hero_bg.jpg" alt="阿里山觀日出與祝山步道路線圖" loading="lazy">
+                      <span class="guide-type-tag">🏞️ 步道地圖</span>
+                    </div>
+                    <div class="guide-card-body">
+                      <h4>阿里山祝山觀日平台與小笠原山360度展望台</h4>
+                      <p>搭乘首班小火車至祝山站後，步行 10 分鐘至小笠原山展望台看玉山日出視野最佳。</p>
+                      <div class="guide-card-footer">
+                        <span class="guide-day-chip">DAY 2 必看</span>
+                        <button class="guide-action-btn" title="查看大圖">🔍 放大檢視</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2. 🎬 短影片／文章連結區塊 -->
+              <div class="guides-section-box" style="margin-top:2rem;">
+                <div class="guides-section-title">
+                  <h3>🎬 影音短片與專欄連結</h3>
+                  <span class="guides-badge-count">3 則推薦內容</span>
+                </div>
+                <div class="guides-media-grid">
+                  <!-- 媒體卡片 1 -->
+                  <div class="guide-card guide-card-media glass">
+                    <div class="guide-media-badge platform-tiktok">📱 TikTok 短影音</div>
+                    <h4>【15秒短片】伊勢神宮赤福餅現做直擊！排隊免等小撇步</h4>
+                    <p>短影片示範赤福本店內用川側茶席號碼牌領取地點與必點限定組合。</p>
+                    <div class="guide-media-meta">
+                      <span>🔥 12.4K 觀看</span>
+                      <a href="https://tiktok.com" target="_blank" rel="noopener noreferrer" class="guide-link-btn">▶️ 觀看短片</a>
+                    </div>
+                  </div>
+
+                  <!-- 媒體卡片 2 -->
+                  <div class="guide-card guide-card-media glass">
+                    <div class="guide-media-badge platform-ig">📷 IG Reel 爆款</div>
+                    <h4>【Reel 實測】CB400 重機騎乘伊勢志摩 Sky Line 海岸線實錄</h4>
+                    <p>絕美海景公路彎道鏡頭，標示最佳停靠展望台與拍攝點。</p>
+                    <div class="guide-media-meta">
+                      <span>❤️ 8.9K 點讚</span>
+                      <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" class="guide-link-btn">▶️ 開啟 IG</a>
+                    </div>
+                  </div>
+
+                  <!-- 媒體卡片 3 -->
+                  <div class="guide-card guide-card-media glass">
+                    <div class="guide-media-badge platform-blog">📝 深度部落格</div>
+                    <h4>【食記專欄】茶田35號日出精緻早餐與阿里山高山茶品茗完整攻略</h4>
+                    <p>詳細記錄日出早餐預約機制、用餐環境與高山烏龍茶品茗體驗。</p>
+                    <div class="guide-media-meta">
+                      <span>⭐ 4.9 顆星推薦</span>
+                      <a href="https://blog.com" target="_blank" rel="noopener noreferrer" class="guide-link-btn">🔗 閱讀專欄</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 3. 📝 個人重點筆記區塊 -->
+              <div class="guides-section-box" style="margin-top:2rem;">
+                <div class="guides-section-title">
+                  <h3>📝 個人重點筆記與提醒</h3>
+                  <span class="guides-badge-count">2 則隨手備忘</span>
+                </div>
+                <div class="guides-notes-grid">
+                  <!-- 筆記卡片 1 -->
+                  <div class="guide-note-card note-color-amber glass">
+                    <div class="note-card-header">
+                      <span class="note-pin">📌</span>
+                      <h4>【現金與支付提醒】老街店家備妥日幣</h4>
+                    </div>
+                    <p>托福橫丁與老街部分老店僅收日幣現金或 Paypay，建議隨身預備 10,000 日圓現金。</p>
+                    <div class="note-card-footer">
+                      <span>建立時間: 2026-07-28</span>
+                    </div>
+                  </div>
+
+                  <!-- 筆記卡片 2 -->
+                  <div class="guide-note-card note-color-emerald glass">
+                    <div class="note-card-header">
+                      <span class="note-pin">📌</span>
+                      <h4>【雨備行程方案】鳥羽水族館備案</h4>
+                    </div>
+                    <p>若遇大雨不便騎車，備案改往「鳥羽水族館」，門票約 2,800 日圓，室內展區超豐富。</p>
+                    <div class="note-card-footer">
+                      <span>建立時間: 2026-07-28</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- C. 行李與待辦清單 -->
             <div class="ws-tab-panel" id="ws-panel-checklists">
               <div class="checklist-workspace-layout">
                 <!-- 1. 行前行李清單 -->
