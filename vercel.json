@@ -1,5 +1,11 @@
 {
   "cleanUrls": true,
+  "crons": [
+    {
+      "path": "/api/account-deletion-recovery",
+      "schedule": "17 3 * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/index.html",
