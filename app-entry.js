@@ -75,6 +75,14 @@
 
   function friendlyAuthError(error) {
     const text = String(error?.message || "").toLowerCase();
+    if (
+      !navigator.onLine
+      || text.includes("failed to fetch")
+      || text.includes("network")
+      || text.includes("timeout")
+    ) {
+      return "目前網路不穩，無法驗證登入。請確認連線後再試；已保存在本機的旅程不會消失。";
+    }
     if (text.includes("invalid login credentials")) return "Email 或密碼不正確，請重新確認。";
     if (text.includes("email not confirmed")) return "請先到信箱完成驗證，再回來登入。";
     if (text.includes("already registered") || text.includes("already been registered")) {
@@ -202,6 +210,10 @@
   async function handleLogin(event) {
     event.preventDefault();
     if (!client || busy) return;
+    if (!navigator.onLine) {
+      setMessage("目前處於離線狀態，無法驗證新登入；已保存在本機的旅程仍可安全使用。", true);
+      return;
+    }
     const email = loginForm.elements.email.value.trim();
     updateRememberedLogin(email);
     setBusy(true);

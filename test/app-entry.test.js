@@ -51,6 +51,13 @@ test("entry screen reacts to sign-in and sign-out changes from other tabs", () =
   assert.match(entrySource, /window\.location\.reload\(\)/);
 });
 
+test("entry login explains offline authentication without blaming the password", () => {
+  assert.match(entrySource, /!navigator\.onLine/);
+  assert.match(entrySource, /text\.includes\("failed to fetch"\)/);
+  assert.match(entrySource, /目前處於離線狀態，無法驗證新登入/);
+  assert.match(entrySource, /已保存在本機的旅程仍可安全使用/);
+});
+
 test("password recovery is self-service and never stores the new password", () => {
   assert.match(htmlSource, /id="app-entry-forgot-btn"/);
   assert.match(htmlSource, /id="app-entry-forgot-form"/);
@@ -87,7 +94,7 @@ test("entry assets are responsive and included in the offline shell", () => {
   assert.match(entryStyles, /\.stats-bar\[hidden\]/);
   assert.match(entryStyles, /@media \(max-width: 480px\)/);
   assert.match(entryStyles, /@media \(prefers-reduced-motion: reduce\)/);
-  assert.match(workerSource, /voyage-book-shell-v47/);
+  assert.match(workerSource, /voyage-book-shell-v48/);
   assert.match(workerSource, /"\.\/app-entry\.js"/);
   assert.match(workerSource, /"\.\/app-entry\.css"/);
 });

@@ -320,6 +320,22 @@
     ui.message.dataset.error = isError ? "true" : "false";
   }
 
+  function friendlyCloudAuthError(error) {
+    const text = String(error?.message || "").toLowerCase();
+    if (
+      !navigator.onLine
+      || text.includes("failed to fetch")
+      || text.includes("network")
+      || text.includes("timeout")
+    ) {
+      return "目前網路不穩，無法驗證登入；本機旅程仍會安全保留。";
+    }
+    if (text.includes("invalid login credentials")) {
+      return "Email 或密碼不正確，請重新確認。";
+    }
+    return error?.message || "登入失敗，請稍後再試。";
+  }
+
   function setBusy(nextBusy) {
     state.busy = Boolean(nextBusy);
     if (!ui) return;
@@ -1840,6 +1856,10 @@
   async function signIn(event) {
     event.preventDefault();
     if (!state.client || state.busy) return;
+    if (!navigator.onLine) {
+      setMessage("目前處於離線狀態，無法驗證新登入；本機旅程仍可安全使用。", true);
+      return;
+    }
     const email = ui.email.value.trim();
     updateAuthPreferences(email);
     setBusy(true);
@@ -1857,7 +1877,7 @@
       startRealtimeUpdates();
       renderSession();
     } catch (error) {
-      setMessage(error.message || "登入失敗，請稍後再試。", true);
+      setMessage(friendlyCloudAuthError(error), true);
     } finally {
       setBusy(false);
     }

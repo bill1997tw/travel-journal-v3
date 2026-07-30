@@ -55,6 +55,15 @@ test("cloud account state follows sign-in and sign-out events across tabs", () =
   assert.match(cloudSource, /sessionStorage\.removeItem\(GUEST_SESSION_KEY\)/);
 });
 
+test("secondary login distinguishes offline failures from wrong credentials", () => {
+  assert.match(cloudSource, /function friendlyCloudAuthError\(error\)/);
+  assert.match(cloudSource, /!navigator\.onLine/);
+  assert.match(cloudSource, /text\.includes\("failed to fetch"\)/);
+  assert.match(cloudSource, /目前處於離線狀態，無法驗證新登入/);
+  assert.match(cloudSource, /Email 或密碼不正確/);
+  assert.match(cloudSource, /setMessage\(friendlyCloudAuthError\(error\), true\)/);
+});
+
 test("secondary remember-me control stays compact and accessible", () => {
   assert.match(cloudStyles, /\.account-cloud-login-options/);
   assert.match(cloudStyles, /\.account-cloud-auth \.account-cloud-remember/);
