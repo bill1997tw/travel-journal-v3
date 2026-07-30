@@ -60,6 +60,17 @@ test("entry login explains offline authentication without blaming the password",
   assert.match(entrySource, /已保存在本機的旅程仍可安全使用/);
 });
 
+test("entry startup stops waiting when cloud auth bootstrap hangs", () => {
+  assert.match(entrySource, /const AUTH_BOOT_TIMEOUT_MS = 8000/);
+  assert.match(entrySource, /async function withTimeout\(promise, timeoutMs, errorCode\)/);
+  assert.match(
+    entrySource,
+    /withTimeout\(\s*client\.auth\.getSession\(\),\s*AUTH_BOOT_TIMEOUT_MS,\s*"auth_boot_timeout"/
+  );
+  assert.match(entrySource, /text\.includes\("auth_boot_timeout"\)/);
+  assert.match(entrySource, /雲端登入服務回應過久/);
+});
+
 test("password recovery is self-service and never stores the new password", () => {
   assert.match(htmlSource, /id="app-entry-forgot-btn"/);
   assert.match(htmlSource, /id="app-entry-forgot-form"/);
@@ -96,7 +107,7 @@ test("entry assets are responsive and included in the offline shell", () => {
   assert.match(entryStyles, /\.stats-bar\[hidden\]/);
   assert.match(entryStyles, /@media \(max-width: 480px\)/);
   assert.match(entryStyles, /@media \(prefers-reduced-motion: reduce\)/);
-  assert.match(workerSource, /voyage-book-shell-v53/);
+  assert.match(workerSource, /voyage-book-shell-v54/);
   assert.match(workerSource, /"\.\/app-entry\.js"/);
   assert.match(workerSource, /"\.\/app-entry\.css"/);
 });

@@ -5,6 +5,7 @@
   const REMEMBER_ME_KEY = "voyage_auth_remember_me";
   const REMEMBERED_EMAIL_KEY = "voyage_auth_remembered_email";
   const MIN_SPLASH_MS = 650;
+  const AUTH_BOOT_TIMEOUT_MS = 8000;
   const startedAt = Date.now();
   const root = document.getElementById("app-entry");
   const appContainer = document.getElementById("main-app-container");
@@ -75,6 +76,9 @@
 
   function friendlyAuthError(error) {
     const text = String(error?.message || "").toLowerCase();
+    if (text.includes("auth_boot_timeout")) {
+      return "雲端登入服務回應過久，已停止等待。請確認網路後重試；本機旅程不會消失。";
+    }
     if (
       !navigator.onLine
       || text.includes("failed to fetch")
@@ -90,6 +94,18 @@
     }
     if (text.includes("password")) return "密碼至少需要 8 個字元。";
     return error?.message || "目前無法連線帳號服務，您仍可先使用訪客模式。";
+  }
+
+  async function withTimeout(promise, timeoutMs, errorCode) {
+    let timeoutId;
+    const timeout = new Promise((_, reject) => {
+      timeoutId = window.setTimeout(() => reject(new Error(errorCode)), timeoutMs);
+    });
+    try {
+      return await Promise.race([promise, timeout]);
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
   }
 
   async function waitForSplash() {
@@ -392,7 +408,11 @@
     });
 
     try {
-      const { data, error } = await client.auth.getSession();
+      const { data, error } = await withTimeout(
+        client.auth.getSession(),
+        AUTH_BOOT_TIMEOUT_MS,
+        "auth_boot_timeout"
+      );
       if (error) throw error;
       if (hasPasswordRecoveryRequest()) {
         await showAuth();
