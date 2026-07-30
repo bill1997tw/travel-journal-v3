@@ -2,6 +2,8 @@
   "use strict";
 
   const config = window.VOYAGE_SUPABASE_CONFIG || {};
+  const REMEMBER_ME_KEY = "voyage_auth_remember_me";
+  const REMEMBERED_EMAIL_KEY = "voyage_auth_remembered_email";
   const state = {
     client: null,
     session: null,
@@ -349,6 +351,22 @@
       editor: "可編輯",
       viewer: "僅查看"
     }[role] || "成員";
+  }
+
+  function restoreAuthPreferences() {
+    if (!ui?.rememberMe || !ui?.email) return;
+    ui.rememberMe.checked = localStorage.getItem(REMEMBER_ME_KEY) !== "false";
+    ui.email.value = localStorage.getItem(REMEMBERED_EMAIL_KEY) || "";
+  }
+
+  function updateAuthPreferences(email) {
+    const rememberMe = Boolean(ui?.rememberMe?.checked);
+    localStorage.setItem(REMEMBER_ME_KEY, rememberMe ? "true" : "false");
+    if (rememberMe) {
+      localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
+      return;
+    }
+    localStorage.removeItem(REMEMBERED_EMAIL_KEY);
   }
 
   function memberDisplayName(member) {
@@ -1758,11 +1776,13 @@
   async function signIn(event) {
     event.preventDefault();
     if (!state.client || state.busy) return;
+    const email = ui.email.value.trim();
+    updateAuthPreferences(email);
     setBusy(true);
     setMessage("");
     try {
       const { data, error } = await state.client.auth.signInWithPassword({
-        email: ui.email.value.trim(),
+        email,
         password: ui.password.value
       });
       if (error) throw error;
@@ -1841,6 +1861,13 @@
             密碼
             <input type="password" autocomplete="current-password" required>
           </label>
+          <div class="account-cloud-login-options">
+            <label class="account-cloud-remember">
+              <input type="checkbox" checked>
+              <span>記住我</span>
+            </label>
+            <span>保持登入；網站不儲存密碼</span>
+          </div>
           <button type="submit" class="btn btn-primary">登入</button>
         </form>
         <div class="account-cloud-account" hidden>
@@ -1940,6 +1967,7 @@
       authForm: overlay.querySelector(".account-cloud-auth"),
       email: overlay.querySelector('input[type="email"]'),
       password: overlay.querySelector('input[type="password"]'),
+      rememberMe: overlay.querySelector(".account-cloud-remember input"),
       accountPanel: overlay.querySelector(".account-cloud-account"),
       accountEmail: overlay.querySelector(".account-cloud-email"),
       refreshButton: overlay.querySelector(".account-cloud-refresh"),
@@ -1974,6 +2002,7 @@
       undoButton: overlay.querySelector(".account-cloud-undo")
     };
 
+    restoreAuthPreferences();
     ui.authButton.addEventListener("click", openPanel);
     ui.closeButton.addEventListener("click", closePanel);
     ui.authForm.addEventListener("submit", signIn);
