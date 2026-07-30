@@ -327,7 +327,14 @@
   function ensureClient() {
     if (state.client) return state.client;
     if (!hasConfig() || !window.supabase?.createClient) return null;
-    state.client = window.supabase.createClient(config.url, getPublicKey());
+    state.client = window.supabase.createClient(config.url, getPublicKey(), {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storage: window.VOYAGE_AUTH_STORAGE
+      }
+    });
     return state.client;
   }
 

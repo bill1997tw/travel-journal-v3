@@ -2,6 +2,8 @@
   "use strict";
 
   const GUEST_SESSION_KEY = "voyage_guest_session";
+  const REMEMBER_ME_KEY = "voyage_auth_remember_me";
+  const REMEMBERED_EMAIL_KEY = "voyage_auth_remembered_email";
   const MIN_SPLASH_MS = 650;
   const startedAt = Date.now();
   const root = document.getElementById("app-entry");
@@ -22,6 +24,33 @@
   const tabButtons = [...document.querySelectorAll("[data-entry-tab]")];
   let client = null;
   let busy = false;
+
+  function shouldRememberLogin() {
+    return localStorage.getItem(REMEMBER_ME_KEY) !== "false";
+  }
+
+  function createAuthStorage() {
+    return {
+      getItem(key) {
+        const primary = shouldRememberLogin() ? localStorage : sessionStorage;
+        return primary.getItem(key);
+      },
+      setItem(key, value) {
+        const persistent = shouldRememberLogin();
+        const target = persistent ? localStorage : sessionStorage;
+        const other = persistent ? sessionStorage : localStorage;
+        target.setItem(key, value);
+        other.removeItem(key);
+      },
+      removeItem(key) {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      }
+    };
+  }
+
+  const authStorage = createAuthStorage();
+  window.VOYAGE_AUTH_STORAGE = authStorage;
 
   function hasGuestShareToken() {
     return Boolean(new URLSearchParams(window.location.search).get("share"));
@@ -124,7 +153,32 @@
     const config = window.VOYAGE_SUPABASE_CONFIG || {};
     const key = config.publishableKey || config.anonKey;
     if (!window.supabase?.createClient || !config.url || !key) return null;
-    return window.supabase.createClient(config.url, key);
+    return window.supabase.createClient(config.url, key, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storage: authStorage
+      }
+    });
+  }
+
+  function restoreRememberedLogin() {
+    const rememberedEmail = localStorage.getItem(REMEMBERED_EMAIL_KEY) || "";
+    loginForm.elements.rememberMe.checked = shouldRememberLogin();
+    if (rememberedEmail) {
+      loginForm.elements.email.value = rememberedEmail;
+    }
+  }
+
+  function updateRememberedLogin(email) {
+    const rememberMe = loginForm.elements.rememberMe.checked;
+    localStorage.setItem(REMEMBER_ME_KEY, rememberMe ? "true" : "false");
+    if (rememberMe) {
+      localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
+      return;
+    }
+    localStorage.removeItem(REMEMBERED_EMAIL_KEY);
   }
 
   function syncDisplayNameFromSession(session) {
@@ -138,11 +192,13 @@
   async function handleLogin(event) {
     event.preventDefault();
     if (!client || busy) return;
+    const email = loginForm.elements.email.value.trim();
+    updateRememberedLogin(email);
     setBusy(true);
     setMessage("");
     try {
       const { data, error } = await client.auth.signInWithPassword({
-        email: loginForm.elements.email.value.trim(),
+        email,
         password: loginForm.elements.password.value
       });
       if (error) throw error;
@@ -264,6 +320,7 @@
     for (const button of tabButtons) {
       button.addEventListener("click", () => selectTab(button.dataset.entryTab));
     }
+    restoreRememberedLogin();
     loginForm.addEventListener("submit", handleLogin);
     registerForm.addEventListener("submit", handleRegister);
     forgotForm.addEventListener("submit", handleForgotPassword);

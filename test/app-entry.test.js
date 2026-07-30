@@ -24,6 +24,18 @@ test("registration stores only display name metadata and validates passwords", (
   assert.doesNotMatch(entrySource, /localStorage\.setItem\([^,]+,\s*password/);
 });
 
+test("remember me persists the session and email without storing the password", () => {
+  assert.match(htmlSource, /type="checkbox" name="rememberMe" checked/);
+  assert.match(htmlSource, /記住我/);
+  assert.match(entrySource, /const REMEMBER_ME_KEY = "voyage_auth_remember_me"/);
+  assert.match(entrySource, /const REMEMBERED_EMAIL_KEY = "voyage_auth_remembered_email"/);
+  assert.match(entrySource, /persistSession: true/);
+  assert.match(entrySource, /storage: authStorage/);
+  assert.match(entrySource, /localStorage\.setItem\(REMEMBERED_EMAIL_KEY, email\)/);
+  assert.doesNotMatch(entrySource, /(?:localStorage|sessionStorage)\.setItem\([^,]+,\s*(?:loginForm\.elements\.)?password/);
+  assert.match(entryStyles, /\.app-entry-remember/);
+});
+
 test("password recovery is self-service and never stores the new password", () => {
   assert.match(htmlSource, /id="app-entry-forgot-btn"/);
   assert.match(htmlSource, /id="app-entry-forgot-form"/);
@@ -60,7 +72,7 @@ test("entry assets are responsive and included in the offline shell", () => {
   assert.match(entryStyles, /\.stats-bar\[hidden\]/);
   assert.match(entryStyles, /@media \(max-width: 480px\)/);
   assert.match(entryStyles, /@media \(prefers-reduced-motion: reduce\)/);
-  assert.match(workerSource, /voyage-book-shell-v41/);
+  assert.match(workerSource, /voyage-book-shell-v42/);
   assert.match(workerSource, /"\.\/app-entry\.js"/);
   assert.match(workerSource, /"\.\/app-entry\.css"/);
 });
