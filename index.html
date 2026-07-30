@@ -279,10 +279,16 @@
 
       <!-- ================= 3. 旅程企劃室 (Trip Workspace) ================= -->
       <section id="view-workspace" class="view-section">
-        <div class="workspace-back-bar">
+        <div class="workspace-back-bar" style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; margin-bottom:1rem;">
           <button class="btn btn-secondary" id="workspace-back-btn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
             返回我的旅程
+          </button>
+          <button class="btn btn-primary" data-ws-tab="diary" style="font-size:0.85rem; padding:0.45rem 0.9rem; border-radius:10px; display:inline-flex; align-items:center; gap:0.35rem; font-weight:700; box-shadow:0 3px 10px rgba(200,92,50,0.3); cursor:pointer;">
+            ✍️ 書寫回憶
+          </button>
+          <button class="btn btn-secondary" data-ws-tab="diary" style="font-size:0.85rem; padding:0.45rem 0.9rem; border-radius:10px; display:inline-flex; align-items:center; gap:0.35rem; font-weight:700; cursor:pointer; background:rgba(255,255,255,0.85);">
+            🔖 記憶書籤
           </button>
         </div>
 
@@ -294,9 +300,6 @@
               <p id="ws-trip-meta">📅 日期: 07/15 - 07/20 (6天5夜) | 👤 旅伴: 2位男性 | 🏍️ 重機租借: Rental 819 伊勢店</p>
             </div>
             <div class="ws-header-right" id="ws-trip-stats-badges">
-              <button class="btn btn-primary" data-ws-tab="diary" style="font-size:0.85rem; padding:0.45rem 0.9rem; border-radius:10px; display:inline-flex; align-items:center; gap:0.35rem; box-shadow:0 4px 12px rgba(200,92,50,0.35); cursor:pointer; font-weight:700;">
-                ✍️ 撰寫/修改手作日記
-              </button>
               <!-- 行李限重等徽章 -->
               <span class="ws-badge">✈️ 來回 20KG 托運行李</span>
               <span class="ws-badge">💳 務必加租 ETC 卡</span>
@@ -317,7 +320,7 @@
                 <span>📚 旅行攻略庫</span>
               </button>
               <button class="ws-menu-item" data-ws-tab="diary">
-                <span>📖 手作日記與回憶</span>
+                <span>🔖 記憶書籤</span>
               </button>
               <button class="ws-menu-item" data-ws-tab="checklists">
                 <span>🧳 行李與待辦清單</span>
@@ -331,7 +334,7 @@
             </div>
             <div class="ws-sidebar-footer" style="display:flex; flex-direction:column; gap:0.5rem;">
               <button class="btn btn-secondary" data-ws-tab="diary" style="width:100%; font-size:0.85rem; padding:0.5rem; background:linear-gradient(135deg, rgba(200,92,50,0.12), rgba(245,158,11,0.15)); border-color:rgba(200,92,50,0.3); color:var(--accent-color); font-weight:700;">
-                ✍️ 撰寫/修改手作日記
+                ✍️ 書寫回憶 (記憶書籤)
               </button>
               <button class="btn btn-secondary" id="ws-edit-trip-btn" style="width:100%; font-size:0.85rem; padding:0.5rem;">
                 ⚙️ 編輯旅程基本設定
