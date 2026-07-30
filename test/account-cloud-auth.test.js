@@ -70,6 +70,22 @@ test("offline drafts stay private to trips visible to the active account", () =>
   );
 });
 
+test("queued retries recheck edit permission before cloud writes", () => {
+  const retryStart = cloudSource.indexOf("async function retryQueuedDraft(tripId)");
+  const saveCall = cloudSource.indexOf('state.client.rpc("save_trip_document"', retryStart);
+  const refreshCall = cloudSource.indexOf("await loadTrips()", retryStart);
+  const roleGuard = cloudSource.indexOf(
+    'role !== "owner" && role !== "editor"',
+    retryStart
+  );
+
+  assert.ok(retryStart >= 0);
+  assert.ok(refreshCall > retryStart);
+  assert.ok(roleGuard > refreshCall);
+  assert.ok(saveCall > roleGuard);
+  assert.match(cloudSource, /離線草稿不會送出/);
+});
+
 test("secondary login distinguishes offline failures from wrong credentials", () => {
   assert.match(cloudSource, /function friendlyCloudAuthError\(error\)/);
   assert.match(cloudSource, /!navigator\.onLine/);

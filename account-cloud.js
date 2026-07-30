@@ -791,10 +791,24 @@
   async function retryQueuedDraft(tripId) {
     const queueApi = getQueueApi();
     const importApi = getImportApi();
-    const draft = state.queuedDrafts.find((item) => item.tripId === tripId);
+    let draft = state.queuedDrafts.find((item) => item.tripId === tripId);
     if (!queueApi || !importApi || !draft || state.busy) return;
     if (isCloudOffline()) {
       setMessage("目前仍為離線狀態，草稿會繼續保留。", true);
+      return;
+    }
+
+    try {
+      await loadTrips();
+    } catch (error) {
+      setMessage(error.message || "無法重新確認旅程權限，草稿仍安全保留。", true);
+      return;
+    }
+    const trip = state.trips.find((item) => item.id === tripId);
+    const role = trip ? getRole(trip) : null;
+    draft = state.queuedDrafts.find((item) => item.tripId === tripId);
+    if (!draft || (role !== "owner" && role !== "editor")) {
+      setMessage("目前帳號已沒有修改這趟旅程的權限，離線草稿不會送出。", true);
       return;
     }
 
