@@ -399,6 +399,7 @@ function initOwnerShare(manager) {
   const ledgerInput = document.getElementById("share-scope-ledger");
   const vouchersInput = document.getElementById("share-scope-tickets");
   const expiryInput = document.getElementById("share-expires-days");
+  let hasActiveShare = false;
 
   const getTripId = () => window.getActiveCloudTripId?.() || null;
   const close = () => modal?.classList.remove("active");
@@ -416,6 +417,7 @@ function initOwnerShare(manager) {
     linkBox.style.display = "none";
     try {
       const status = await manager.status(tripId);
+      hasActiveShare = Boolean(status?.is_active);
       revokeButton.style.display = status?.is_active ? "inline-block" : "none";
       alternativesInput.checked = status?.has_share
         ? Boolean(status.include_alternatives)
@@ -433,6 +435,12 @@ function initOwnerShare(manager) {
   generateButton?.addEventListener("click", async () => {
     const tripId = getTripId();
     if (!tripId) return;
+    if (hasActiveShare) {
+      const confirmed = window.confirm(
+        "目前已有有效的免登入分享連結。\n\n重新建立後，舊連結會立刻失效；已收到舊網址的旅伴將無法再開啟。確定要繼續嗎？"
+      );
+      if (!confirmed) return;
+    }
     generateButton.disabled = true;
     try {
       const result = await manager.create(tripId, {
@@ -446,6 +454,7 @@ function initOwnerShare(manager) {
       linkInput.value = `${window.location.origin}${window.location.pathname}?share=${result.token}`;
       linkBox.style.display = "block";
       revokeButton.style.display = "inline-block";
+      hasActiveShare = true;
       window.showToast?.("唯讀分享連結已建立。舊連結已立即失效。", "success");
     } catch {
       window.showToast?.("建立分享連結失敗，請確認你是旅程擁有者。", "error");
@@ -473,6 +482,7 @@ function initOwnerShare(manager) {
       linkInput.value = "";
       linkBox.style.display = "none";
       revokeButton.style.display = "none";
+      hasActiveShare = false;
       window.showToast?.("分享連結已停用。", "success");
     } catch {
       window.showToast?.("停用失敗，請稍後再試。", "error");

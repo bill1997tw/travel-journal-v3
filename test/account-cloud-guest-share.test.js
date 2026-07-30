@@ -103,6 +103,20 @@ test("share link copying falls back to an explicitly selected URL", () => {
   assert.match(source, /瀏覽器未允許自動複製/);
 });
 
+test("regenerating an active share warns that the previous URL will stop working", () => {
+  const source = fs.readFileSync(
+    new URL("../account-cloud-share.js", import.meta.url),
+    "utf8"
+  );
+  assert.match(source, /let hasActiveShare = false/);
+  assert.match(source, /hasActiveShare = Boolean\(status\?\.is_active\)/);
+  assert.match(source, /if \(hasActiveShare\)/);
+  assert.match(source, /舊連結會立刻失效/);
+  assert.match(source, /if \(!confirmed\) return/);
+  assert.match(source, /hasActiveShare = true/);
+  assert.match(source, /hasActiveShare = false/);
+});
+
 test("guest mode is a dedicated readonly page and exposes no local fallback", () => {
   const source = fs.readFileSync(
     new URL("../account-cloud-share.js", import.meta.url),
