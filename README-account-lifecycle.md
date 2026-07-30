@@ -18,7 +18,7 @@ Supabase RPC，並以目前 session 的 access token 呼叫永久刪除 API。UI
 ## 部署前必要條件
 
 先套用 `travel-bill-platform` 專案截至
-`202607300004_permanent_account_deletion.sql` 的 Supabase migrations，再於 Vercel
+`202607310001_clone_cloud_trip.sql` 的 Supabase migrations，再於 Vercel
 設定下列 server-only 環境變數：
 
 - `SUPABASE_URL`
