@@ -55,6 +55,21 @@ test("cloud account state follows sign-in and sign-out events across tabs", () =
   assert.match(cloudSource, /sessionStorage\.removeItem\(GUEST_SESSION_KEY\)/);
 });
 
+test("offline drafts stay private to trips visible to the active account", () => {
+  assert.match(cloudSource, /const accessibleTripIds = new Set\(\[/);
+  assert.match(cloudSource, /\.\.\.state\.trips\.map\(\(trip\) => trip\.id\)/);
+  assert.match(cloudSource, /\.\.\.state\.archivedTrips\.map\(\(trip\) => trip\.id\)/);
+  assert.match(
+    cloudSource,
+    /drafts\.filter\(\(draft\) => accessibleTripIds\.has\(draft\.tripId\)\)/
+  );
+  assert.match(cloudSource, /state\.queuedDrafts = state\.session/);
+  assert.match(
+    cloudSource,
+    /state\.session = null;[\s\S]*state\.queuedDrafts = \[\];[\s\S]*renderQueue\(\)/
+  );
+});
+
 test("secondary login distinguishes offline failures from wrong credentials", () => {
   assert.match(cloudSource, /function friendlyCloudAuthError\(error\)/);
   assert.match(cloudSource, /!navigator\.onLine/);

@@ -5,7 +5,7 @@ window.VOYAGE_SUPABASE_CONFIG = {
   accountCloudImportScript: "account-cloud-import.js?v=account_cloud_v10",
   accountCloudQueueScript: "account-cloud-queue.js?v=account_cloud_v5",
   accountCloudLedgerScript: "account-cloud-ledger.js?v=account_cloud_ledger_v2",
-  accountCloudScript: "account-cloud.js?v=account_cloud_v28",
+  accountCloudScript: "account-cloud.js?v=account_cloud_v29",
   providers: ["email"],
   appStateTable: "app_states",
   storageBucket: "travel-assets",

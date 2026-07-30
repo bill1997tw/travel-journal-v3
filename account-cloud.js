@@ -741,10 +741,18 @@
     if (!queueApi) {
       state.queuedDrafts = [];
       renderQueue();
+      renderTrips();
       return;
     }
     try {
-      state.queuedDrafts = await queueApi.listDrafts();
+      const accessibleTripIds = new Set([
+        ...state.trips.map((trip) => trip.id),
+        ...state.archivedTrips.map((trip) => trip.id)
+      ]);
+      const drafts = await queueApi.listDrafts();
+      state.queuedDrafts = state.session
+        ? drafts.filter((draft) => accessibleTripIds.has(draft.tripId))
+        : [];
     } catch (error) {
       console.warn("Could not read offline draft queue.", error);
       setMessage("無法讀取離線草稿佇列；請先不要清除瀏覽器資料。", true);
@@ -1788,10 +1796,12 @@
     state.session = null;
     state.trips = [];
     state.archivedTrips = [];
+    state.queuedDrafts = [];
     state.remoteUpdates = {};
     state.preview = null;
     closeLedgerSnapshot();
     closeCollaboration();
+    renderQueue();
     renderSession();
   }
 
@@ -1822,13 +1832,13 @@
 
   async function loadTrips() {
     if (state.ledgerTestMode) {
-      renderTrips();
+      await refreshQueue();
       return;
     }
     if (!state.client || !state.session) {
       state.trips = [];
       state.archivedTrips = [];
-      renderTrips();
+      await refreshQueue();
       return;
     }
 
@@ -1861,7 +1871,7 @@
     state.trips = activeResult.data || [];
     state.archivedTrips = (archivedResult.data || [])
       .filter((trip) => getRole(trip) === "owner");
-    renderTrips();
+    await refreshQueue();
   }
 
   function openPanel() {
