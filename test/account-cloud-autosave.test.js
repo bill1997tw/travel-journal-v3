@@ -27,3 +27,24 @@ test("cloud save mutes rehydration-triggered duplicate writes", () => {
   assert.match(cloudSource, /autoSaveMutedUntil = Date\.now\(\) \+ 3000/);
   assert.match(cloudSource, /Date\.now\(\) < autoSaveMutedUntil/);
 });
+
+test("realtime revisions received during saves are reconciled afterwards", () => {
+  assert.match(cloudSource, /deferredRemoteRevisions: \{\}/);
+  assert.match(
+    cloudSource,
+    /state\.deferredRemoteRevisions\[tripId\] = Math\.max\(\s*previousDeferredRevision,\s*remoteRevision\s*\)/
+  );
+  assert.match(
+    cloudSource,
+    /!Number\.isSafeInteger\(remoteRevision\) \|\| remoteRevision <= 0/
+  );
+  assert.ok(
+    (
+      cloudSource.match(
+        /state\.savingTripIds\.delete\(tripId\);\s*reconcileDeferredRemoteUpdate\(tripId, completedRevision\);/g
+      ) || []
+    ).length >= 3
+  );
+  assert.match(cloudSource, /deferredRevision <= completedRevision/);
+  assert.match(cloudSource, /state\.deferredRemoteRevisions = \{\}/);
+});

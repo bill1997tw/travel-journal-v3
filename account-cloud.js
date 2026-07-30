@@ -12,6 +12,7 @@
     archivedTrips: [],
     queuedDrafts: [],
     remoteUpdates: {},
+    deferredRemoteRevisions: {},
     realtimeChannel: null,
     authSubscription: null,
     savingTripIds: new Set(),
@@ -792,6 +793,7 @@
     const queueApi = getQueueApi();
     const importApi = getImportApi();
     let draft = state.queuedDrafts.find((item) => item.tripId === tripId);
+    let completedRevision = null;
     if (!queueApi || !importApi || !draft || state.busy) return;
     if (isCloudOffline()) {
       setMessage("目前仍為離線狀態，草稿會繼續保留。", true);
@@ -831,6 +833,7 @@
       if (error) throw error;
 
       const savedRevision = Number(data?.revision);
+      completedRevision = savedRevision;
       importApi.commitSavedRevision(localStorage, tripId, savedRevision);
       delete state.remoteUpdates[tripId];
       await queueApi.deleteDraft(tripId);
@@ -855,6 +858,7 @@
       }
     } finally {
       state.savingTripIds.delete(tripId);
+      reconcileDeferredRemoteUpdate(tripId, completedRevision);
       setBusy(false);
     }
   }
@@ -914,13 +918,42 @@
     renderTrips();
   }
 
+  function reconcileDeferredRemoteUpdate(tripId, completedRevision = null) {
+    const deferredRevision = state.deferredRemoteRevisions[tripId];
+    delete state.deferredRemoteRevisions[tripId];
+    if (!Number.isSafeInteger(deferredRevision) || deferredRevision <= 0) return;
+    if (
+      Number.isSafeInteger(completedRevision)
+      && completedRevision > 0
+      && deferredRevision <= completedRevision
+    ) {
+      return;
+    }
+    handleRealtimeDocumentChange({
+      new: {
+        trip_id: tripId,
+        revision: deferredRevision
+      }
+    });
+  }
+
   function handleRealtimeDocumentChange(payload) {
     const importApi = getImportApi();
     const documentRecord = payload?.new;
     const tripId = documentRecord?.trip_id;
     const remoteRevision = Number(documentRecord?.revision);
-    if (!importApi || !tripId || state.savingTripIds.has(tripId)) return;
+    if (!importApi || !tripId || !Number.isSafeInteger(remoteRevision) || remoteRevision <= 0) {
+      return;
+    }
     if (!state.trips.some((trip) => trip.id === tripId)) return;
+    if (state.savingTripIds.has(tripId)) {
+      const previousDeferredRevision = state.deferredRemoteRevisions[tripId] || 0;
+      state.deferredRemoteRevisions[tripId] = Math.max(
+        previousDeferredRevision,
+        remoteRevision
+      );
+      return;
+    }
 
     const localTrip = findImportedTrip(tripId);
     const queuedDraft = state.queuedDrafts.find((draft) => draft.tripId === tripId) || null;
@@ -1069,6 +1102,7 @@
     const importApi = getImportApi();
     const notice = state.remoteUpdates[tripId];
     const localTrip = findImportedTrip(tripId);
+    let completedRevision = null;
     if (!importApi || !notice || !localTrip || state.busy) return;
 
     const queuedDraft = state.queuedDrafts.find((draft) => draft.tripId === tripId) || null;
@@ -1089,6 +1123,7 @@
     setMessage("");
     try {
       const remoteCandidate = await fetchRemoteCandidate(tripId);
+      completedRevision = Number(remoteCandidate._cloud.revision);
       const latestMode = importApi.classifyRemoteUpdate(
         findImportedTrip(tripId),
         state.queuedDrafts.find((draft) => draft.tripId === tripId) || null,
@@ -1118,6 +1153,7 @@
       setMessage(error.message || "無法載入雲端最新版，本機資料未變更。", true);
     } finally {
       state.savingTripIds.delete(tripId);
+      reconcileDeferredRemoteUpdate(tripId, completedRevision);
       setBusy(false);
     }
   }
@@ -1648,6 +1684,7 @@
     const importApi = getImportApi();
     const trip = state.trips.find((item) => item.id === tripId);
     const role = getRole(trip);
+    let completedRevision = null;
     if (!importApi || !trip || state.busy) return;
     if (role !== "owner" && role !== "editor") {
       setMessage("目前帳號沒有修改這趟旅程的權限。", true);
@@ -1678,6 +1715,7 @@
       if (error) throw error;
 
       const savedRevision = Number(data?.revision);
+      completedRevision = savedRevision;
       importApi.commitSavedRevision(localStorage, tripId, savedRevision);
       delete state.remoteUpdates[tripId];
       await getQueueApi()?.deleteDraft(tripId).catch(() => {});
@@ -1712,6 +1750,7 @@
       }
     } finally {
       state.savingTripIds.delete(tripId);
+      reconcileDeferredRemoteUpdate(tripId, completedRevision);
       setBusy(false);
     }
   }
@@ -1812,6 +1851,7 @@
     state.archivedTrips = [];
     state.queuedDrafts = [];
     state.remoteUpdates = {};
+    state.deferredRemoteRevisions = {};
     state.preview = null;
     closeLedgerSnapshot();
     closeCollaboration();
