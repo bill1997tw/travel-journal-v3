@@ -370,6 +370,16 @@
     localStorage.removeItem(REMEMBERED_EMAIL_KEY);
   }
 
+  function maskAccountEmail(email) {
+    const normalized = String(email || "").trim();
+    const separatorIndex = normalized.indexOf("@");
+    if (separatorIndex <= 0) return "帳號";
+    const localPart = normalized.slice(0, separatorIndex);
+    const domain = normalized.slice(separatorIndex + 1);
+    const visibleLength = localPart.length > 2 ? 2 : 1;
+    return `${localPart.slice(0, visibleLength)}***@${domain}`;
+  }
+
   function memberDisplayName(member) {
     const profile = Array.isArray(member?.profiles)
       ? member.profiles[0]
@@ -1700,11 +1710,17 @@
   function renderSession() {
     if (!ui) return;
     const signedIn = Boolean(state.session);
+    const maskedEmail = maskAccountEmail(state.session?.user?.email);
+    const shortAccount = maskedEmail.split("@")[0];
     ui.authForm.hidden = signedIn;
     ui.accountPanel.hidden = !signedIn;
     ui.accountEmail.textContent = state.session?.user?.email || "";
-    ui.authButton.textContent = signedIn ? "雲端旅程" : "登入雲端";
-    setStatus(signedIn ? "帳號雲端已連線" : "本機模式（資料安全保留）", signedIn ? "live" : "neutral");
+    ui.authButton.textContent = signedIn ? `雲端 · ${shortAccount}` : "登入雲端";
+    ui.authButton.setAttribute(
+      "aria-label",
+      signedIn ? `開啟 ${maskedEmail} 的雲端旅程` : "登入雲端"
+    );
+    setStatus(signedIn ? `${maskedEmail} 已連線` : "本機模式（資料安全保留）", signedIn ? "live" : "neutral");
     renderTrips();
     renderCloudHomeTrips();
   }

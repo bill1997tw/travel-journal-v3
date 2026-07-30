@@ -28,6 +28,15 @@ test("account switching clears guest mode and returns sign-out to the entry scre
   assert.match(cloudSource, /window\.location\.reload\(\)/);
 });
 
+test("the header identifies the active account without exposing the full email", () => {
+  assert.match(cloudSource, /function maskAccountEmail\(email\)/);
+  assert.match(cloudSource, /return `\$\{localPart\.slice\(0, visibleLength\)\}\*\*\*@\$\{domain\}`/);
+  assert.match(cloudSource, /const maskedEmail = maskAccountEmail\(state\.session\?\.user\?\.email\)/);
+  assert.match(cloudSource, /ui\.authButton\.textContent = signedIn \? `雲端 · \$\{shortAccount\}`/);
+  assert.match(cloudSource, /setStatus\(signedIn \? `\$\{maskedEmail\} 已連線`/);
+  assert.doesNotMatch(cloudSource, /setStatus\(signedIn \? state\.session\?\.user\?\.email/);
+});
+
 test("secondary remember-me control stays compact and accessible", () => {
   assert.match(cloudStyles, /\.account-cloud-login-options/);
   assert.match(cloudStyles, /\.account-cloud-auth \.account-cloud-remember/);
