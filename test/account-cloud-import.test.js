@@ -11,10 +11,31 @@ const {
   fingerprintTrip,
   getCloudTripState,
   classifyRemoteUpdate,
+  hasEquivalentCloudContent,
   replaceImportedCandidate,
   prepareLocalTripPromotion,
   commitLocalTripPromotion
 } = require("../account-cloud-import.js");
+
+test("recognizes an acknowledged cloud save despite local and cloud identity metadata", () => {
+  const localTrip = {
+    id: "local-trip",
+    title: "宜蘭兩天一夜",
+    itinerary: { days: [{ day: 1, items: [{ title: "蔥油餅" }] }] },
+    _cloud: { tripId: "trip-1", revision: 4 }
+  };
+  const remoteTrip = JSON.parse(JSON.stringify(localTrip));
+  remoteTrip.id = "cloud-trip-1";
+  remoteTrip._cloud = {
+    tripId: "trip-1",
+    revision: 5,
+    importedAt: "2026-07-30T00:00:00Z"
+  };
+
+  assert.equal(hasEquivalentCloudContent(localTrip, remoteTrip), true);
+  remoteTrip.itinerary.days[0].items[0].title = "三星蔥油餅";
+  assert.equal(hasEquivalentCloudContent(localTrip, remoteTrip), false);
+});
 
 function createStorage(initial = {}) {
   const values = new Map(Object.entries(initial));

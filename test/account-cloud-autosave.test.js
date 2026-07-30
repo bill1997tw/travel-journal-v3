@@ -48,3 +48,11 @@ test("realtime revisions received during saves are reconciled afterwards", () =>
   assert.match(cloudSource, /deferredRevision <= completedRevision/);
   assert.match(cloudSource, /state\.deferredRemoteRevisions = \{\}/);
 });
+
+test("a lost save response does not create a false conflict when cloud content matches", () => {
+  assert.match(cloudSource, /classification === "conflict"/);
+  assert.match(cloudSource, /importApi\.hasEquivalentCloudContent\?\./);
+  assert.match(cloudSource, /acknowledged_revision_invalid/);
+  assert.match(cloudSource, /await queueApi\.deleteDraft\(tripId\)/);
+  assert.match(cloudSource, /已確認雲端內容與離線草稿相同/);
+});

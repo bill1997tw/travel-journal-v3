@@ -843,6 +843,38 @@
       setMessage(`離線草稿已安全同步到雲端 revision ${savedRevision}。`);
     } catch (error) {
       const classification = queueApi.classifySaveError(error);
+      if (classification === "conflict") {
+        try {
+          const remoteCandidate = await fetchRemoteCandidate(tripId);
+          if (
+            importApi.hasEquivalentCloudContent?.(
+              draft.state?.trip,
+              remoteCandidate
+            )
+          ) {
+            const acknowledgedRevision = Number(remoteCandidate._cloud?.revision);
+            if (!Number.isSafeInteger(acknowledgedRevision) || acknowledgedRevision <= 0) {
+              throw new Error("acknowledged_revision_invalid");
+            }
+            completedRevision = acknowledgedRevision;
+            importApi.commitSavedRevision(localStorage, tripId, acknowledgedRevision);
+            delete state.remoteUpdates[tripId];
+            await queueApi.deleteDraft(tripId);
+            window.voyageApp?.rehydrateAndRender?.();
+            renderTrips();
+            await refreshQueue();
+            setMessage(
+              `已確認雲端內容與離線草稿相同，安全完成同步 revision ${acknowledgedRevision}。`
+            );
+            return;
+          }
+        } catch (verificationError) {
+          console.warn(
+            "Could not verify whether the queued draft already reached the cloud.",
+            verificationError
+          );
+        }
+      }
       const status = classification === "conflict" ? "conflict" : "failed";
       await queueApi.updateDraftStatus(tripId, status, {
         retryCount: draft.retryCount + 1,

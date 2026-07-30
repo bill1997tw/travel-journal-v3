@@ -89,6 +89,17 @@
     return stableSerialize(localValue) !== stableSerialize(remoteValue);
   }
 
+  function hasEquivalentCloudContent(localTrip, remoteCandidate) {
+    if (!isObject(localTrip) || !isObject(remoteCandidate)) return false;
+    const localSnapshot = clone(localTrip);
+    const remoteSnapshot = clone(remoteCandidate);
+    delete localSnapshot.id;
+    delete localSnapshot._cloud;
+    delete remoteSnapshot.id;
+    delete remoteSnapshot._cloud;
+    return stableSerialize(localSnapshot) === stableSerialize(remoteSnapshot);
+  }
+
   function mapSimpleExpenses(expenses) {
     if (!Array.isArray(expenses)) return [];
     return expenses.map((expense, index) => ({
@@ -717,6 +728,7 @@
     fingerprintTrip,
     getCloudTripState,
     classifyRemoteUpdate,
+    hasEquivalentCloudContent,
     hasImportedTrip,
     makeBackupKey,
     importCandidate,
