@@ -15,6 +15,7 @@
     deferredRemoteRevisions: {},
     realtimeChannel: null,
     authSubscription: null,
+    localScopeListenerStarted: false,
     savingTripIds: new Set(),
     ledgerTripId: null,
     ledgerSnapshot: null,
@@ -73,6 +74,35 @@
 
   function getQueueApi() {
     return window.VoyageCloudQueue || null;
+  }
+
+  function switchLocalAccountScope(session) {
+    const vaultApi = window.VoyageLocalAccountVault;
+    if (!vaultApi) throw new Error("local_account_vault_unavailable");
+    const scope = session?.user?.id
+      ? vaultApi.accountScope(session.user.id)
+      : vaultApi.GUEST_SCOPE;
+    const result = vaultApi.switchScope(localStorage, scope);
+    state.lastImportReceipt = getImportApi()?.getLatestBackupReceipt(localStorage)
+      || getImportApi()?.getRecoverableImportBackupReceipt(localStorage)
+      || null;
+    if (ui?.undoButton) ui.undoButton.hidden = !state.lastImportReceipt;
+    if (result.changed) {
+      window.voyageApp?.rehydrateAndRender?.();
+    }
+    return result;
+  }
+
+  function startLocalScopeUpdates() {
+    if (state.localScopeListenerStarted) return;
+    const vaultApi = window.VoyageLocalAccountVault;
+    if (!vaultApi) return;
+    state.localScopeListenerStarted = true;
+    window.addEventListener("storage", (event) => {
+      if (event.key !== vaultApi.ACTIVE_SCOPE_KEY) return;
+      autoSaveMutedUntil = Date.now() + 3000;
+      window.voyageApp?.rehydrateAndRender?.();
+    });
   }
 
   function getLedgerApi() {
@@ -1895,10 +1925,21 @@
     if (!state.client || state.authSubscription) return;
     const { data } = state.client.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") {
+        try {
+          switchLocalAccountScope(null);
+        } catch (error) {
+          console.error("Could not switch to the protected guest data scope.", error);
+        }
         clearSignedOutState();
         return;
       }
       if (event !== "SIGNED_IN" || !session?.user?.id || session.user.id === state.session?.user?.id) {
+        return;
+      }
+      try {
+        switchLocalAccountScope(session);
+      } catch (error) {
+        setStatus("無法安全切換本機帳號資料，已停止載入新帳號。", "error");
         return;
       }
       state.session = session;
@@ -1998,6 +2039,7 @@
         password: ui.password.value
       });
       if (error) throw error;
+      switchLocalAccountScope(data.session);
       state.session = data.session;
       sessionStorage.removeItem(GUEST_SESSION_KEY);
       ui.password.value = "";
@@ -2023,6 +2065,7 @@
     try {
       const { error } = await state.client.auth.signOut();
       if (error) throw error;
+      switchLocalAccountScope(null);
       clearSignedOutState();
       window.location.reload();
     } catch (error) {
@@ -2248,6 +2291,7 @@
   async function initialize() {
     refreshAccountCloudStyles();
     mount();
+    startLocalScopeUpdates();
     state.lastImportReceipt = getImportApi()?.getLatestBackupReceipt(localStorage)
       || getImportApi()?.getRecoverableImportBackupReceipt(localStorage)
       || null;
@@ -2263,6 +2307,7 @@
     try {
       const { data, error } = await client.auth.getSession();
       if (error) throw error;
+      switchLocalAccountScope(data.session);
       state.session = data.session;
       const testSnapshot = getLedgerApi()?.getLocalhostTestSnapshot?.(window.location);
       if (!state.session && testSnapshot) {
