@@ -177,10 +177,13 @@
   }
 
   function createClient() {
+    if (typeof window.getVoyageSupabaseClient === "function") {
+      return window.getVoyageSupabaseClient();
+    }
     const config = window.VOYAGE_SUPABASE_CONFIG || {};
     const key = config.publishableKey || config.anonKey;
     if (!window.supabase?.createClient || !config.url || !key) return null;
-    return window.supabase.createClient(config.url, key, {
+    const sharedClient = window.supabase.createClient(config.url, key, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
@@ -188,6 +191,8 @@
         storage: authStorage
       }
     });
+    window.getVoyageSupabaseClient = () => sharedClient;
+    return sharedClient;
   }
 
   function restoreRememberedLogin() {

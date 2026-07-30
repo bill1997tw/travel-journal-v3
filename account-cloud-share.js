@@ -2,10 +2,7 @@ const INVALID_SHARE_MESSAGE = "這份旅程邀請已失效，請向旅程建立�
 const TEMPORARY_SHARE_MESSAGE = "目前無法連線讀取旅程，請確認網路後重新整理。";
 
 function createClient() {
-  const config = window.VOYAGE_SUPABASE_CONFIG || {};
-  const key = config.publishableKey || config.anonKey;
-  if (!window.supabase?.createClient || !config.url || !key) return null;
-  return window.supabase.createClient(config.url, key);
+  return window.getVoyageSupabaseClient?.() || null;
 }
 
 function escapeHtml(value) {
