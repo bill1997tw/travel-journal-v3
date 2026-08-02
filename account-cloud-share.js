@@ -459,6 +459,11 @@ function initOwnerShare(manager) {
   const statusText = document.getElementById("share-owner-status");
   let hasActiveShare = false;
 
+  if (!modal || !shareButton || shareButton.dataset.shareHandlerBound === "true") {
+    return false;
+  }
+  shareButton.dataset.shareHandlerBound = "true";
+
   const getTripId = () => window.getActiveCloudTripId?.() || null;
   const close = () => modal?.classList.remove("active");
 
@@ -566,29 +571,47 @@ function initOwnerShare(manager) {
       window.showToast?.("停用失敗，請稍後再試。", "error");
     }
   });
+
+  return true;
+}
+
+let guestReaderStarted = false;
+let ownerShareStarted = false;
+
+function tryStartOwnerShare() {
+  if (ownerShareStarted) return true;
+  const client = createClient();
+  if (!client) return false;
+  ownerShareStarted = initOwnerShare(createGuestShareManager(client));
+  return ownerShareStarted;
 }
 
 function start() {
   const token = new URLSearchParams(window.location.search).get("share");
   if (token) {
     document.body.classList.add("guest-readonly-active", "guest-readonly-loading");
-  }
-  const client = createClient();
-  if (!client) {
-    if (token) {
+    if (guestReaderStarted) return;
+    const client = createClient();
+    if (!client) {
       document.body.classList.remove("guest-readonly-loading");
       showInvalidShare(TEMPORARY_SHARE_MESSAGE);
+      return;
     }
+    guestReaderStarted = true;
+    initGuestReader(createGuestShareManager(client), token);
     return;
   }
-  const manager = createGuestShareManager(client);
-  if (token) {
-    initGuestReader(manager, token);
-  } else {
-    initOwnerShare(manager);
+
+  if (!tryStartOwnerShare()) {
+    document.addEventListener("voyage:app-ready", tryStartOwnerShare, { once: true });
+    document.addEventListener("voyage:entry-ready", tryStartOwnerShare, { once: true });
   }
 }
 
 if (typeof window !== "undefined") {
-  window.addEventListener("DOMContentLoaded", start);
+  if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", start, { once: true });
+  } else {
+    start();
+  }
 }

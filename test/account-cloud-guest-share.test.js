@@ -235,3 +235,18 @@ test("owners can see whether a share is active, expired, or not created", () => 
   );
   assert.match(styles, /\.guest-share-owner-status\[data-tone="live"\]/);
 });
+
+test("owner share controls bind after delayed app or account initialization", () => {
+  const source = fs.readFileSync(
+    new URL("../account-cloud-share.js", import.meta.url),
+    "utf8"
+  );
+  const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  assert.match(source, /function tryStartOwnerShare\(\)/);
+  assert.match(source, /voyage:app-ready/);
+  assert.match(source, /voyage:entry-ready/);
+  assert.match(source, /document\.readyState === "loading"/);
+  assert.match(source, /shareHandlerBound === "true"/);
+  assert.match(source, /shareButton\.dataset\.shareHandlerBound = "true"/);
+  assert.match(html, /account-cloud-share\.js\?v=v11/);
+});
