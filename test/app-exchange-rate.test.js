@@ -15,7 +15,7 @@ test("foreign expenses retain their original amount and audited rate snapshot", 
 
 test("exchange rates use validation, timeout, cache and visible source status", () => {
   assert.match(htmlSource, /exchange-rate\.js\?v=v1/);
-  assert.match(htmlSource, /app\.js\?v=v35/);
+  assert.match(htmlSource, /app\.js\?v=v36/);
   assert.match(appSource, /loadSnapshot\(localStorage\)/);
   assert.match(appSource, /controller\.abort\(\), 8000/);
   assert.match(appSource, /cache: "no-store"/);

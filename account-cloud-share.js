@@ -14,6 +14,15 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function normalizePublicUrl(value) {
+  try {
+    const parsed = new URL(String(value || ""));
+    return ["http:", "https:"].includes(parsed.protocol) ? parsed.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
 function formatMinorUnits(value, currency = "TWD") {
   const minor = Number(value);
   if (!Number.isSafeInteger(minor)) return "";
@@ -155,6 +164,7 @@ function renderGuestTrip(result, refreshStatus = "") {
   const ledgerEntries = Array.isArray(ledger.entries) ? ledger.entries : [];
   const settlements = Array.isArray(ledger.settlements) ? ledger.settlements : [];
   const vouchers = Array.isArray(trip.vouchers) ? trip.vouchers : [];
+  const guides = Array.isArray(trip.guides) ? trip.guides : [];
 
   const dayHtml = days.map((day, index) => {
     const items = Array.isArray(day.items) ? day.items : [];
@@ -230,6 +240,23 @@ function renderGuestTrip(result, refreshStatus = "") {
     </article>
   `).join("");
 
+  const guideHtml = guides.map(item => {
+    const url = normalizePublicUrl(item?.url);
+    const kindLabels = {
+      image: "🖼️ 圖片／地圖",
+      video: "🎬 短影片",
+      link: "🔗 文章／網站",
+      note: "📝 文字備忘"
+    };
+    return `
+      <article class="guest-share-alt">
+        <p class="guest-share-muted">${escapeHtml(kindLabels[item?.kind] || kindLabels.note)}${item?.dayLabel ? ` · ${escapeHtml(item.dayLabel)}` : ""}</p>
+        <h4>${escapeHtml(item?.title || "未命名攻略")}</h4>
+        ${item?.description ? `<p>${escapeHtml(item.description)}</p>` : ""}
+        ${url ? `<p><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">開啟攻略連結</a></p>` : ""}
+      </article>`;
+  }).join("");
+
   const root = document.getElementById("guest-readonly-root");
   root.innerHTML = `
     <main class="guest-share-page">
@@ -247,6 +274,12 @@ function renderGuestTrip(result, refreshStatus = "") {
         ${trip.companion ? `<p>旅伴：${escapeHtml(trip.companion)}</p>` : ""}
       </header>
       ${dayHtml || '<section class="guest-share-day"><p>目前尚未安排行程。</p></section>'}
+      ${guideHtml ? `
+        <section class="guest-share-day">
+          <h2>旅行攻略庫</h2>
+          <div class="guest-share-alt-grid">${guideHtml}</div>
+        </section>
+      ` : ""}
       ${result.include_alternatives && alternativeHtml ? `
         <section class="guest-share-day">
           <h2>備案庫</h2>

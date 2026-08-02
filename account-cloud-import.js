@@ -155,6 +155,7 @@
         packingList: asArray(state.packingList),
         todoList: asArray(state.todoList),
         wishlist: asArray(state.wishlist),
+        guides: asArray(state.guides),
         ledger: asArray(state.ledger).length
           ? asArray(state.ledger)
           : mapSimpleExpenses(state.expenses),
@@ -173,6 +174,7 @@
     candidate.packingList = asArray(candidate.packingList);
     candidate.todoList = asArray(candidate.todoList);
     candidate.wishlist = asArray(candidate.wishlist);
+    candidate.guides = asArray(candidate.guides);
     candidate._cloud = {
       tripId: cloudTrip.id,
       revision: Number(documentRecord.revision) || 0,
@@ -579,6 +581,8 @@
 
     const localHasDiary = Boolean(localTrip.diary?.content || localTrip.diary?.cost);
     const remoteHasDiary = Boolean(remoteCandidate.diary?.content || remoteCandidate.diary?.cost);
+    const localGuides = asArray(localTrip.guides);
+    const remoteGuides = asArray(remoteCandidate.guides);
     const localBasicInfo = {
       title: localTrip.title,
       location: localTrip.location,
@@ -672,6 +676,13 @@
           local: `${localNotes.wishlist.length} 個願望項目`,
           remote: `${remoteNotes.wishlist.length} 個願望項目`,
           hasDiff: sectionChanged(localNotes, remoteNotes)
+        },
+        {
+          key: "guides",
+          label: "旅行攻略庫",
+          local: `${localGuides.length} 則攻略`,
+          remote: `${remoteGuides.length} 則攻略`,
+          hasDiff: sectionChanged(localGuides, remoteGuides)
         },
         {
           key: "diary",

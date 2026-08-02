@@ -344,7 +344,7 @@ test("finds the latest backup that removes an imported cloud trip", () => {
   });
 });
 
-test("compares local and remote trip states across 8 major sections", () => {
+test("compares local and remote trip states across 9 major sections", () => {
   const { compareTripStates } = require("../account-cloud-import.js");
   const localTrip = {
     title: "東京之旅 (本機)",
@@ -355,6 +355,7 @@ test("compares local and remote trip states across 8 major sections", () => {
     repayInfo: [],
     packingList: ["相機"],
     todoList: [],
+    guides: [{ id: "guide-1", title: "淺草攻略", kind: "link" }],
     diary: { content: "本機日記" },
     _cloud: { revision: 2 }
   };
@@ -367,6 +368,7 @@ test("compares local and remote trip states across 8 major sections", () => {
     repayInfo: [],
     packingList: ["相機", "護照"],
     todoList: [],
+    guides: [{ id: "guide-1", title: "晴空塔攻略", kind: "link" }],
     diary: { content: "雲端最新日記" },
     _cloud: { revision: 3 }
   };
@@ -374,9 +376,10 @@ test("compares local and remote trip states across 8 major sections", () => {
   const diff = compareTripStates(localTrip, remoteCandidate);
   assert.equal(diff.revisions.local, 2);
   assert.equal(diff.revisions.remote, 3);
-  assert.equal(diff.sections.length, 8);
+  assert.equal(diff.sections.length, 9);
   assert.equal(diff.sections.find(s => s.key === "itinerary").hasDiff, true);
   assert.equal(diff.sections.find(s => s.key === "ledger").hasDiff, true);
+  assert.equal(diff.sections.find(s => s.key === "guides").hasDiff, true);
 });
 
 test("detects content changes even when counts and money totals are unchanged", () => {

@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>悠遊小本本 Voyage Book | 您的專屬旅行規劃與分帳管家</title>
   <meta name="description" content="悠遊小本本是一個為自助旅行與重機愛好者設計的精美企劃工具，包含詳細日程、景點與餐廳備案庫、行李打包清單、多人費用代墊分帳以及回憶日記。">
-  <link rel="stylesheet" href="index.css?v=v34">
+  <link rel="stylesheet" href="index.css?v=v35">
   <link rel="stylesheet" href="cloud-sync.css?v=v39">
   <link rel="stylesheet" href="app-entry.css?v=v35">
   <link rel="manifest" href="manifest.webmanifest">
@@ -454,8 +454,10 @@
                 </div>
               </div>
 
+              <div id="guides-dynamic-root" aria-live="polite"></div>
+
               <!-- 1. 🖼️ 圖片攻略區塊 -->
-              <div class="guides-section-box">
+              <div class="guides-section-box guides-static-preview" hidden>
                 <div class="guides-section-title">
                   <h3>🖼️ 圖片攻略與路線地圖</h3>
                   <span class="guides-badge-count">4 張高畫質地圖</span>
@@ -528,7 +530,7 @@
               </div>
 
               <!-- 2. 🎬 短影片／文章連結區塊 -->
-              <div class="guides-section-box" style="margin-top:2rem;">
+              <div class="guides-section-box guides-static-preview" style="margin-top:2rem;" hidden>
                 <div class="guides-section-title">
                   <h3>🎬 影音短片與專欄連結</h3>
                   <span class="guides-badge-count">3 則推薦內容</span>
@@ -570,7 +572,7 @@
               </div>
 
               <!-- 3. 📝 個人重點筆記區塊 -->
-              <div class="guides-section-box" style="margin-top:2rem;">
+              <div class="guides-section-box guides-static-preview" style="margin-top:2rem;" hidden>
                 <div class="guides-section-title">
                   <h3>📝 個人重點筆記與提醒</h3>
                   <span class="guides-badge-count">2 則隨手備忘</span>
@@ -1598,6 +1600,49 @@
   </div>
 
   <!-- 10. 新增/編輯憑證與備忘 Modal -->
+  <div class="modal-overlay" id="guide-modal">
+    <div class="modal-content glass" style="max-width: 560px;">
+      <button class="modal-close" id="guide-modal-close" title="關閉">✕</button>
+      <h2 class="modal-title" id="guide-modal-title">新增攻略項目</h2>
+      <form id="guide-form">
+        <input type="hidden" id="guide-id">
+        <div class="form-grid" style="grid-template-columns: 1fr;">
+          <div class="form-group">
+            <label for="guide-kind">類型 *</label>
+            <select class="form-select" id="guide-kind" required>
+              <option value="image">🖼️ 圖片／地圖</option>
+              <option value="video">🎬 短影片</option>
+              <option value="link">🔗 文章／網站</option>
+              <option value="note">📝 文字備忘</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="guide-title">標題 *</label>
+            <input type="text" class="form-input" id="guide-title" maxlength="120" placeholder="例如：雨天備案與交通提醒" required>
+          </div>
+          <div class="form-group">
+            <label for="guide-url">圖片或內容網址</label>
+            <input type="url" class="form-input" id="guide-url" maxlength="2000" placeholder="https://...（文字備忘可留空）">
+            <small class="form-hint">目前使用網路連結保存，不會把大型圖片或影片直接塞進帳號資料。</small>
+          </div>
+          <div class="form-group">
+            <label for="guide-day-label">行程標記</label>
+            <input type="text" class="form-input" id="guide-day-label" maxlength="30" placeholder="例如：DAY 1、雨天備案、通用">
+          </div>
+          <div class="form-group">
+            <label for="guide-description">重點摘要</label>
+            <textarea class="form-input" id="guide-description" rows="4" maxlength="1000" placeholder="記下營業時間、交通方式或臨時改點重點。"></textarea>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:1rem; border-top:1px solid var(--border-color); padding-top:1.5rem; margin-top:1rem;">
+          <button type="button" class="btn btn-secondary" id="guide-modal-cancel">取消</button>
+          <button type="submit" class="btn btn-primary">儲存攻略</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 10. 新增/編輯憑證與備忘 Modal -->
   <div class="modal-overlay" id="voucher-modal">
     <div class="modal-content glass" style="max-width: 500px;">
       <button class="modal-close" id="voucher-modal-close" title="關閉">✕</button>
@@ -1919,8 +1964,8 @@
   <script src="app-entry.js?v=v41"></script>
   <script src="local-account-vault.js?v=v1"></script>
   <script src="cloud-sync.js?v=v38"></script>
-  <script type="module" src="account-cloud-share.js?v=v9"></script>
+  <script type="module" src="account-cloud-share.js?v=v10"></script>
   <script src="exchange-rate.js?v=v1"></script>
-  <script src="app.js?v=v35"></script>
+  <script src="app.js?v=v36"></script>
 </body>
 </html>

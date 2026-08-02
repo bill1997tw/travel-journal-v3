@@ -923,6 +923,7 @@ function initData() {
       if (!t.ledger) t.ledger = [];
       if (!t.advances) t.advances = [];
       if (!t.repayInfo) t.repayInfo = [];
+      ensureGuideState(t);
       ensureRoutePlansState(t);
       ensureDiaryState(t);
       ensurePackingCategoryState(t);
@@ -1027,6 +1028,11 @@ function setupEventListeners() {
       switchWorkspaceTab(tabId);
     });
   });
+
+  document.getElementById("guides-add-btn").addEventListener("click", () => openGuideModal());
+  document.getElementById("guide-modal-close").addEventListener("click", closeGuideModal);
+  document.getElementById("guide-modal-cancel").addEventListener("click", closeGuideModal);
+  document.getElementById("guide-form").addEventListener("submit", handleGuideSubmit);
 
   // Workspace 行程與備案相關事件
   document.getElementById("ws-edit-trip-btn").addEventListener("click", () => openTripEditorModal(activeTripId));
@@ -1667,6 +1673,7 @@ function switchWorkspaceTab(tabId) {
   document.querySelectorAll(".ws-tab-panel").forEach(panel => {
     panel.classList.remove("active");
   });
+
   document.getElementById(`ws-panel-${tabId}`).classList.add("active");
   document.getElementById("ws-desktop-day-jump")
     ?.classList.toggle("is-visible", tabId === "itinerary");
@@ -1674,6 +1681,8 @@ function switchWorkspaceTab(tabId) {
   // 觸發各自渲染
   if (tabId === "itinerary") {
     renderWorkspaceItinerary();
+  } else if (tabId === "guides") {
+    renderWorkspaceGuides();
   } else if (tabId === "checklists") {
     renderWorkspaceChecklists();
   } else if (tabId === "budget") {
@@ -1934,6 +1943,171 @@ function updateItineraryDayNavigation(dayNum) {
       button.removeAttribute("aria-current");
     }
   });
+}
+
+// ==================== WORKSPACE B: 旅行攻略庫 ====================
+const GUIDE_KIND_META = Object.freeze({
+  image: { icon: "🖼️", label: "圖片／地圖", action: "開啟圖片" },
+  video: { icon: "🎬", label: "短影片", action: "觀看短片" },
+  link: { icon: "🔗", label: "文章／網站", action: "開啟連結" },
+  note: { icon: "📝", label: "文字備忘", action: "" }
+});
+
+function ensureGuideState(trip) {
+  if (!trip) return [];
+  if (!Array.isArray(trip.guides)) trip.guides = [];
+  trip.guides = trip.guides
+    .filter(item => item && typeof item === "object")
+    .map((item, index) => ({
+      id: String(item.id || `guide-${Date.now()}-${index}`),
+      kind: GUIDE_KIND_META[item.kind] ? item.kind : "note",
+      title: String(item.title || "").trim(),
+      description: String(item.description || "").trim(),
+      url: normalizeExternalUrl(String(item.url || "")),
+      dayLabel: String(item.dayLabel || "").trim(),
+      createdAt: item.createdAt || new Date().toISOString(),
+      updatedAt: item.updatedAt || item.createdAt || new Date().toISOString()
+    }))
+    .filter(item => item.title);
+  return trip.guides;
+}
+
+function renderWorkspaceGuides() {
+  const root = document.getElementById("guides-dynamic-root");
+  const trip = trips.find(item => item.id === activeTripId);
+  if (!root || !trip) return;
+
+  const guides = ensureGuideState(trip);
+  if (guides.length === 0) {
+    root.innerHTML = `
+      <section class="guides-empty-state">
+        <div class="guides-empty-icon">📚</div>
+        <h3>這趟旅程還沒有攻略</h3>
+        <p>可保存圖片網址、短影片、文章連結或臨時備忘，所有內容會跟著這趟旅程同步。</p>
+        <button type="button" class="btn btn-primary" data-guide-add-empty>新增第一筆攻略</button>
+      </section>`;
+    root.querySelector("[data-guide-add-empty]")?.addEventListener("click", () => openGuideModal());
+    return;
+  }
+
+  const grouped = Object.keys(GUIDE_KIND_META).map(kind => {
+    const items = guides.filter(item => item.kind === kind);
+    if (!items.length) return "";
+    const meta = GUIDE_KIND_META[kind];
+    return `
+      <section class="guides-section-box guide-live-section">
+        <div class="guides-section-title">
+          <h3>${meta.icon} ${meta.label}</h3>
+          <span class="guides-badge-count">${items.length} 則</span>
+        </div>
+        <div class="guide-live-grid">
+          ${items.map(item => {
+            const safeUrl = normalizeExternalUrl(item.url);
+            const imageHtml = item.kind === "image" && safeUrl
+              ? `<a href="${escapeHTML(safeUrl)}" target="_blank" rel="noopener noreferrer" class="guide-live-image"><img src="${escapeHTML(safeUrl)}" alt="${escapeHTML(item.title)}" loading="lazy"></a>`
+              : "";
+            const linkHtml = safeUrl
+              ? `<a href="${escapeHTML(safeUrl)}" target="_blank" rel="noopener noreferrer" class="guide-link-btn">${meta.action || "開啟連結"}</a>`
+              : "";
+            return `
+              <article class="guide-live-card glass">
+                ${imageHtml}
+                <div class="guide-live-body">
+                  <div class="guide-live-meta">
+                    <span>${meta.icon} ${meta.label}</span>
+                    ${item.dayLabel ? `<span class="guide-day-chip">${escapeHTML(item.dayLabel)}</span>` : ""}
+                  </div>
+                  <h4>${escapeHTML(item.title)}</h4>
+                  ${item.description ? `<p>${escapeHTML(item.description)}</p>` : ""}
+                  <div class="guide-live-actions">
+                    ${linkHtml}
+                    <button type="button" class="guide-action-btn" data-guide-edit="${escapeHTML(item.id)}">編輯</button>
+                    <button type="button" class="guide-action-btn guide-delete-btn" data-guide-delete="${escapeHTML(item.id)}">刪除</button>
+                  </div>
+                </div>
+              </article>`;
+          }).join("")}
+        </div>
+      </section>`;
+  }).join("");
+
+  root.innerHTML = grouped;
+  root.querySelectorAll("[data-guide-edit]").forEach(button => {
+    button.addEventListener("click", () => openGuideModal(button.dataset.guideEdit));
+  });
+  root.querySelectorAll("[data-guide-delete]").forEach(button => {
+    button.addEventListener("click", () => deleteGuide(button.dataset.guideDelete));
+  });
+}
+
+function openGuideModal(guideId = "") {
+  const trip = trips.find(item => item.id === activeTripId);
+  if (!trip) return;
+  const guide = ensureGuideState(trip).find(item => item.id === guideId);
+  document.getElementById("guide-form").reset();
+  document.getElementById("guide-id").value = guide?.id || "";
+  document.getElementById("guide-kind").value = guide?.kind || "image";
+  document.getElementById("guide-title").value = guide?.title || "";
+  document.getElementById("guide-url").value = guide?.url || "";
+  document.getElementById("guide-day-label").value = guide?.dayLabel || "";
+  document.getElementById("guide-description").value = guide?.description || "";
+  document.getElementById("guide-modal-title").innerText = guide ? "編輯攻略項目" : "新增攻略項目";
+  document.getElementById("guide-modal").classList.add("active");
+}
+
+function closeGuideModal() {
+  document.getElementById("guide-modal").classList.remove("active");
+}
+
+function handleGuideSubmit(event) {
+  event.preventDefault();
+  const trip = trips.find(item => item.id === activeTripId);
+  if (!trip) return;
+
+  const id = document.getElementById("guide-id").value;
+  const kind = document.getElementById("guide-kind").value;
+  const title = document.getElementById("guide-title").value.trim();
+  const rawUrl = document.getElementById("guide-url").value.trim();
+  const url = normalizeExternalUrl(rawUrl);
+  if (!title) return;
+  if (rawUrl && !url) {
+    showToast("網址格式不正確，請使用 http 或 https 連結", "error");
+    return;
+  }
+  if (kind !== "note" && !url) {
+    showToast("圖片、短影片與文章攻略需要填寫網址", "error");
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const guides = ensureGuideState(trip);
+  const existingIndex = guides.findIndex(item => item.id === id);
+  const nextGuide = {
+    id: id || (globalThis.crypto?.randomUUID?.() || `guide-${Date.now()}`),
+    kind,
+    title,
+    url,
+    dayLabel: document.getElementById("guide-day-label").value.trim(),
+    description: document.getElementById("guide-description").value.trim(),
+    createdAt: existingIndex >= 0 ? guides[existingIndex].createdAt : now,
+    updatedAt: now
+  };
+  if (existingIndex >= 0) guides[existingIndex] = nextGuide;
+  else guides.unshift(nextGuide);
+
+  persistTrips();
+  closeGuideModal();
+  renderWorkspaceGuides();
+  showToast(existingIndex >= 0 ? "攻略已更新" : "攻略已新增", "success");
+}
+
+function deleteGuide(guideId) {
+  const trip = trips.find(item => item.id === activeTripId);
+  if (!trip || !confirm("確定要刪除這筆攻略嗎？")) return;
+  trip.guides = ensureGuideState(trip).filter(item => item.id !== guideId);
+  persistTrips();
+  renderWorkspaceGuides();
+  showToast("攻略已刪除", "info");
 }
 
 function scrollWorkspaceToTop() {

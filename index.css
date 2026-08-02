@@ -4575,6 +4575,120 @@ body.guest-readonly-active > :not(#guest-readonly-root):not(#guest-invalid-overl
   gap: 1.25rem;
 }
 
+.guides-empty-state {
+  margin-top: 1.25rem;
+  padding: 3rem 1.5rem;
+  text-align: center;
+  border: 1px dashed var(--border-color);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.guides-static-preview {
+  display: none !important;
+}
+
+.guides-empty-state h3 {
+  margin: 0.5rem 0;
+  color: var(--text-primary);
+}
+
+.guides-empty-state p {
+  max-width: 620px;
+  margin: 0 auto 1.25rem;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+.guides-empty-icon {
+  font-size: 2.5rem;
+}
+
+.guide-live-section + .guide-live-section {
+  margin-top: 1.5rem;
+}
+
+.guide-live-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.guide-live-card {
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.guide-live-image {
+  display: block;
+  height: 180px;
+  background: var(--bg-secondary);
+}
+
+.guide-live-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.guide-live-body {
+  padding: 1rem;
+}
+
+.guide-live-body h4 {
+  margin: 0.65rem 0 0.45rem;
+  color: var(--text-primary);
+  line-height: 1.45;
+}
+
+.guide-live-body p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.guide-live-meta,
+.guide-live-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.guide-live-meta {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.guide-live-actions {
+  margin-top: 1rem;
+}
+
+.guide-delete-btn {
+  color: var(--danger);
+}
+
+.form-hint {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+@media (max-width: 600px) {
+  .guide-live-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .guide-live-image {
+    height: 155px;
+  }
+}
+
 .guide-note-card {
   padding: 1.25rem;
   border-radius: 16px;

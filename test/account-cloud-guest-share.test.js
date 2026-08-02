@@ -164,6 +164,8 @@ test("expanded guest view renders sanitized optional sections", () => {
   assert.match(source, /旅行預算摘要/);
   assert.match(source, /小二帳本/);
   assert.match(source, /票券與憑證摘要/);
+  assert.match(source, /旅行攻略庫/);
+  assert.match(source, /normalizePublicUrl/);
   assert.match(source, /QR Code、連結及備註不公開/);
   assert.doesNotMatch(source, /fileData/);
 });
