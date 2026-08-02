@@ -86,6 +86,11 @@ test("password recovery is self-service and never stores the new password", () =
 test("guest share links bypass the account entry screen", () => {
   assert.match(entrySource, /new URLSearchParams\(window\.location\.search\)\.get\("share"\)/);
   assert.match(entrySource, /if \(hasGuestShareToken\(\)\)[\s\S]*root\.hidden = true/);
+  const initializeStart = entrySource.indexOf("async function initialize");
+  const clientCreation = entrySource.indexOf("client = createClient()", initializeStart);
+  const guestBranch = entrySource.indexOf("if (hasGuestShareToken())", initializeStart);
+  assert.ok(clientCreation > initializeStart);
+  assert.ok(clientCreation < guestBranch);
 });
 
 test("new devices start empty while existing voyage_trips remain untouched", () => {
@@ -107,7 +112,7 @@ test("entry assets are responsive and included in the offline shell", () => {
   assert.match(entryStyles, /\.stats-bar\[hidden\]/);
   assert.match(entryStyles, /@media \(max-width: 480px\)/);
   assert.match(entryStyles, /@media \(prefers-reduced-motion: reduce\)/);
-  assert.match(workerSource, /voyage-book-shell-v63/);
+  assert.match(workerSource, /voyage-book-shell-v64/);
   assert.match(workerSource, /"\.\/app-entry\.js"/);
   assert.match(workerSource, /"\.\/app-entry\.css"/);
   assert.match(workerSource, /"\.\/exchange-rate\.js"/);

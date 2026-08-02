@@ -144,6 +144,15 @@ test("guest links hide the private app before token validation finishes", () => 
   assert.ok(readerStart >= 0);
   assert.ok(privateShellGuard > readerStart);
   assert.ok(privateShellGuard < firstRefresh);
+
+  const startFunction = source.indexOf("function start()");
+  const startClientCreation = source.indexOf("const client = createClient()", startFunction);
+  const startPrivacyGuard = source.indexOf(
+    'document.body.classList.add("guest-readonly-active", "guest-readonly-loading")',
+    startFunction
+  );
+  assert.ok(startPrivacyGuard > startFunction);
+  assert.ok(startPrivacyGuard < startClientCreation);
 });
 
 test("expanded guest view renders sanitized optional sections", () => {

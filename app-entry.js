@@ -357,6 +357,7 @@
 
   async function initialize() {
     if (!root) return;
+    client = createClient();
     if (hasGuestShareToken()) {
       root.hidden = true;
       appContainer?.removeAttribute("inert");
@@ -384,7 +385,6 @@
       return;
     }
 
-    client = createClient();
     if (!client) {
       await showAuth();
       setMessage("雲端帳號服務尚未完成設定，您可以先使用訪客模式。", true);

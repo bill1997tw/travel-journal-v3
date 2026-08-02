@@ -536,10 +536,16 @@ function initOwnerShare(manager) {
 }
 
 function start() {
-  const client = createClient();
   const token = new URLSearchParams(window.location.search).get("share");
+  if (token) {
+    document.body.classList.add("guest-readonly-active", "guest-readonly-loading");
+  }
+  const client = createClient();
   if (!client) {
-    if (token) showInvalidShare();
+    if (token) {
+      document.body.classList.remove("guest-readonly-loading");
+      showInvalidShare(TEMPORARY_SHARE_MESSAGE);
+    }
     return;
   }
   const manager = createGuestShareManager(client);
