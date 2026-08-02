@@ -323,7 +323,7 @@ async function copyShareLink(input) {
 }
 
 async function initGuestReader(manager, token) {
-  document.body.classList.add("guest-readonly-loading");
+  document.body.classList.add("guest-readonly-active", "guest-readonly-loading");
   let currentSignature = null;
   let lastCheckedAt = 0;
   let refreshing = false;

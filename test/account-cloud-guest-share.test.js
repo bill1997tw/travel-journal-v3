@@ -129,6 +129,23 @@ test("guest mode is a dedicated readonly page and exposes no local fallback", ()
   assert.doesNotMatch(source, /Math\.random/);
 });
 
+test("guest links hide the private app before token validation finishes", () => {
+  const source = fs.readFileSync(
+    new URL("../account-cloud-share.js", import.meta.url),
+    "utf8"
+  );
+  const readerStart = source.indexOf("async function initGuestReader");
+  const firstRefresh = source.indexOf("await refresh(false)", readerStart);
+  const privateShellGuard = source.indexOf(
+    'document.body.classList.add("guest-readonly-active", "guest-readonly-loading")',
+    readerStart
+  );
+
+  assert.ok(readerStart >= 0);
+  assert.ok(privateShellGuard > readerStart);
+  assert.ok(privateShellGuard < firstRefresh);
+});
+
 test("expanded guest view renders sanitized optional sections", () => {
   const source = fs.readFileSync(
     new URL("../account-cloud-share.js", import.meta.url),
