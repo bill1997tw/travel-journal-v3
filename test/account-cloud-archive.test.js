@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, "..");
 const cloudSource = fs.readFileSync(path.join(root, "account-cloud.js"), "utf8");
 const cloudStyles = fs.readFileSync(path.join(root, "cloud-sync.css"), "utf8");
 const bootstrapSource = fs.readFileSync(path.join(root, "cloud-sync.js"), "utf8");
+const configSource = fs.readFileSync(path.join(root, "supabase-config.js"), "utf8");
 
 test("cloud manager loads active and archived trips separately", () => {
   assert.match(cloudSource, /archivedTrips: \[\]/);
@@ -38,6 +39,17 @@ test("archived trips stop queued sync and remain recoverable", () => {
   assert.match(cloudStyles, /\.account-cloud-archived-heading/);
 });
 
+test("archived trips stay collapsed until the owner chooses to reveal them", () => {
+  assert.match(cloudSource, /document\.createElement\("details"\)/);
+  assert.match(cloudSource, /已封存旅程（\$\{state\.archivedTrips\.length\}）/);
+  assert.match(cloudSource, /class="account-cloud-archived-list"/);
+  assert.match(cloudSource, /archivedList\.appendChild\(item\)/);
+  assert.doesNotMatch(cloudSource, /archivedSection\.open\s*=\s*true/);
+  assert.match(cloudStyles, /\.account-cloud-archived-section\[open\]/);
+});
+
 test("archive release assets use a fresh cache version", () => {
-  assert.match(bootstrapSource, /account-cloud\.js\?v=v37/);
+  assert.match(bootstrapSource, /account-cloud\.js\?v=v38/);
+  assert.match(configSource, /account-cloud\.js\?v=account_cloud_v35/);
+  assert.match(cloudStyles, /\.account-cloud-archived-list/);
 });

@@ -1319,15 +1319,20 @@
     }
 
     if (state.archivedTrips.length > 0) {
-      const heading = document.createElement("div");
-      heading.className = "account-cloud-archived-heading";
-      heading.innerHTML = `
-        <div>
-          <strong>已封存旅程</strong>
-          <span>資料與帳本仍安全保留，可由 Owner 隨時復原。</span>
-        </div>
+      const archivedSection = document.createElement("details");
+      archivedSection.className = "account-cloud-archived-section";
+      archivedSection.innerHTML = `
+        <summary class="account-cloud-archived-heading">
+          <div>
+            <strong>已封存旅程（${state.archivedTrips.length}）</strong>
+            <span>預設隱藏；展開後可由 Owner 隨時復原。</span>
+          </div>
+          <span class="account-cloud-archived-toggle" aria-hidden="true">展開</span>
+        </summary>
+        <div class="account-cloud-archived-list"></div>
       `;
-      ui.tripList.appendChild(heading);
+      const archivedList = archivedSection.querySelector(".account-cloud-archived-list");
+      ui.tripList.appendChild(archivedSection);
 
       for (const trip of state.archivedTrips) {
         const item = document.createElement("article");
@@ -1345,7 +1350,7 @@
             </button>
           </div>
         `;
-        ui.tripList.appendChild(item);
+        archivedList.appendChild(item);
       }
     }
 
