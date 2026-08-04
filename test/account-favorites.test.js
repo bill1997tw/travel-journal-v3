@@ -14,7 +14,7 @@ test("favorite journal has an account-level navigation view and editor", () => {
   assert.match(html, /id="view-favorites"/u);
   assert.match(html, /id="favorite-form"/u);
   assert.match(html, /id="favorite-collection-form"/u);
-  assert.match(html, /account-favorites\.js\?v=v5/u);
+  assert.match(html, /account-favorites\.js\?v=v6/u);
 });
 
 test("favorites load and write only through private account tables", () => {
@@ -61,6 +61,16 @@ test("favorite card actions keep one clear primary action and relaxed utility ro
   assert.match(css, /\.favorite-card-actions \.favorite-add-trip\s*\{[\s\S]*min-height:\s*46px/u);
 });
 
+test("long favorite notes can be expanded and collapsed without losing content", () => {
+  assert.match(source, /function favoriteNotesHtml\(notes\)/u);
+  assert.match(source, /<details class="favorite-card-notes">/u);
+  assert.match(source, /favorite-card-notes-expand">展開/u);
+  assert.match(source, /favorite-card-notes-collapse">收合/u);
+  assert.match(source, /value\.length <= 28/u);
+  assert.match(css, /\.favorite-card-notes\[open\] \.favorite-card-notes-preview/u);
+  assert.match(css, /white-space:\s*pre-wrap/u);
+});
+
 test("adding a favorite creates a trip snapshot instead of a live cloud link", () => {
   assert.match(app, /addFavoriteSnapshotToTrip\(tripId, dayNum, time, favorite\)/u);
   assert.match(app, /favoriteSnapshotId:/u);
@@ -69,6 +79,6 @@ test("adding a favorite creates a trip snapshot instead of a live cloud link", (
 });
 
 test("favorite release invalidates offline shell", () => {
-  assert.match(sw, /voyage-book-shell-v72/u);
+  assert.match(sw, /voyage-book-shell-v73/u);
   assert.match(sw, /\.\/account-favorites\.js/u);
 });

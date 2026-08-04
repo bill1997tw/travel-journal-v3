@@ -5153,14 +5153,73 @@ body.guest-readonly-active > :not(#guest-readonly-root):not(#guest-invalid-overl
   line-height: 1.45;
 }
 
-.favorite-card-notes {
-  display: -webkit-box;
-  overflow: hidden;
+.favorite-card-notes-static {
   margin: 0.55rem 0 0;
   color: var(--text-secondary);
   line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.favorite-card-notes {
+  margin-top: 0.55rem;
+  color: var(--text-secondary);
+}
+
+.favorite-card-notes summary {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.55rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.favorite-card-notes summary::-webkit-details-marker {
+  display: none;
+}
+
+.favorite-card-notes-preview {
+  display: -webkit-box;
+  flex: 1;
+  overflow: hidden;
+  line-height: 1.55;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.favorite-card-notes-toggle {
+  flex: 0 0 auto;
+  padding-bottom: 0.12rem;
+  color: var(--accent-color);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.favorite-card-notes-collapse {
+  display: none;
+}
+
+.favorite-card-notes[open] summary {
+  justify-content: flex-end;
+}
+
+.favorite-card-notes[open] .favorite-card-notes-preview,
+.favorite-card-notes[open] .favorite-card-notes-expand {
+  display: none;
+}
+
+.favorite-card-notes[open] .favorite-card-notes-collapse {
+  display: inline;
+}
+
+.favorite-card-notes-full {
+  margin: 0.45rem 0 0;
+  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .favorite-tags,

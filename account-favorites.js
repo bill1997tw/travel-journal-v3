@@ -71,6 +71,26 @@
       : ""}</span>`;
   }
 
+  function favoriteNotesHtml(notes) {
+    const value = String(notes || "").trim();
+    if (!value) return "";
+    const safeNotes = escapeHtml(value);
+    if (value.length <= 28) {
+      return `<p class="favorite-card-notes-static">${safeNotes}</p>`;
+    }
+    return `
+      <details class="favorite-card-notes">
+        <summary>
+          <span class="favorite-card-notes-preview">${safeNotes}</span>
+          <span class="favorite-card-notes-toggle">
+            <span class="favorite-card-notes-expand">展開</span>
+            <span class="favorite-card-notes-collapse">收合</span>
+          </span>
+        </summary>
+        <p class="favorite-card-notes-full">${safeNotes}</p>
+      </details>`;
+  }
+
   function storagePath(value) {
     const match = String(value || "").match(/^storage:\/\/(.+)$/);
     return match ? match[1] : "";
@@ -229,7 +249,7 @@
           <div class="favorite-card-body">
             <p class="favorite-card-location">${item.location ? `📍 ${escapeHtml(item.location)}` : escapeHtml(getCollectionName(item.collection_id))}</p>
             <h3>${escapeHtml(item.title)}</h3>
-            ${item.notes ? `<p class="favorite-card-notes">${escapeHtml(item.notes)}</p>` : ""}
+            ${favoriteNotesHtml(item.notes)}
             ${(item.tags || []).length ? `<div class="favorite-tags">${item.tags.map(tag => tagHtml(tag)).join("")}</div>` : ""}
             <div class="favorite-card-actions">
               <button type="button" class="favorite-add-trip" data-favorite-add-trip="${escapeHtml(item.id)}"><span aria-hidden="true">＋</span> 加入行程</button>
