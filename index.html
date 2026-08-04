@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>悠遊小本本 Voyage Book | 您的專屬旅行規劃與分帳管家</title>
   <meta name="description" content="悠遊小本本是一個為自助旅行與重機愛好者設計的精美企劃工具，包含詳細日程、景點與餐廳備案庫、行李打包清單、多人費用代墊分帳以及回憶日記。">
-  <link rel="stylesheet" href="index.css?v=v37">
+  <link rel="stylesheet" href="index.css?v=v38">
   <link rel="stylesheet" href="cloud-sync.css?v=v40">
   <link rel="stylesheet" href="app-entry.css?v=v35">
   <link rel="manifest" href="manifest.webmanifest">
@@ -1750,12 +1750,33 @@
             <input type="url" class="form-input" id="favorite-source-url" maxlength="2000" placeholder="IG、TikTok、Google Maps 或網站網址">
           </div>
           <div class="form-group favorite-form-span">
-            <label for="favorite-cover-url">封面圖片網址</label>
-            <input type="url" class="form-input" id="favorite-cover-url" maxlength="2000" placeholder="https://...（可稍後補上）">
+            <label>封面圖片</label>
+            <div class="favorite-cover-upload" id="favorite-cover-upload" role="button" tabindex="0" aria-label="點擊或拖曳上傳收藏封面">
+              <input type="file" id="favorite-cover-file" accept="image/jpeg,image/png,image/webp" hidden>
+              <img id="favorite-cover-preview" alt="收藏封面預覽" hidden>
+              <div class="favorite-cover-placeholder" id="favorite-cover-placeholder">
+                <strong>拖曳圖片到這裡，或點一下選擇圖片</strong>
+                <span>支援 JPG、PNG、WebP，會自動壓縮後存入私人雲端空間。</span>
+              </div>
+              <button type="button" class="favorite-cover-remove" id="favorite-cover-remove" hidden>移除圖片</button>
+            </div>
+            <details class="favorite-cover-url-details">
+              <summary>或使用可直接顯示的圖片網址</summary>
+              <input type="url" class="form-input" id="favorite-cover-url" maxlength="2000" placeholder="https://.../photo.jpg">
+              <small>IG、TikTok 或一般文章網址不是圖片檔，通常無法直接當封面；建議改用上方圖片上傳。</small>
+            </details>
           </div>
           <div class="form-group favorite-form-span">
-            <label for="favorite-tags">標籤</label>
-            <input class="form-input" id="favorite-tags" maxlength="240" placeholder="例如：必吃、下午茶、雨天備案（用逗號分隔）">
+            <label for="favorite-tag-input">標籤</label>
+            <input type="hidden" id="favorite-tags">
+            <div class="favorite-tag-editor">
+              <div class="favorite-tag-editor-list" id="favorite-tag-list" aria-live="polite"></div>
+              <div class="favorite-tag-editor-row">
+                <input class="form-input" id="favorite-tag-input" maxlength="30" placeholder="輸入一個標籤，例如：宜蘭">
+                <button type="button" id="favorite-tag-add">＋ 加入標籤</button>
+              </div>
+              <small>每輸入一個標籤就按 Enter 或「加入標籤」，最多 12 個。</small>
+            </div>
           </div>
           <div class="form-group favorite-form-span">
             <label for="favorite-notes">備註</label>
@@ -2143,6 +2164,6 @@
   <script type="module" src="account-cloud-share.js?v=v12"></script>
   <script src="exchange-rate.js?v=v1"></script>
   <script src="app.js?v=v37"></script>
-  <script src="account-favorites.js?v=v2"></script>
+  <script src="account-favorites.js?v=v3"></script>
 </body>
 </html>

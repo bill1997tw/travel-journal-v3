@@ -5090,6 +5090,25 @@ body.guest-readonly-active > :not(#guest-readonly-root):not(#guest-invalid-overl
   transition: transform 0.3s ease;
 }
 
+.favorite-cover-error {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-content: center;
+  padding: 1rem;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.45;
+}
+
+.favorite-cover-error small {
+  font-size: 0.72rem;
+}
+
+.favorite-card-cover.is-broken .favorite-cover-error {
+  display: grid;
+}
+
 .favorite-card:hover .favorite-card-cover img,
 .guide-live-card:hover .guide-live-cover img {
   transform: scale(1.035);
@@ -5145,12 +5164,35 @@ body.guest-readonly-active > :not(#guest-readonly-root):not(#guest-invalid-overl
 }
 
 .favorite-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
   padding: 0.25rem 0.52rem;
   border-radius: 999px;
   background: rgba(75, 124, 105, 0.1);
   color: #3f725f;
   font-size: 0.72rem;
   font-weight: 700;
+}
+
+.favorite-tag-color-0 { background: #e8f4ee; color: #39705c; }
+.favorite-tag-color-1 { background: #fff0e7; color: #a74c26; }
+.favorite-tag-color-2 { background: #edf0ff; color: #5263a3; }
+.favorite-tag-color-3 { background: #fff4ce; color: #8a6419; }
+.favorite-tag-color-4 { background: #f4eafa; color: #7e4c91; }
+.favorite-tag-color-5 { background: #e6f4fa; color: #2f718a; }
+
+.favorite-tag button {
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.65);
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
 }
 
 .favorite-card-actions {
@@ -5227,6 +5269,135 @@ body.guest-readonly-active > :not(#guest-readonly-root):not(#guest-invalid-overl
 
 .favorite-form-span {
   grid-column: 1 / -1;
+}
+
+.favorite-cover-upload {
+  position: relative;
+  min-height: 190px;
+  overflow: hidden;
+  border: 2px dashed rgba(200, 92, 50, 0.3);
+  border-radius: 16px;
+  background: rgba(200, 92, 50, 0.035);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.favorite-cover-upload:hover,
+.favorite-cover-upload:focus-visible,
+.favorite-cover-upload.dragover {
+  border-color: var(--accent-color);
+  background: rgba(200, 92, 50, 0.08);
+  outline: none;
+}
+
+.favorite-cover-upload > img {
+  width: 100%;
+  height: 250px;
+  object-fit: cover;
+}
+
+.favorite-cover-placeholder {
+  min-height: 190px;
+  display: grid;
+  place-content: center;
+  gap: 0.4rem;
+  padding: 1.5rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.favorite-cover-placeholder::before {
+  content: "▧";
+  color: var(--accent-color);
+  font-size: 2rem;
+}
+
+.favorite-cover-placeholder strong {
+  color: var(--text-primary);
+}
+
+.favorite-cover-placeholder span {
+  font-size: 0.8rem;
+}
+
+.favorite-cover-placeholder.is-error::before {
+  content: "!";
+}
+
+.favorite-cover-remove {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 2;
+  padding: 0.42rem 0.68rem;
+  border: 1px solid rgba(180, 45, 45, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--danger);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.favorite-cover-url-details {
+  margin-top: 0.7rem;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.favorite-cover-url-details summary {
+  cursor: pointer;
+}
+
+.favorite-cover-url-details .form-input {
+  margin-top: 0.65rem;
+}
+
+.favorite-cover-url-details small,
+.favorite-tag-editor > small {
+  display: block;
+  margin-top: 0.45rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.favorite-tag-editor {
+  padding: 0.8rem;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--bg-secondary);
+}
+
+.favorite-tag-editor-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-height: 1.75rem;
+  margin-bottom: 0.7rem;
+}
+
+.favorite-tag-empty {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.favorite-tag-editor-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+}
+
+.favorite-tag-editor-row button {
+  padding: 0.65rem 0.85rem;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent-color);
+  color: white;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .favorite-modal-actions {
@@ -5319,6 +5490,14 @@ body.guest-readonly-active > :not(#guest-readonly-root):not(#guest-invalid-overl
 
   .favorite-form-span {
     grid-column: auto;
+  }
+
+  .favorite-tag-editor-row {
+    grid-template-columns: 1fr;
+  }
+
+  .favorite-cover-upload > img {
+    height: 210px;
   }
 }
 

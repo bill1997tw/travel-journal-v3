@@ -8,6 +8,9 @@
     article: { icon: "📖", label: "攻略文章" },
     note: { icon: "📝", label: "備忘" }
   });
+  const STORAGE_BUCKET = window.VOYAGE_SUPABASE_CONFIG?.storageBucket || "travel-assets";
+  const MAX_TAGS = 12;
+  const MAX_COVER_BYTES = 10 * 1024 * 1024;
   const state = {
     client: null,
     user: null,
@@ -17,7 +20,12 @@
     query: "",
     view: "gallery",
     mounted: false,
-    loading: false
+    loading: false,
+    editingTags: [],
+    pendingCoverFile: null,
+    pendingCoverPreviewUrl: "",
+    originalCoverValue: "",
+    removeOriginalCover: false
   };
   let ui = null;
 
@@ -44,12 +52,71 @@
     }
   }
 
-  function parseTags(value) {
-    return [...new Set(String(value || "")
-      .split(/[，,]/)
+  function normalizeStoredTags(tags) {
+    return [...new Set((Array.isArray(tags) ? tags : [])
+      .flatMap(tag => String(tag || "").split(/[，,\s]+/))
       .map(tag => tag.trim())
       .filter(Boolean))]
-      .slice(0, 12);
+      .slice(0, MAX_TAGS);
+  }
+
+  function tagColorIndex(tag) {
+    return [...String(tag || "")].reduce((total, char) => total + char.codePointAt(0), 0) % 6;
+  }
+
+  function tagHtml(tag, removable = false) {
+    const safeTag = escapeHtml(tag);
+    return `<span class="favorite-tag favorite-tag-color-${tagColorIndex(tag)}">${safeTag}${removable
+      ? `<button type="button" data-favorite-tag-remove="${safeTag}" aria-label="移除標籤 ${safeTag}">×</button>`
+      : ""}</span>`;
+  }
+
+  function storagePath(value) {
+    const match = String(value || "").match(/^storage:\/\/(.+)$/);
+    return match ? match[1] : "";
+  }
+
+  function clearPendingCoverPreview() {
+    if (state.pendingCoverPreviewUrl) URL.revokeObjectURL(state.pendingCoverPreviewUrl);
+    state.pendingCoverPreviewUrl = "";
+  }
+
+  function setCoverPreview(source = "", isError = false) {
+    if (!ui?.coverPreview || !ui?.coverPlaceholder) return;
+    const safeSource = source && (source.startsWith("blob:") || safeWebUrl(source)) ? source : "";
+    ui.coverPreview.hidden = !safeSource || isError;
+    ui.coverPreview.src = safeSource && !isError ? safeSource : "";
+    ui.coverPlaceholder.hidden = Boolean(safeSource) && !isError;
+    ui.coverPlaceholder.classList.toggle("is-error", isError);
+    ui.coverPlaceholder.querySelector("strong").textContent = isError
+      ? "這個網址無法直接顯示圖片"
+      : "拖曳圖片到這裡，或點一下選擇圖片";
+    ui.coverPlaceholder.querySelector("span").textContent = isError
+      ? "請確認網址是圖片檔，或改用圖片上傳。"
+      : "支援 JPG、PNG、WebP，會自動壓縮後存入私人雲端空間。";
+    ui.coverRemove.hidden = !safeSource && (!state.originalCoverValue || state.removeOriginalCover);
+  }
+
+  function renderTagEditor() {
+    if (!ui?.tagList) return;
+    ui.tags.value = state.editingTags.join(",");
+    ui.tagList.innerHTML = state.editingTags.length
+      ? state.editingTags.map(tag => tagHtml(tag, true)).join("")
+      : `<span class="favorite-tag-empty">尚未加入標籤</span>`;
+  }
+
+  function addPendingTags(rawValue) {
+    const additions = String(rawValue || "")
+      .split(/[，,\s]+/)
+      .map(tag => tag.trim())
+      .filter(Boolean);
+    if (!additions.length) return;
+    state.editingTags = [...new Set([...state.editingTags, ...additions])].slice(0, MAX_TAGS);
+    ui.tagInput.value = "";
+    renderTagEditor();
+    if (state.editingTags.length >= MAX_TAGS && additions.some(tag => !state.editingTags.includes(tag))) {
+      showToast(`標籤最多 ${MAX_TAGS} 個。`, "info");
+    }
   }
 
   function setStatus(message = "", isError = false) {
@@ -149,19 +216,21 @@
 
     ui.grid.innerHTML = items.map(item => {
       const meta = KIND_META[item.kind] || KIND_META.note;
-      const coverUrl = safeWebUrl(item.cover_url);
+      const coverUrl = safeWebUrl(item._resolved_cover_url || item.cover_url);
+      const hasConfiguredCover = Boolean(item.cover_url);
       const sourceUrl = safeWebUrl(item.source_url);
       return `
         <article class="favorite-card">
-          <div class="favorite-card-cover">
+          <div class="favorite-card-cover${coverUrl ? " has-cover" : ""}${hasConfiguredCover && !coverUrl ? " is-broken" : ""}">
             ${coverUrl ? `<img src="${escapeHtml(coverUrl)}" alt="${escapeHtml(item.title)}" loading="lazy">` : ""}
+            ${hasConfiguredCover ? `<span class="favorite-cover-error">圖片暫時無法顯示<br><small>可在「編輯」重新上傳</small></span>` : ""}
             <span class="favorite-card-kind">${meta.icon} ${meta.label}</span>
           </div>
           <div class="favorite-card-body">
             <p class="favorite-card-location">${item.location ? `📍 ${escapeHtml(item.location)}` : escapeHtml(getCollectionName(item.collection_id))}</p>
             <h3>${escapeHtml(item.title)}</h3>
             ${item.notes ? `<p class="favorite-card-notes">${escapeHtml(item.notes)}</p>` : ""}
-            ${(item.tags || []).length ? `<div class="favorite-tags">${item.tags.map(tag => `<span class="favorite-tag">${escapeHtml(tag)}</span>`).join("")}</div>` : ""}
+            ${(item.tags || []).length ? `<div class="favorite-tags">${item.tags.map(tag => tagHtml(tag)).join("")}</div>` : ""}
             <div class="favorite-card-actions">
               <button type="button" class="favorite-add-trip" data-favorite-add-trip="${escapeHtml(item.id)}">＋ 加入行程</button>
               ${sourceUrl ? `<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">查看來源</a>` : ""}
@@ -172,8 +241,11 @@
         </article>`;
     }).join("");
 
-    ui.grid.querySelectorAll("img").forEach(image => {
-      image.addEventListener("error", () => image.remove(), { once: true });
+    ui.grid.querySelectorAll(".favorite-card-cover img").forEach(image => {
+      image.addEventListener("error", () => {
+        image.closest(".favorite-card-cover")?.classList.add("is-broken");
+        image.hidden = true;
+      }, { once: true });
     });
     ui.grid.querySelectorAll("[data-favorite-edit]").forEach(button => {
       button.addEventListener("click", () => openFavoriteModal(button.dataset.favoriteEdit));
@@ -206,6 +278,97 @@
     ui.collectionSelect.value = selectedId || "";
   }
 
+  async function resolvePrivateCover(item) {
+    const path = storagePath(item.cover_url);
+    if (!path || !state.client) return { ...item, tags: normalizeStoredTags(item.tags) };
+    const { data, error } = await state.client.storage
+      .from(STORAGE_BUCKET)
+      .createSignedUrl(path, 60 * 60);
+    return {
+      ...item,
+      tags: normalizeStoredTags(item.tags),
+      _resolved_cover_url: error ? "" : data?.signedUrl || ""
+    };
+  }
+
+  function resetCoverEditor(item = null) {
+    clearPendingCoverPreview();
+    state.pendingCoverFile = null;
+    state.originalCoverValue = item?.cover_url || "";
+    state.removeOriginalCover = false;
+    ui.coverFile.value = "";
+    const originalIsStorage = Boolean(storagePath(state.originalCoverValue));
+    ui.coverUrl.value = originalIsStorage ? "" : state.originalCoverValue;
+    setCoverPreview(item?._resolved_cover_url || (!originalIsStorage ? state.originalCoverValue : ""));
+  }
+
+  async function compressCoverImage(file) {
+    if (!file?.type?.startsWith("image/")) throw new Error("請選擇 JPG、PNG 或 WebP 圖片。");
+    if (file.size > MAX_COVER_BYTES) throw new Error("圖片不可超過 10MB。");
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error("圖片讀取失敗。"));
+      reader.readAsDataURL(file);
+    });
+    const image = await new Promise((resolve, reject) => {
+      const candidate = new Image();
+      candidate.onload = () => resolve(candidate);
+      candidate.onerror = () => reject(new Error("圖片格式無法讀取。"));
+      candidate.src = dataUrl;
+    });
+    const maxDimension = 1800;
+    const ratio = Math.min(1, maxDimension / Math.max(image.width, image.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.width * ratio));
+    canvas.height = Math.max(1, Math.round(image.height * ratio));
+    canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("圖片壓縮失敗。")), "image/jpeg", 0.84);
+    });
+  }
+
+  async function selectCoverFile(file) {
+    try {
+      const blob = await compressCoverImage(file);
+      clearPendingCoverPreview();
+      state.pendingCoverFile = blob;
+      state.pendingCoverPreviewUrl = URL.createObjectURL(blob);
+      state.removeOriginalCover = true;
+      ui.coverUrl.value = "";
+      setCoverPreview(state.pendingCoverPreviewUrl);
+      showToast("圖片已準備完成，儲存收藏後會上傳。", "success");
+    } catch (error) {
+      showToast(error.message || "圖片處理失敗。", "error");
+    }
+  }
+
+  function removeCoverSelection() {
+    clearPendingCoverPreview();
+    state.pendingCoverFile = null;
+    state.removeOriginalCover = true;
+    ui.coverFile.value = "";
+    ui.coverUrl.value = "";
+    setCoverPreview("");
+  }
+
+  async function uploadPendingCover() {
+    if (!state.pendingCoverFile) return "";
+    const objectId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const path = `${state.user.id}/favorites/${objectId}.jpg`;
+    const { error } = await state.client.storage
+      .from(STORAGE_BUCKET)
+      .upload(path, state.pendingCoverFile, { contentType: "image/jpeg", cacheControl: "3600", upsert: false });
+    if (error) throw error;
+    return path;
+  }
+
+  async function removeStoredCover(value) {
+    const path = storagePath(value);
+    if (!path || !state.client) return;
+    await state.client.storage.from(STORAGE_BUCKET).remove([path]);
+  }
+
   function openFavoriteModal(itemId = "") {
     if (!state.user) {
       showToast("請先登入帳號再使用私人收藏。", "error");
@@ -219,8 +382,9 @@
     fillCollectionSelect(item?.collection_id || (state.selectedCollectionId !== "all" && state.selectedCollectionId !== "unfiled" ? state.selectedCollectionId : ""));
     ui.location.value = item?.location || "";
     ui.sourceUrl.value = item?.source_url || "";
-    ui.coverUrl.value = item?.cover_url || "";
-    ui.tags.value = (item?.tags || []).join("、");
+    resetCoverEditor(item);
+    state.editingTags = [...(item?.tags || [])].slice(0, MAX_TAGS);
+    renderTagEditor();
     ui.notes.value = item?.notes || "";
     ui.modalTitle.textContent = item ? "編輯收藏" : "新增收藏";
     openModal(ui.modal);
@@ -229,18 +393,31 @@
   async function saveFavorite(event) {
     event.preventDefault();
     if (!state.client || !state.user) return;
+    addPendingTags(ui.tagInput.value);
     const rawSource = ui.sourceUrl.value.trim();
     const rawCover = ui.coverUrl.value.trim();
     const sourceUrl = safeWebUrl(rawSource);
-    const coverUrl = safeWebUrl(rawCover);
+    const externalCoverUrl = safeWebUrl(rawCover);
     if (rawSource && !sourceUrl) {
       showToast("來源網址格式不正確，請使用 http 或 https 連結。", "error");
       return;
     }
-    if (rawCover && !coverUrl) {
+    if (rawCover && !externalCoverUrl) {
       showToast("封面網址格式不正確，請使用 http 或 https 連結。", "error");
       return;
     }
+    setStatus(state.pendingCoverFile ? "正在上傳並儲存收藏…" : "正在儲存收藏…");
+    let uploadedPath = "";
+    try {
+      uploadedPath = await uploadPendingCover();
+    } catch (error) {
+      setStatus(error.message || "封面圖片上傳失敗。", true);
+      showToast("封面圖片上傳失敗，請稍後再試。", "error");
+      return;
+    }
+    const coverUrl = uploadedPath
+      ? `storage://${uploadedPath}`
+      : externalCoverUrl || (state.removeOriginalCover ? "" : state.originalCoverValue);
     const payload = {
       user_id: state.user.id,
       collection_id: ui.collectionSelect.value || null,
@@ -249,22 +426,26 @@
       source_url: sourceUrl,
       cover_url: coverUrl,
       location: ui.location.value.trim(),
-      tags: parseTags(ui.tags.value),
+      tags: [...state.editingTags],
       notes: ui.notes.value.trim(),
       updated_at: new Date().toISOString()
     };
     if (!payload.title) return;
-    setStatus("正在儲存收藏…");
     const id = ui.favoriteId.value;
     const query = id
       ? state.client.from("favorite_items").update(payload).eq("id", id).eq("user_id", state.user.id)
       : state.client.from("favorite_items").insert(payload);
     const { error } = await query;
     if (error) {
+      if (uploadedPath) await state.client.storage.from(STORAGE_BUCKET).remove([uploadedPath]);
       setStatus(error.message || "收藏儲存失敗。", true);
       showToast("收藏儲存失敗，請稍後再試。", "error");
       return;
     }
+    if (state.originalCoverValue && state.originalCoverValue !== coverUrl) {
+      await removeStoredCover(state.originalCoverValue);
+    }
+    clearPendingCoverPreview();
     closeModal(ui.modal);
     await loadData();
     showToast(id ? "收藏已更新" : "收藏已新增", "success");
@@ -272,6 +453,7 @@
 
   async function deleteFavorite(itemId) {
     if (!state.client || !state.user || !window.confirm("確定要刪除這筆私人收藏嗎？")) return;
+    const item = state.items.find(candidate => candidate.id === itemId);
     const { error } = await state.client
       .from("favorite_items")
       .delete()
@@ -281,6 +463,7 @@
       showToast("收藏刪除失敗。", "error");
       return;
     }
+    await removeStoredCover(item?.cover_url);
     await loadData();
     showToast("收藏已刪除", "info");
   }
@@ -370,7 +553,7 @@
       return;
     }
     state.collections = collectionsResult.data || [];
-    state.items = itemsResult.data || [];
+    state.items = await Promise.all((itemsResult.data || []).map(resolvePrivateCover));
     setStatus("私人收藏只對目前登入帳號可見。", false);
     render();
   }
@@ -416,7 +599,15 @@
       location: document.getElementById("favorite-location"),
       sourceUrl: document.getElementById("favorite-source-url"),
       coverUrl: document.getElementById("favorite-cover-url"),
+      coverUpload: document.getElementById("favorite-cover-upload"),
+      coverFile: document.getElementById("favorite-cover-file"),
+      coverPreview: document.getElementById("favorite-cover-preview"),
+      coverPlaceholder: document.getElementById("favorite-cover-placeholder"),
+      coverRemove: document.getElementById("favorite-cover-remove"),
       tags: document.getElementById("favorite-tags"),
+      tagInput: document.getElementById("favorite-tag-input"),
+      tagList: document.getElementById("favorite-tag-list"),
+      tagAdd: document.getElementById("favorite-tag-add"),
       notes: document.getElementById("favorite-notes"),
       collectionModal: document.getElementById("favorite-collection-modal"),
       collectionForm: document.getElementById("favorite-collection-form"),
@@ -452,6 +643,58 @@
       });
     });
     ui.form.addEventListener("submit", saveFavorite);
+    ui.tagAdd.addEventListener("click", () => addPendingTags(ui.tagInput.value));
+    ui.tagInput.addEventListener("keydown", event => {
+      if (event.key !== "Enter" && event.key !== "," && event.key !== "，") return;
+      event.preventDefault();
+      addPendingTags(ui.tagInput.value);
+    });
+    ui.tagList.addEventListener("click", event => {
+      const button = event.target.closest("[data-favorite-tag-remove]");
+      if (!button) return;
+      state.editingTags = state.editingTags.filter(tag => tag !== button.dataset.favoriteTagRemove);
+      renderTagEditor();
+    });
+    ui.coverUpload.addEventListener("click", event => {
+      if (event.target.closest("#favorite-cover-remove")) return;
+      ui.coverFile.click();
+    });
+    ui.coverUpload.addEventListener("keydown", event => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      ui.coverFile.click();
+    });
+    ui.coverUpload.addEventListener("dragover", event => {
+      event.preventDefault();
+      ui.coverUpload.classList.add("dragover");
+    });
+    ui.coverUpload.addEventListener("dragleave", () => ui.coverUpload.classList.remove("dragover"));
+    ui.coverUpload.addEventListener("drop", event => {
+      event.preventDefault();
+      ui.coverUpload.classList.remove("dragover");
+      const file = event.dataTransfer?.files?.[0];
+      if (file) selectCoverFile(file);
+    });
+    ui.coverFile.addEventListener("change", event => {
+      const file = event.target.files?.[0];
+      if (file) selectCoverFile(file);
+    });
+    ui.coverRemove.addEventListener("click", event => {
+      event.stopPropagation();
+      removeCoverSelection();
+    });
+    ui.coverUrl.addEventListener("change", () => {
+      const value = safeWebUrl(ui.coverUrl.value);
+      if (!value) {
+        if (ui.coverUrl.value.trim()) setCoverPreview("", true);
+        return;
+      }
+      clearPendingCoverPreview();
+      state.pendingCoverFile = null;
+      state.removeOriginalCover = true;
+      setCoverPreview(value);
+    });
+    ui.coverPreview.addEventListener("error", () => setCoverPreview("", true));
     ui.collectionForm.addEventListener("submit", createCollection);
     ui.tripForm.addEventListener("submit", addToTrip);
     ui.tripSelect.addEventListener("change", updateTripDays);

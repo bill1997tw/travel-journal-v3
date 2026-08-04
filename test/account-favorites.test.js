@@ -13,7 +13,7 @@ test("favorite journal has an account-level navigation view and editor", () => {
   assert.match(html, /id="view-favorites"/u);
   assert.match(html, /id="favorite-form"/u);
   assert.match(html, /id="favorite-collection-form"/u);
-  assert.match(html, /account-favorites\.js\?v=v2/u);
+  assert.match(html, /account-favorites\.js\?v=v3/u);
 });
 
 test("favorites load and write only through private account tables", () => {
@@ -32,6 +32,23 @@ test("favorite sources and covers accept web URLs only", () => {
   assert.doesNotMatch(source, /<iframe/u);
 });
 
+test("favorite tags are entered and removed as separate colored chips", () => {
+  assert.match(html, /id="favorite-tag-input"/u);
+  assert.match(html, /id="favorite-tag-add"/u);
+  assert.match(source, /data-favorite-tag-remove/u);
+  assert.match(source, /favorite-tag-color-/u);
+  assert.match(source, /event\.key !== "Enter"/u);
+});
+
+test("favorite covers support private drag and drop uploads", () => {
+  assert.match(html, /id="favorite-cover-upload"/u);
+  assert.match(html, /accept="image\/jpeg,image\/png,image\/webp"/u);
+  assert.match(source, /storage:\/\//u);
+  assert.match(source, /\.storage\s*\.from\(STORAGE_BUCKET\)\s*\.upload/su);
+  assert.match(source, /createSignedUrl\(path, 60 \* 60\)/u);
+  assert.match(source, /favorite-cover-error/u);
+});
+
 test("adding a favorite creates a trip snapshot instead of a live cloud link", () => {
   assert.match(app, /addFavoriteSnapshotToTrip\(tripId, dayNum, time, favorite\)/u);
   assert.match(app, /favoriteSnapshotId:/u);
@@ -40,6 +57,6 @@ test("adding a favorite creates a trip snapshot instead of a live cloud link", (
 });
 
 test("favorite release invalidates offline shell", () => {
-  assert.match(sw, /voyage-book-shell-v69/u);
+  assert.match(sw, /voyage-book-shell-v70/u);
   assert.match(sw, /\.\/account-favorites\.js/u);
 });
