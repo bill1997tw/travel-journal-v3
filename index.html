@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>悠遊小本本 Voyage Book | 您的專屬旅行規劃與分帳管家</title>
   <meta name="description" content="悠遊小本本是一個為自助旅行與重機愛好者設計的精美企劃工具，包含詳細日程、景點與餐廳備案庫、行李打包清單、多人費用代墊分帳以及回憶日記。">
-  <link rel="stylesheet" href="index.css?v=v35">
+  <link rel="stylesheet" href="index.css?v=v37">
   <link rel="stylesheet" href="cloud-sync.css?v=v40">
   <link rel="stylesheet" href="app-entry.css?v=v35">
   <link rel="manifest" href="manifest.webmanifest">
@@ -147,6 +147,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
           <span>我的旅程</span>
         </div>
+        <div class="nav-link" data-view="favorites">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21.3l7.8-7.8a5.5 5.5 0 0 0 1-8.9z"></path></svg>
+          <span>收藏日記</span>
+        </div>
         <div class="nav-link" data-view="budget">
           <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
           <span>預算分析</span>
@@ -180,6 +184,16 @@
           </div>
           <p id="greeting-subtitle" style="margin:0;">開啟您的精緻旅行規劃，今天想去哪裡冒險？</p>
         </div>
+
+        <button type="button" class="dashboard-favorites-entry glass" id="dashboard-favorites-open">
+          <span class="dashboard-favorites-icon">♡</span>
+          <span>
+            <small>SUPER COLLECTION</small>
+            <strong>收藏日記</strong>
+            <em>把 IG、美食與景點靈感收好，排旅程時直接加入 DAY 行程。</em>
+          </span>
+          <b id="dashboard-favorites-count">開始收藏 →</b>
+        </button>
 
         <div class="dashboard-empty-welcome glass" id="dashboard-empty-welcome" hidden>
           <div class="dashboard-empty-icon">＋</div>
@@ -254,6 +268,53 @@
             <div id="quick-notes-list" style="margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.5rem; max-height: 120px; overflow-y: auto;">
               <!-- 快速筆記列表 -->
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 2. 私人收藏日記 ================= -->
+      <section id="view-favorites" class="view-section">
+        <div class="favorites-page-shell">
+          <header class="favorites-hero glass">
+            <div>
+              <span class="favorites-eyebrow">MY TRAVEL COLLECTION</span>
+              <h1>收藏日記</h1>
+              <p>把路上遇見的好地方先收好，排旅程時再一鍵放進 DAY 行程。</p>
+            </div>
+            <button type="button" class="btn btn-primary" id="favorite-add-btn">＋ 新增收藏</button>
+          </header>
+
+          <div class="favorites-toolbar glass">
+            <div class="favorites-search-wrap">
+              <span aria-hidden="true">⌕</span>
+              <input type="search" id="favorite-search" placeholder="搜尋名稱、地區、標籤或備註">
+            </div>
+            <div class="favorites-view-switch" role="group" aria-label="切換收藏顯示方式">
+              <button type="button" class="is-active" data-favorite-view="gallery">▦ 圖卡</button>
+              <button type="button" data-favorite-view="list">☷ 清單</button>
+            </div>
+          </div>
+
+          <div class="favorites-layout">
+            <aside class="favorites-collections glass">
+              <div class="favorites-panel-title">
+                <div><span>整理分頁</span><strong>我的地區</strong></div>
+                <button type="button" id="favorite-collection-add" title="新增分頁">＋</button>
+              </div>
+              <div id="favorite-collection-list" class="favorite-collection-list"></div>
+            </aside>
+
+            <section class="favorites-content glass">
+              <div class="favorites-content-heading">
+                <div>
+                  <span id="favorite-current-subtitle">所有收藏</span>
+                  <h2 id="favorite-current-title">旅行靈感牆</h2>
+                </div>
+                <span id="favorite-count" class="favorites-count">0 則收藏</span>
+              </div>
+              <div id="favorite-status" class="favorites-status" role="status"></div>
+              <div id="favorite-card-grid" class="favorite-card-grid" aria-live="polite"></div>
+            </section>
           </div>
         </div>
       </section>
@@ -1626,6 +1687,18 @@
             <small class="form-hint">目前使用網路連結保存，不會把大型圖片或影片直接塞進帳號資料。</small>
           </div>
           <div class="form-group">
+            <label for="guide-cover-url">封面圖片網址</label>
+            <input type="url" class="form-input" id="guide-cover-url" maxlength="2000" placeholder="https://...（沒有封面會顯示柔和色塊）">
+          </div>
+          <div class="form-group">
+            <label for="guide-region">地區</label>
+            <input type="text" class="form-input" id="guide-region" maxlength="120" placeholder="例如：宜蘭、台東、日本大阪">
+          </div>
+          <div class="form-group">
+            <label for="guide-tags">標籤</label>
+            <input type="text" class="form-input" id="guide-tags" maxlength="240" placeholder="例如：美食、雨天備案、親子（用逗號分隔）">
+          </div>
+          <div class="form-group">
             <label for="guide-day-label">行程標記</label>
             <input type="text" class="form-input" id="guide-day-label" maxlength="30" placeholder="例如：DAY 1、雨天備案、通用">
           </div>
@@ -1637,6 +1710,109 @@
         <div style="display:flex; justify-content:flex-end; gap:1rem; border-top:1px solid var(--border-color); padding-top:1.5rem; margin-top:1rem;">
           <button type="button" class="btn btn-secondary" id="guide-modal-cancel">取消</button>
           <button type="submit" class="btn btn-primary">儲存攻略</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 私人收藏日記：新增／編輯收藏 -->
+  <div class="modal-overlay" id="favorite-modal">
+    <div class="modal-content glass favorite-modal-content">
+      <button class="modal-close" id="favorite-modal-close" title="關閉">✕</button>
+      <h2 class="modal-title" id="favorite-modal-title">新增收藏</h2>
+      <form id="favorite-form">
+        <input type="hidden" id="favorite-id">
+        <div class="form-grid favorite-form-grid">
+          <div class="form-group">
+            <label for="favorite-title">名稱 *</label>
+            <input class="form-input" id="favorite-title" maxlength="120" placeholder="例如：宜蘭必吃蔥油餅" required>
+          </div>
+          <div class="form-group">
+            <label for="favorite-kind">類型 *</label>
+            <select class="form-select" id="favorite-kind" required>
+              <option value="place">📍 景點</option>
+              <option value="food">🍜 美食</option>
+              <option value="video">🎬 短影片</option>
+              <option value="article">📖 攻略文章</option>
+              <option value="note">📝 備忘</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="favorite-collection">整理分頁</label>
+            <select class="form-select" id="favorite-collection"></select>
+          </div>
+          <div class="form-group">
+            <label for="favorite-location">地區／地址</label>
+            <input class="form-input" id="favorite-location" maxlength="120" placeholder="例如：台灣・宜蘭">
+          </div>
+          <div class="form-group favorite-form-span">
+            <label for="favorite-source-url">來源連結</label>
+            <input type="url" class="form-input" id="favorite-source-url" maxlength="2000" placeholder="IG、TikTok、Google Maps 或網站網址">
+          </div>
+          <div class="form-group favorite-form-span">
+            <label for="favorite-cover-url">封面圖片網址</label>
+            <input type="url" class="form-input" id="favorite-cover-url" maxlength="2000" placeholder="https://...（可稍後補上）">
+          </div>
+          <div class="form-group favorite-form-span">
+            <label for="favorite-tags">標籤</label>
+            <input class="form-input" id="favorite-tags" maxlength="240" placeholder="例如：必吃、下午茶、雨天備案（用逗號分隔）">
+          </div>
+          <div class="form-group favorite-form-span">
+            <label for="favorite-notes">備註</label>
+            <textarea class="form-input" id="favorite-notes" rows="4" maxlength="2000" placeholder="營業時間、必點品項、停車方式或自己的提醒。"></textarea>
+          </div>
+        </div>
+        <div class="favorite-modal-actions">
+          <button type="button" class="btn btn-secondary" id="favorite-modal-cancel">取消</button>
+          <button type="submit" class="btn btn-primary">儲存收藏</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 私人收藏日記：新增整理分頁 -->
+  <div class="modal-overlay" id="favorite-collection-modal">
+    <div class="modal-content glass" style="max-width:420px;">
+      <button class="modal-close" id="favorite-collection-close" title="關閉">✕</button>
+      <h2 class="modal-title">新增整理分頁</h2>
+      <form id="favorite-collection-form">
+        <div class="form-group">
+          <label for="favorite-collection-name">分頁名稱 *</label>
+          <input class="form-input" id="favorite-collection-name" maxlength="80" placeholder="例如：宜蘭、日本大阪" required>
+        </div>
+        <div class="favorite-modal-actions">
+          <button type="button" class="btn btn-secondary" id="favorite-collection-cancel">取消</button>
+          <button type="submit" class="btn btn-primary">建立分頁</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 私人收藏日記：複製到旅程 DAY -->
+  <div class="modal-overlay" id="favorite-trip-modal">
+    <div class="modal-content glass" style="max-width:520px;">
+      <button class="modal-close" id="favorite-trip-close" title="關閉">✕</button>
+      <h2 class="modal-title">加入旅程</h2>
+      <form id="favorite-trip-form">
+        <input type="hidden" id="favorite-trip-item-id">
+        <div class="form-group">
+          <label for="favorite-trip-select">可編輯旅程 *</label>
+          <select class="form-select" id="favorite-trip-select" required></select>
+        </div>
+        <div class="form-grid favorite-form-grid">
+          <div class="form-group">
+            <label for="favorite-trip-day">安排到 *</label>
+            <select class="form-select" id="favorite-trip-day" required></select>
+          </div>
+          <div class="form-group">
+            <label for="favorite-trip-time">預計時間</label>
+            <input type="time" class="form-input" id="favorite-trip-time" value="12:00">
+          </div>
+        </div>
+        <p class="form-hint">會複製目前收藏內容；日後修改私人收藏，不會更動已排入的旅程。</p>
+        <div class="favorite-modal-actions">
+          <button type="button" class="btn btn-secondary" id="favorite-trip-cancel">取消</button>
+          <button type="submit" class="btn btn-primary">確認加入</button>
         </div>
       </form>
     </div>
@@ -1964,8 +2140,9 @@
   <script src="app-entry.js?v=v41"></script>
   <script src="local-account-vault.js?v=v1"></script>
   <script src="cloud-sync.js?v=v38"></script>
-  <script type="module" src="account-cloud-share.js?v=v11"></script>
+  <script type="module" src="account-cloud-share.js?v=v12"></script>
   <script src="exchange-rate.js?v=v1"></script>
-  <script src="app.js?v=v36"></script>
+  <script src="app.js?v=v37"></script>
+  <script src="account-favorites.js?v=v2"></script>
 </body>
 </html>

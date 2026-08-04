@@ -1,4 +1,4 @@
-const CACHE_NAME = "voyage-book-shell-v67";
+const CACHE_NAME = "voyage-book-shell-v69";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -6,6 +6,7 @@ const APP_SHELL = [
   "./cloud-sync.css",
   "./app-entry.css",
   "./app.js",
+  "./account-favorites.js",
   "./app-entry.js",
   "./local-account-vault.js",
   "./cloud-sync.js",

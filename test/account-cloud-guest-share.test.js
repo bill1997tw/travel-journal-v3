@@ -248,5 +248,5 @@ test("owner share controls bind after delayed app or account initialization", ()
   assert.match(source, /document\.readyState === "loading"/);
   assert.match(source, /shareHandlerBound === "true"/);
   assert.match(source, /shareButton\.dataset\.shareHandlerBound = "true"/);
-  assert.match(html, /account-cloud-share\.js\?v=v11/);
+  assert.match(html, /account-cloud-share\.js\?v=v12/);
 });

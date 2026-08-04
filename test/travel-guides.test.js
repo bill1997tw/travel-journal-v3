@@ -16,6 +16,10 @@ test("travel guides are editable per trip and persist through the existing cloud
   assert.match(appSource, /function deleteGuide\(guideId\)/);
   assert.match(appSource, /persistTrips\(\);[\s\S]*renderWorkspaceGuides\(\)/);
   assert.equal((appSource.match(/guides-add-btn"\)\.addEventListener/g) || []).length, 1);
+  assert.match(htmlSource, /id="guide-cover-url"/);
+  assert.match(htmlSource, /id="guide-tags"/);
+  assert.match(appSource, /coverUrl: normalizeExternalUrl/);
+  assert.match(appSource, /guide-live-tags/);
 });
 
 test("guide links are restricted to web URLs and arbitrary embeds are not rendered", () => {
@@ -34,7 +38,7 @@ test("guides survive cloud import, conflict comparison, and guest rendering", ()
 });
 
 test("guide release invalidates browser and offline caches", () => {
-  assert.match(htmlSource, /index\.css\?v=v35/);
-  assert.match(htmlSource, /account-cloud-share\.js\?v=v11/);
-  assert.match(htmlSource, /app\.js\?v=v36/);
+  assert.match(htmlSource, /index\.css\?v=v37/);
+  assert.match(htmlSource, /account-cloud-share\.js\?v=v12/);
+  assert.match(htmlSource, /app\.js\?v=v37/);
 });

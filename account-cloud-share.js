@@ -242,6 +242,8 @@ function renderGuestTrip(result, refreshStatus = "") {
 
   const guideHtml = guides.map(item => {
     const url = normalizePublicUrl(item?.url);
+    const coverUrl = normalizePublicUrl(item?.coverUrl) || (item?.kind === "image" ? url : "");
+    const tags = Array.isArray(item?.tags) ? item.tags.slice(0, 12) : [];
     const kindLabels = {
       image: "🖼️ 圖片／地圖",
       video: "🎬 短影片",
@@ -250,9 +252,12 @@ function renderGuestTrip(result, refreshStatus = "") {
     };
     return `
       <article class="guest-share-alt">
+        ${coverUrl ? `<img class="guest-share-guide-cover" src="${escapeHtml(coverUrl)}" alt="${escapeHtml(item?.title || "攻略封面")}" loading="lazy">` : ""}
         <p class="guest-share-muted">${escapeHtml(kindLabels[item?.kind] || kindLabels.note)}${item?.dayLabel ? ` · ${escapeHtml(item.dayLabel)}` : ""}</p>
         <h4>${escapeHtml(item?.title || "未命名攻略")}</h4>
+        ${item?.region ? `<p class="guest-share-muted">📍 ${escapeHtml(item.region)}</p>` : ""}
         ${item?.description ? `<p>${escapeHtml(item.description)}</p>` : ""}
+        ${tags.length ? `<div class="guest-share-guide-tags">${tags.map(tag => `<span>${escapeHtml(tag)}</span>`).join("")}</div>` : ""}
         ${url ? `<p><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">開啟攻略連結</a></p>` : ""}
       </article>`;
   }).join("");

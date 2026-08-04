@@ -974,6 +974,7 @@ function setupEventListeners() {
 
   // 新增旅程按鈕
   document.getElementById("global-add-trip-btn").addEventListener("click", () => openTripEditorModal());
+  document.getElementById("dashboard-favorites-open")?.addEventListener("click", () => switchView("favorites"));
   document.getElementById("dashboard-empty-add-trip").addEventListener("click", () => openTripEditorModal());
   document.getElementById("trips-add-btn").addEventListener("click", () => openTripEditorModal());
   document.getElementById("trip-modal-close").addEventListener("click", closeTripEditorModal);
@@ -1278,6 +1279,8 @@ function switchView(viewName) {
     renderDashboard();
   } else if (viewName === "budget") {
     renderBudgetCharts();
+  } else if (viewName === "favorites") {
+    window.voyageFavorites?.render?.();
   }
 
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1964,6 +1967,11 @@ function ensureGuideState(trip) {
       title: String(item.title || "").trim(),
       description: String(item.description || "").trim(),
       url: normalizeExternalUrl(String(item.url || "")),
+      coverUrl: normalizeExternalUrl(String(item.coverUrl || "")),
+      region: String(item.region || "").trim(),
+      tags: Array.isArray(item.tags)
+        ? item.tags.map(tag => String(tag).trim()).filter(Boolean).slice(0, 12)
+        : String(item.tags || "").split(/[，,]/).map(tag => tag.trim()).filter(Boolean).slice(0, 12),
       dayLabel: String(item.dayLabel || "").trim(),
       createdAt: item.createdAt || new Date().toISOString(),
       updatedAt: item.updatedAt || item.createdAt || new Date().toISOString()
@@ -2003,9 +2011,11 @@ function renderWorkspaceGuides() {
         <div class="guide-live-grid">
           ${items.map(item => {
             const safeUrl = normalizeExternalUrl(item.url);
-            const imageHtml = item.kind === "image" && safeUrl
-              ? `<a href="${escapeHTML(safeUrl)}" target="_blank" rel="noopener noreferrer" class="guide-live-image"><img src="${escapeHTML(safeUrl)}" alt="${escapeHTML(item.title)}" loading="lazy"></a>`
-              : "";
+            const safeCover = normalizeExternalUrl(item.coverUrl) || (item.kind === "image" ? safeUrl : "");
+            const coverInner = `${safeCover ? `<img src="${escapeHTML(safeCover)}" alt="${escapeHTML(item.title)}" loading="lazy">` : ""}<span class="guide-card-kind">${meta.icon} ${meta.label}</span>`;
+            const imageHtml = safeUrl
+              ? `<a href="${escapeHTML(safeUrl)}" target="_blank" rel="noopener noreferrer" class="guide-live-cover">${coverInner}</a>`
+              : `<div class="guide-live-cover">${coverInner}</div>`;
             const linkHtml = safeUrl
               ? `<a href="${escapeHTML(safeUrl)}" target="_blank" rel="noopener noreferrer" class="guide-link-btn">${meta.action || "開啟連結"}</a>`
               : "";
@@ -2014,11 +2024,12 @@ function renderWorkspaceGuides() {
                 ${imageHtml}
                 <div class="guide-live-body">
                   <div class="guide-live-meta">
-                    <span>${meta.icon} ${meta.label}</span>
+                    ${item.region ? `<span>📍 ${escapeHTML(item.region)}</span>` : `<span>${meta.icon} ${meta.label}</span>`}
                     ${item.dayLabel ? `<span class="guide-day-chip">${escapeHTML(item.dayLabel)}</span>` : ""}
                   </div>
                   <h4>${escapeHTML(item.title)}</h4>
                   ${item.description ? `<p>${escapeHTML(item.description)}</p>` : ""}
+                  ${item.tags.length ? `<div class="guide-live-tags">${item.tags.map(tag => `<span class="favorite-tag">${escapeHTML(tag)}</span>`).join("")}</div>` : ""}
                   <div class="guide-live-actions">
                     ${linkHtml}
                     <button type="button" class="guide-action-btn" data-guide-edit="${escapeHTML(item.id)}">編輯</button>
@@ -2049,6 +2060,9 @@ function openGuideModal(guideId = "") {
   document.getElementById("guide-kind").value = guide?.kind || "image";
   document.getElementById("guide-title").value = guide?.title || "";
   document.getElementById("guide-url").value = guide?.url || "";
+  document.getElementById("guide-cover-url").value = guide?.coverUrl || "";
+  document.getElementById("guide-region").value = guide?.region || "";
+  document.getElementById("guide-tags").value = (guide?.tags || []).join("、");
   document.getElementById("guide-day-label").value = guide?.dayLabel || "";
   document.getElementById("guide-description").value = guide?.description || "";
   document.getElementById("guide-modal-title").innerText = guide ? "編輯攻略項目" : "新增攻略項目";
@@ -2069,9 +2083,15 @@ function handleGuideSubmit(event) {
   const title = document.getElementById("guide-title").value.trim();
   const rawUrl = document.getElementById("guide-url").value.trim();
   const url = normalizeExternalUrl(rawUrl);
+  const rawCoverUrl = document.getElementById("guide-cover-url").value.trim();
+  const coverUrl = normalizeExternalUrl(rawCoverUrl);
   if (!title) return;
   if (rawUrl && !url) {
     showToast("網址格式不正確，請使用 http 或 https 連結", "error");
+    return;
+  }
+  if (rawCoverUrl && !coverUrl) {
+    showToast("封面網址格式不正確，請使用 http 或 https 連結", "error");
     return;
   }
   if (kind !== "note" && !url) {
@@ -2087,6 +2107,13 @@ function handleGuideSubmit(event) {
     kind,
     title,
     url,
+    coverUrl,
+    region: document.getElementById("guide-region").value.trim(),
+    tags: document.getElementById("guide-tags").value
+      .split(/[，,]/)
+      .map(tag => tag.trim())
+      .filter(Boolean)
+      .slice(0, 12),
     dayLabel: document.getElementById("guide-day-label").value.trim(),
     description: document.getElementById("guide-description").value.trim(),
     createdAt: existingIndex >= 0 ? guides[existingIndex].createdAt : now,
@@ -7091,6 +7118,61 @@ window.voyageApp = {
     setupTheme();
     renderAll();
     document.dispatchEvent(new CustomEvent("voyage:app-ready"));
+  },
+  getFavoriteTripTargets() {
+    return trips
+      .filter((trip) => {
+        const cloudTripId = trip?._cloud?.tripId;
+        if (!cloudTripId) return true;
+        const role = window.voyageAccountCloud?.getRoleForTrip?.(cloudTripId);
+        return role === "owner" || role === "editor";
+      })
+      .map((trip) => ({
+        id: trip.id,
+        title: trip.title || "未命名旅程",
+        duration: Math.max(1, parseInt(trip.duration) || 1)
+      }));
+  },
+  addFavoriteSnapshotToTrip(tripId, dayNum, time, favorite) {
+    const trip = trips.find(item => item.id === tripId);
+    if (!trip || !favorite?.title) return false;
+    const maxDay = Math.max(1, parseInt(trip.duration) || 1);
+    const targetDay = Math.min(Math.max(parseInt(dayNum) || 1, 1), maxDay);
+    pushItineraryHistorySnapshot(trip, { activeDay: targetDay });
+    if (!trip.itinerary) {
+      trip.itinerary = {
+        title: trip.title,
+        dates: trip.dateRange || trip.date,
+        subInfo: `旅伴: ${trip.companion || ""}`,
+        days: []
+      };
+    }
+    let dayData = trip.itinerary.days.find(day => day.dayNum === targetDay);
+    if (!dayData) {
+      dayData = { dayNum: targetDay, date: `Day ${targetDay}`, theme: "自由行程", desc: "", items: [] };
+      trip.itinerary.days.push(dayData);
+      trip.itinerary.days.sort((left, right) => left.dayNum - right.dayNum);
+    }
+    const safeSourceUrl = normalizeExternalUrl(String(favorite.source_url || ""));
+    const notes = String(favorite.notes || "").trim();
+    const tags = Array.isArray(favorite.tags) ? favorite.tags.filter(Boolean) : [];
+    dayData.items.push({
+      id: globalThis.crypto?.randomUUID?.() || `sche-${Date.now()}`,
+      time: String(time || "12:00").trim(),
+      title: String(favorite.title).trim(),
+      type: favorite.kind === "food" ? "food" : "sight",
+      content: [notes, tags.length ? `標籤：${tags.join("、")}` : "", safeSourceUrl ? `收藏來源：${safeSourceUrl}` : ""]
+        .filter(Boolean)
+        .join("\n") || "由私人收藏日記加入。",
+      highlight: false,
+      mapsUrl: safeSourceUrl,
+      address: String(favorite.location || "").trim(),
+      rating: "",
+      hours: "",
+      favoriteSnapshotId: String(favorite.id || "")
+    });
+    persistTrips();
+    return true;
   },
   setAccessibleCloudTripCount(count) {
     accessibleCloudTripCount = Number.isSafeInteger(Number(count))
