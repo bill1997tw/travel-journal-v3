@@ -38,7 +38,7 @@ test("guides survive cloud import, conflict comparison, and guest rendering", ()
 });
 
 test("guide release invalidates browser and offline caches", () => {
-  assert.match(htmlSource, /index\.css\?v=v39/);
+  assert.match(htmlSource, /index\.css\?v=v40/);
   assert.match(htmlSource, /account-cloud-share\.js\?v=v12/);
   assert.match(htmlSource, /app\.js\?v=v37/);
 });

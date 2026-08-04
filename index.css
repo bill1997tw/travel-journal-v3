@@ -5207,8 +5207,14 @@ body.guest-readonly-active > :not(#guest-readonly-root):not(#guest-invalid-overl
   display: grid;
   gap: 0.65rem;
   margin-top: auto;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border-color);
+  padding-top: 1.35rem;
+}
+
+.favorite-card-actions::before {
+  content: "";
+  height: 1px;
+  margin-bottom: 0.1rem;
+  background: var(--border-color);
 }
 
 .favorite-card-actions button,
@@ -5247,7 +5253,7 @@ body.guest-readonly-active > :not(#guest-readonly-root):not(#guest-invalid-overl
 
 .favorite-card-secondary-actions {
   display: grid;
-  grid-template-columns: repeat(var(--secondary-action-count), minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.45rem;
 }
 
@@ -5256,6 +5262,13 @@ body.guest-readonly-active > :not(#guest-readonly-root):not(#guest-invalid-overl
   min-height: 38px;
   background: var(--bg-secondary);
   color: var(--text-secondary);
+}
+
+.favorite-card-secondary-actions .favorite-source-link {
+  grid-column: 1 / -1;
+  min-height: 36px;
+  border-color: rgba(124, 100, 84, 0.14);
+  background: rgba(124, 100, 84, 0.055);
 }
 
 .favorite-card-secondary-actions button:hover,

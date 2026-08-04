@@ -14,7 +14,7 @@ test("favorite journal has an account-level navigation view and editor", () => {
   assert.match(html, /id="view-favorites"/u);
   assert.match(html, /id="favorite-form"/u);
   assert.match(html, /id="favorite-collection-form"/u);
-  assert.match(html, /account-favorites\.js\?v=v4/u);
+  assert.match(html, /account-favorites\.js\?v=v5/u);
 });
 
 test("favorites load and write only through private account tables", () => {
@@ -50,12 +50,14 @@ test("favorite covers support private drag and drop uploads", () => {
   assert.match(source, /favorite-cover-error/u);
 });
 
-test("favorite card actions keep one clear primary action and an even utility row", () => {
+test("favorite card actions keep one clear primary action and relaxed utility rows", () => {
   assert.match(source, /class="favorite-add-trip"/u);
   assert.match(source, /class="favorite-card-secondary-actions"/u);
-  assert.match(source, /--secondary-action-count:\$\{sourceUrl \? 3 : 2\}/u);
+  assert.match(source, /class="favorite-source-link"/u);
   assert.match(css, /\.favorite-card-actions\s*\{[\s\S]*display:\s*grid/u);
-  assert.match(css, /grid-template-columns:\s*repeat\(var\(--secondary-action-count\),\s*minmax\(0,\s*1fr\)\)/u);
+  assert.match(css, /\.favorite-card-actions::before\s*\{[\s\S]*background:\s*var\(--border-color\)/u);
+  assert.match(css, /grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/u);
+  assert.match(css, /\.favorite-card-secondary-actions \.favorite-source-link\s*\{[\s\S]*grid-column:\s*1 \/ -1/u);
   assert.match(css, /\.favorite-card-actions \.favorite-add-trip\s*\{[\s\S]*min-height:\s*46px/u);
 });
 
@@ -67,6 +69,6 @@ test("adding a favorite creates a trip snapshot instead of a live cloud link", (
 });
 
 test("favorite release invalidates offline shell", () => {
-  assert.match(sw, /voyage-book-shell-v71/u);
+  assert.match(sw, /voyage-book-shell-v72/u);
   assert.match(sw, /\.\/account-favorites\.js/u);
 });
