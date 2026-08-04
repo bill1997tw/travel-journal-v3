@@ -232,10 +232,12 @@
             ${item.notes ? `<p class="favorite-card-notes">${escapeHtml(item.notes)}</p>` : ""}
             ${(item.tags || []).length ? `<div class="favorite-tags">${item.tags.map(tag => tagHtml(tag)).join("")}</div>` : ""}
             <div class="favorite-card-actions">
-              <button type="button" class="favorite-add-trip" data-favorite-add-trip="${escapeHtml(item.id)}">＋ 加入行程</button>
-              ${sourceUrl ? `<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">查看來源</a>` : ""}
-              <button type="button" data-favorite-edit="${escapeHtml(item.id)}">編輯</button>
-              <button type="button" class="favorite-delete" data-favorite-delete="${escapeHtml(item.id)}">刪除</button>
+              <button type="button" class="favorite-add-trip" data-favorite-add-trip="${escapeHtml(item.id)}"><span aria-hidden="true">＋</span> 加入行程</button>
+              <div class="favorite-card-secondary-actions" style="--secondary-action-count:${sourceUrl ? 3 : 2}">
+                ${sourceUrl ? `<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">↗</span> 查看來源</a>` : ""}
+                <button type="button" data-favorite-edit="${escapeHtml(item.id)}"><span aria-hidden="true">✎</span> 編輯</button>
+                <button type="button" class="favorite-delete" data-favorite-delete="${escapeHtml(item.id)}"><span aria-hidden="true">×</span> 刪除</button>
+              </div>
             </div>
           </div>
         </article>`;
