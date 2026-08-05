@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>悠遊小本本 Voyage Book | 您的專屬旅行規劃與分帳管家</title>
   <meta name="description" content="悠遊小本本是一個為自助旅行與重機愛好者設計的精美企劃工具，包含詳細日程、景點與餐廳備案庫、行李打包清單、多人費用代墊分帳以及回憶日記。">
-  <link rel="stylesheet" href="index.css?v=v41">
+  <link rel="stylesheet" href="index.css?v=v42">
   <link rel="stylesheet" href="cloud-sync.css?v=v40">
   <link rel="stylesheet" href="app-entry.css?v=v35">
   <link rel="manifest" href="manifest.webmanifest">
@@ -1813,14 +1813,15 @@
   <div class="modal-overlay" id="favorite-trip-modal">
     <div class="modal-content glass" style="max-width:520px;">
       <button class="modal-close" id="favorite-trip-close" title="關閉">✕</button>
-      <h2 class="modal-title">加入旅程</h2>
+      <h2 class="modal-title" id="favorite-trip-modal-title">加入旅程</h2>
       <form id="favorite-trip-form">
         <input type="hidden" id="favorite-trip-item-id">
+        <input type="hidden" id="favorite-trip-mode" value="itinerary">
         <div class="form-group">
           <label for="favorite-trip-select">可編輯旅程 *</label>
           <select class="form-select" id="favorite-trip-select" required></select>
         </div>
-        <div class="form-grid favorite-form-grid">
+        <div class="form-grid favorite-form-grid" id="favorite-trip-schedule">
           <div class="form-group">
             <label for="favorite-trip-day">安排到 *</label>
             <select class="form-select" id="favorite-trip-day" required></select>
@@ -1830,10 +1831,10 @@
             <input type="time" class="form-input" id="favorite-trip-time" value="12:00">
           </div>
         </div>
-        <p class="form-hint">會複製目前收藏內容；日後修改私人收藏，不會更動已排入的旅程。</p>
+        <p class="form-hint" id="favorite-trip-hint">會複製目前收藏內容；日後修改私人收藏，不會更動已排入的旅程。</p>
         <div class="favorite-modal-actions">
           <button type="button" class="btn btn-secondary" id="favorite-trip-cancel">取消</button>
-          <button type="submit" class="btn btn-primary">確認加入</button>
+          <button type="submit" class="btn btn-primary" id="favorite-trip-submit">確認加入</button>
         </div>
       </form>
     </div>
@@ -2163,7 +2164,7 @@
   <script src="cloud-sync.js?v=v38"></script>
   <script type="module" src="account-cloud-share.js?v=v12"></script>
   <script src="exchange-rate.js?v=v1"></script>
-  <script src="app.js?v=v37"></script>
-  <script src="account-favorites.js?v=v6"></script>
+  <script src="app.js?v=v38"></script>
+  <script src="account-favorites.js?v=v7"></script>
 </body>
 </html>

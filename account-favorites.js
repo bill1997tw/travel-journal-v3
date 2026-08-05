@@ -9,6 +9,7 @@
     note: { icon: "📝", label: "備忘" }
   });
   const STORAGE_BUCKET = window.VOYAGE_SUPABASE_CONFIG?.storageBucket || "travel-assets";
+  const GUIDE_SNAPSHOT_BUCKET = "travel-guide-assets";
   const MAX_TAGS = 12;
   const MAX_COVER_BYTES = 10 * 1024 * 1024;
   const state = {
@@ -252,7 +253,10 @@
             ${favoriteNotesHtml(item.notes)}
             ${(item.tags || []).length ? `<div class="favorite-tags">${item.tags.map(tag => tagHtml(tag)).join("")}</div>` : ""}
             <div class="favorite-card-actions">
-              <button type="button" class="favorite-add-trip" data-favorite-add-trip="${escapeHtml(item.id)}"><span aria-hidden="true">＋</span> 加入行程</button>
+              <div class="favorite-card-primary-actions">
+                <button type="button" class="favorite-add-trip" data-favorite-add-trip="${escapeHtml(item.id)}"><span aria-hidden="true">＋</span> 加入行程</button>
+                <button type="button" class="favorite-add-guide" data-favorite-add-guide="${escapeHtml(item.id)}"><span aria-hidden="true">▤</span> 加入攻略庫</button>
+              </div>
               <div class="favorite-card-secondary-actions">
                 ${sourceUrl ? `<a class="favorite-source-link" href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">↗</span> 查看來源</a>` : ""}
                 <button type="button" data-favorite-edit="${escapeHtml(item.id)}"><span aria-hidden="true">✎</span> 編輯</button>
@@ -276,7 +280,10 @@
       button.addEventListener("click", () => deleteFavorite(button.dataset.favoriteDelete));
     });
     ui.grid.querySelectorAll("[data-favorite-add-trip]").forEach(button => {
-      button.addEventListener("click", () => openTripModal(button.dataset.favoriteAddTrip));
+      button.addEventListener("click", () => openTripModal(button.dataset.favoriteAddTrip, "itinerary"));
+    });
+    ui.grid.querySelectorAll("[data-favorite-add-guide]").forEach(button => {
+      button.addEventListener("click", () => openTripModal(button.dataset.favoriteAddGuide, "guide"));
     });
   }
 
@@ -517,27 +524,116 @@
     ui.tripDay.innerHTML = Array.from({ length: duration }, (_, index) => `<option value="${index + 1}">DAY ${index + 1}</option>`).join("");
   }
 
-  function openTripModal(itemId) {
+  function openTripModal(itemId, mode = "itinerary") {
     const targets = window.voyageApp?.getFavoriteTripTargets?.() || [];
     if (!targets.length) {
       showToast("目前沒有可編輯的旅程，請先建立旅程或確認 Editor 權限。", "error");
       return;
     }
     ui.tripItemId.value = itemId;
+    ui.tripMode.value = mode;
     ui.tripSelect.innerHTML = targets.map(trip => `<option value="${escapeHtml(trip.id)}">${escapeHtml(trip.title)}</option>`).join("");
     updateTripDays();
+    const isGuide = mode === "guide";
+    ui.tripModalTitle.textContent = isGuide ? "加入旅行攻略庫" : "加入旅程";
+    ui.tripSchedule.hidden = isGuide;
+    ui.tripHint.textContent = isGuide
+      ? "會複製成這趟旅程的攻略快照；封面也可能顯示於旅程分享頁，原始私人收藏仍不會公開。"
+      : "會複製目前收藏內容；日後修改私人收藏，不會更動已排入的旅程。";
+    ui.tripSubmit.textContent = isGuide ? "加入攻略庫" : "確認加入";
     openModal(ui.tripModal);
   }
 
-  function addToTrip(event) {
+  function coverExtension(blob, sourcePath) {
+    const byType = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+    return byType[blob?.type] || String(sourcePath || "").split(".").pop()?.toLowerCase() || "jpg";
+  }
+
+  async function prepareGuideSnapshotCover(item, tripId) {
+    const directCover = safeWebUrl(item?.cover_url);
+    if (directCover) return { url: directCover, path: "" };
+    const sourcePath = storagePath(item?.cover_url);
+    if (!sourcePath || !state.client || !state.user) return { url: "", path: "" };
+    const download = await state.client.storage.from(STORAGE_BUCKET).download(sourcePath);
+    if (download.error || !download.data) throw download.error || new Error("Unable to download favorite cover");
+    const extension = coverExtension(download.data, sourcePath);
+    const snapshotId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const targetPath = `${state.user.id}/guide-snapshots/${tripId}/${snapshotId}.${extension}`;
+    const upload = await state.client.storage.from(GUIDE_SNAPSHOT_BUCKET).upload(targetPath, download.data, {
+      contentType: download.data.type || `image/${extension === "jpg" ? "jpeg" : extension}`,
+      cacheControl: "31536000",
+      upsert: false
+    });
+    if (upload.error) throw upload.error;
+    const publicResult = state.client.storage.from(GUIDE_SNAPSHOT_BUCKET).getPublicUrl(targetPath);
+    const publicUrl = safeWebUrl(publicResult.data?.publicUrl);
+    if (!publicUrl) throw new Error("Unable to create guide cover URL");
+    return { url: publicUrl, path: targetPath };
+  }
+
+  async function removeGuideSnapshotCover(path) {
+    if (!path || !state.client || !state.user || !String(path).startsWith(`${state.user.id}/guide-snapshots/`)) return false;
+    const { error } = await state.client.storage.from(GUIDE_SNAPSHOT_BUCKET).remove([path]);
+    if (error) console.warn("Guide snapshot cover cleanup failed", error);
+    return !error;
+  }
+
+  async function addToTrip(event) {
     event.preventDefault();
     const item = state.items.find(candidate => candidate.id === ui.tripItemId.value);
+    if (!item || ui.tripSubmit.disabled) return;
+    const mode = ui.tripMode.value;
+    ui.tripSubmit.disabled = true;
+    const originalLabel = ui.tripSubmit.textContent;
+    ui.tripSubmit.textContent = "處理中…";
+    if (mode === "guide") {
+      if (window.voyageApp?.hasFavoriteSnapshotInGuide?.(ui.tripSelect.value, item.id)) {
+        ui.tripSubmit.disabled = false;
+        ui.tripSubmit.textContent = originalLabel;
+        closeModal(ui.tripModal);
+        showToast("這筆收藏已經加入該旅程的攻略庫。", "info");
+        return;
+      }
+      let cover = { url: "", path: "" };
+      let coverCopyFailed = false;
+      try {
+        cover = await prepareGuideSnapshotCover(item, ui.tripSelect.value);
+      } catch (error) {
+        console.warn("Favorite guide cover snapshot failed", error);
+        coverCopyFailed = true;
+      }
+      const result = window.voyageApp?.addFavoriteSnapshotToGuide?.(ui.tripSelect.value, {
+        ...item,
+        guideCoverUrl: cover.url,
+        guideCoverStoragePath: cover.path
+      });
+      ui.tripSubmit.disabled = false;
+      ui.tripSubmit.textContent = originalLabel;
+      if (result === "duplicate") {
+        await removeGuideSnapshotCover(cover.path);
+        closeModal(ui.tripModal);
+        showToast("這筆收藏已經加入該旅程的攻略庫。", "info");
+        return;
+      }
+      if (result !== "added") {
+        await removeGuideSnapshotCover(cover.path);
+        showToast("無法加入攻略庫，請稍後再試。", "error");
+        return;
+      }
+      closeModal(ui.tripModal);
+      showToast(coverCopyFailed
+        ? `已將「${item.title}」加入攻略庫，但圖片複製失敗。`
+        : `已將「${item.title}」加入旅行攻略庫。`, coverCopyFailed ? "info" : "success");
+      return;
+    }
     const added = window.voyageApp?.addFavoriteSnapshotToTrip?.(
       ui.tripSelect.value,
       ui.tripDay.value,
       ui.tripTime.value,
       item
     );
+    ui.tripSubmit.disabled = false;
+    ui.tripSubmit.textContent = originalLabel;
     if (!added) {
       showToast("無法加入旅程，請重新整理後再試。", "error");
       return;
@@ -637,9 +733,14 @@
       tripModal: document.getElementById("favorite-trip-modal"),
       tripForm: document.getElementById("favorite-trip-form"),
       tripItemId: document.getElementById("favorite-trip-item-id"),
+      tripMode: document.getElementById("favorite-trip-mode"),
+      tripModalTitle: document.getElementById("favorite-trip-modal-title"),
       tripSelect: document.getElementById("favorite-trip-select"),
       tripDay: document.getElementById("favorite-trip-day"),
-      tripTime: document.getElementById("favorite-trip-time")
+      tripTime: document.getElementById("favorite-trip-time"),
+      tripSchedule: document.getElementById("favorite-trip-schedule"),
+      tripHint: document.getElementById("favorite-trip-hint"),
+      tripSubmit: document.getElementById("favorite-trip-submit")
     };
   }
 
@@ -742,7 +843,7 @@
     });
   }
 
-  window.voyageFavorites = { render, reload: loadData };
+  window.voyageFavorites = { render, reload: loadData, removeGuideSnapshotCover };
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", mount, { once: true });
   } else {

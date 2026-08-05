@@ -1973,6 +1973,8 @@ function ensureGuideState(trip) {
         ? item.tags.map(tag => String(tag).trim()).filter(Boolean).slice(0, 12)
         : String(item.tags || "").split(/[，,]/).map(tag => tag.trim()).filter(Boolean).slice(0, 12),
       dayLabel: String(item.dayLabel || "").trim(),
+      favoriteSnapshotId: String(item.favoriteSnapshotId || "").trim(),
+      coverStoragePath: String(item.coverStoragePath || "").trim(),
       createdAt: item.createdAt || new Date().toISOString(),
       updatedAt: item.updatedAt || item.createdAt || new Date().toISOString()
     }))
@@ -2116,6 +2118,8 @@ function handleGuideSubmit(event) {
       .slice(0, 12),
     dayLabel: document.getElementById("guide-day-label").value.trim(),
     description: document.getElementById("guide-description").value.trim(),
+    favoriteSnapshotId: existingIndex >= 0 ? guides[existingIndex].favoriteSnapshotId : "",
+    coverStoragePath: existingIndex >= 0 ? guides[existingIndex].coverStoragePath : "",
     createdAt: existingIndex >= 0 ? guides[existingIndex].createdAt : now,
     updatedAt: now
   };
@@ -2128,12 +2132,16 @@ function handleGuideSubmit(event) {
   showToast(existingIndex >= 0 ? "攻略已更新" : "攻略已新增", "success");
 }
 
-function deleteGuide(guideId) {
+async function deleteGuide(guideId) {
   const trip = trips.find(item => item.id === activeTripId);
   if (!trip || !confirm("確定要刪除這筆攻略嗎？")) return;
+  const guide = ensureGuideState(trip).find(item => item.id === guideId);
   trip.guides = ensureGuideState(trip).filter(item => item.id !== guideId);
   persistTrips();
   renderWorkspaceGuides();
+  if (guide?.coverStoragePath) {
+    await window.voyageFavorites?.removeGuideSnapshotCover?.(guide.coverStoragePath);
+  }
   showToast("攻略已刪除", "info");
 }
 
@@ -7173,6 +7181,48 @@ window.voyageApp = {
     });
     persistTrips();
     return true;
+  },
+  hasFavoriteSnapshotInGuide(tripId, favoriteId) {
+    const trip = trips.find(item => item.id === tripId);
+    if (!trip || !favoriteId) return false;
+    return ensureGuideState(trip).some(item => item.favoriteSnapshotId === String(favoriteId));
+  },
+  addFavoriteSnapshotToGuide(tripId, favorite) {
+    const trip = trips.find(item => item.id === tripId);
+    if (!trip || !favorite?.title) return "failed";
+    const guides = ensureGuideState(trip);
+    const favoriteSnapshotId = String(favorite.id || "").trim();
+    if (favoriteSnapshotId && guides.some(item => item.favoriteSnapshotId === favoriteSnapshotId)) {
+      return "duplicate";
+    }
+    const sourceUrl = normalizeExternalUrl(String(favorite.source_url || ""));
+    const kind = favorite.kind === "video" && sourceUrl
+      ? "video"
+      : favorite.kind === "article" && sourceUrl
+        ? "link"
+        : (favorite.kind === "place" || favorite.kind === "food") && sourceUrl
+          ? "image"
+          : "note";
+    const now = new Date().toISOString();
+    guides.unshift({
+      id: globalThis.crypto?.randomUUID?.() || `guide-${Date.now()}`,
+      kind,
+      title: String(favorite.title).trim(),
+      description: String(favorite.notes || "").trim(),
+      url: sourceUrl,
+      coverUrl: normalizeExternalUrl(String(favorite.guideCoverUrl || favorite.cover_url || "")),
+      region: String(favorite.location || "").trim(),
+      tags: Array.isArray(favorite.tags)
+        ? favorite.tags.map(tag => String(tag).trim()).filter(Boolean).slice(0, 12)
+        : [],
+      dayLabel: "",
+      favoriteSnapshotId,
+      coverStoragePath: String(favorite.guideCoverStoragePath || "").trim(),
+      createdAt: now,
+      updatedAt: now
+    });
+    persistTrips();
+    return "added";
   },
   setAccessibleCloudTripCount(count) {
     accessibleCloudTripCount = Number.isSafeInteger(Number(count))

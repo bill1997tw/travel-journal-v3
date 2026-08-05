@@ -14,7 +14,7 @@ test("favorite journal has an account-level navigation view and editor", () => {
   assert.match(html, /id="view-favorites"/u);
   assert.match(html, /id="favorite-form"/u);
   assert.match(html, /id="favorite-collection-form"/u);
-  assert.match(html, /account-favorites\.js\?v=v6/u);
+  assert.match(html, /account-favorites\.js\?v=v7/u);
 });
 
 test("favorites load and write only through private account tables", () => {
@@ -78,7 +78,30 @@ test("adding a favorite creates a trip snapshot instead of a live cloud link", (
   assert.doesNotMatch(app, /from\("favorite_items"\)/u);
 });
 
+test("favorites can create independent travel guide snapshots", () => {
+  assert.match(source, /data-favorite-add-guide/u);
+  assert.match(html, /id="favorite-trip-mode"/u);
+  assert.match(app, /addFavoriteSnapshotToGuide\(tripId, favorite\)/u);
+  assert.match(app, /hasFavoriteSnapshotInGuide\(tripId, favoriteId\)/u);
+  assert.match(app, /description: String\(favorite\.notes/u);
+  assert.match(app, /region: String\(favorite\.location/u);
+  assert.match(app, /favorite\.kind === "place" \|\| favorite\.kind === "food"/u);
+  assert.match(app, /favoriteSnapshotId/u);
+  assert.match(source, /這筆收藏已經加入該旅程的攻略庫/u);
+});
+
+test("private favorite covers are copied into durable guide snapshot assets", () => {
+  assert.match(source, /const GUIDE_SNAPSHOT_BUCKET = "travel-guide-assets"/u);
+  assert.match(source, /function prepareGuideSnapshotCover/u);
+  assert.match(source, /\.storage\.from\(STORAGE_BUCKET\)\.download\(sourcePath\)/u);
+  assert.match(source, /\.storage\.from\(GUIDE_SNAPSHOT_BUCKET\)\.upload/u);
+  assert.match(source, /getPublicUrl\(targetPath\)/u);
+  assert.match(source, /removeGuideSnapshotCover/u);
+  assert.match(source, /原始私人收藏仍不會公開/u);
+  assert.match(app, /coverStoragePath/u);
+});
+
 test("favorite release invalidates offline shell", () => {
-  assert.match(sw, /voyage-book-shell-v73/u);
+  assert.match(sw, /voyage-book-shell-v74/u);
   assert.match(sw, /\.\/account-favorites\.js/u);
 });

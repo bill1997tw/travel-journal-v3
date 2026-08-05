@@ -5296,6 +5296,16 @@ body.guest-readonly-active > :not(#guest-readonly-root):not(#guest-invalid-overl
   cursor: pointer;
 }
 
+.favorite-card-primary-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+#favorite-trip-schedule[hidden] {
+  display: none;
+}
+
 .favorite-card-actions .favorite-add-trip {
   min-height: 46px;
   background: var(--accent-color);
@@ -5305,7 +5315,16 @@ body.guest-readonly-active > :not(#guest-readonly-root):not(#guest-invalid-overl
   box-shadow: 0 7px 16px rgba(200, 92, 50, 0.18);
 }
 
-.favorite-card-actions .favorite-add-trip:hover {
+.favorite-card-actions .favorite-add-guide {
+  min-height: 46px;
+  border-color: rgba(200, 92, 50, 0.26);
+  background: rgba(200, 92, 50, 0.08);
+  color: var(--accent-color);
+  font-size: 0.86rem;
+}
+
+.favorite-card-actions .favorite-add-trip:hover,
+.favorite-card-actions .favorite-add-guide:hover {
   filter: brightness(1.05);
   transform: translateY(-1px);
 }
