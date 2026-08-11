@@ -1861,6 +1861,55 @@ body[data-current-view="workspace"] main {
 }
 
 /* ================= 4.5 票券憑證與旅途備忘錄 ================= */
+#voucher-modal .voucher-modal-content {
+  width: min(960px, calc(100vw - 3rem));
+  max-width: 960px;
+  overflow-x: hidden;
+}
+
+.voucher-flight-section {
+  padding: 1.25rem;
+  border-radius: 14px;
+  background: rgba(200, 92, 50, 0.04);
+  border: 1px dashed rgba(200, 92, 50, 0.3);
+  margin-bottom: 1rem;
+}
+
+.voucher-flight-section[hidden] {
+  display: none !important;
+}
+
+.voucher-flight-section .form-group,
+.voucher-flight-section .form-input,
+.voucher-flight-section .form-select {
+  min-width: 0;
+}
+
+@media (min-width: 769px) {
+  #voucher-modal .voucher-modal-content {
+    padding: 2.25rem 2.5rem;
+  }
+
+  .voucher-flight-section .form-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  #voucher-modal .form-grid,
+  .voucher-flight-section .form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  #voucher-modal .form-group,
+  #voucher-modal .form-input,
+  #voucher-modal .form-select,
+  #voucher-modal .form-textarea {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
 .vouchers-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -2202,7 +2251,456 @@ body[data-current-view="workspace"] main {
 }
 
 
-/* ================= 6. 故事日記 ================= */
+/* ================= 6. 旅程回憶 ================= */
+.diary-page-heading > div:first-child {
+  max-width: 42rem;
+}
+
+.diary-page-heading h2 {
+  margin: 0;
+}
+
+.diary-page-heading p {
+  margin: 0.45rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.diary-page-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.diary-page-actions .btn {
+  font-size: 0.82rem;
+  padding: 0.55rem 0.9rem;
+}
+
+.diary-view-tabs {
+  display: inline-flex;
+  gap: 0.45rem;
+  margin: 1rem 0 0.25rem;
+  padding: 0.35rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(194, 175, 157, 0.3);
+}
+
+.diary-page-actions {
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.diary-publication-control {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 150px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.diary-publication-control .form-select {
+  min-height: 42px;
+  background: var(--surface, #fff);
+}
+
+.diary-publication-note {
+  margin: -0.2rem 0 1rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid rgba(141, 126, 112, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.68);
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.diary-publication-note[data-tone="published"] {
+  border-color: rgba(49, 133, 91, 0.28);
+  background: rgba(49, 133, 91, 0.08);
+  color: #286d4b;
+}
+
+.diary-publication-note[data-tone="private"],
+.diary-publication-note[data-tone="readonly"] {
+  border-color: rgba(118, 103, 91, 0.24);
+  background: rgba(118, 103, 91, 0.08);
+}
+
+#ws-panel-diary[data-readonly="true"] .memory-moment-card-actions,
+#ws-panel-diary[data-readonly="true"] .memory-story-selection-head button {
+  display: none;
+}
+
+.diary-view-tab {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.72rem 1.1rem;
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.diary-view-tab.active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent-color), var(--accent-2));
+  box-shadow: 0 10px 24px rgba(214, 118, 71, 0.2);
+}
+
+.diary-view-panel {
+  display: none;
+}
+
+.diary-view-panel.active {
+  display: block;
+}
+
+.memory-moments-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.4rem 1.5rem;
+  margin-top: 1rem;
+  border-radius: 26px;
+}
+
+.memory-moments-toolbar h3 {
+  margin: 0;
+  font-size: 1.12rem;
+}
+
+.memory-moments-toolbar p,
+.memory-moment-modal-heading p {
+  margin: 0.45rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+
+.memory-moments-toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.memory-count-badge,
+.memory-day-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: rgba(214, 118, 71, 0.11);
+  color: var(--accent-color);
+  font-weight: 800;
+  font-size: 0.78rem;
+  padding: 0.5rem 0.78rem;
+  white-space: nowrap;
+}
+
+.memory-timeline {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1.2rem;
+  padding-left: 5rem;
+}
+
+.memory-timeline::before {
+  content: "";
+  position: absolute;
+  top: 1rem;
+  bottom: 1rem;
+  left: 2.2rem;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--accent-color), rgba(214, 118, 71, 0.12));
+}
+
+.memory-timeline-item {
+  position: relative;
+}
+
+.memory-timeline-marker {
+  position: absolute;
+  top: 1.4rem;
+  right: calc(100% + 1rem);
+  width: 4rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.memory-timeline-marker::after {
+  content: "";
+  position: absolute;
+  top: 0.42rem;
+  right: -0.88rem;
+  width: 0.72rem;
+  height: 0.72rem;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--accent-color);
+  box-shadow: 0 0 0 4px rgba(214, 118, 71, 0.12);
+}
+
+.memory-timeline-marker span {
+  color: var(--accent-color);
+  font-size: 0.72rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.memory-moment-card {
+  display: grid;
+  grid-template-columns: 1fr;
+  overflow: hidden;
+  border-radius: 26px;
+  border: 1px solid rgba(194, 175, 157, 0.28);
+}
+
+.memory-timeline-item.is-included .memory-moment-card {
+  border-color: rgba(214, 118, 71, 0.4);
+}
+
+.memory-moment-image {
+  width: 100%;
+  height: 100%;
+  min-height: 230px;
+  max-height: 320px;
+  object-fit: cover;
+}
+
+.memory-moment-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  min-width: 0;
+  padding: 1.3rem;
+}
+
+.memory-moment-card.has-image {
+  grid-template-columns: minmax(0, 230px) minmax(0, 1fr);
+}
+
+.memory-moment-meta,
+.memory-moment-tags,
+.memory-moment-actions,
+.memory-moment-actions > div {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.memory-moment-meta > span:not(.memory-day-chip) {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.memory-moment-location {
+  font-size: 0.88rem;
+  color: var(--accent-color);
+}
+
+.memory-moment-body p {
+  margin: 0;
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+.memory-moment-tags span,
+.memory-story-chip-list span {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 0.4rem 0.68rem;
+  background: rgba(88, 129, 87, 0.1);
+  color: #4f7750;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.memory-moment-actions {
+  justify-content: space-between;
+  padding-top: 0.85rem;
+  margin-top: auto;
+  border-top: 1px solid rgba(194, 175, 157, 0.25);
+}
+
+.memory-moment-actions .btn {
+  padding: 0.48rem 0.72rem;
+  font-size: 0.78rem;
+}
+
+.memory-include-btn {
+  appearance: none;
+  border: 1px solid rgba(194, 175, 157, 0.38);
+  border-radius: 999px;
+  padding: 0.55rem 0.8rem;
+  background: #fff;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.memory-include-btn.active {
+  border-color: rgba(214, 118, 71, 0.3);
+  background: rgba(214, 118, 71, 0.1);
+  color: var(--accent-color);
+}
+
+.memory-delete-btn {
+  color: var(--danger) !important;
+  border-color: rgba(169, 74, 66, 0.18) !important;
+}
+
+.memory-empty-state {
+  padding: 3rem 1.5rem;
+  border-radius: 26px;
+  text-align: center;
+}
+
+.memory-empty-state > span {
+  display: block;
+  font-size: 2rem;
+}
+
+.memory-empty-state h3 {
+  margin: 0.7rem 0 0;
+}
+
+.memory-empty-state p {
+  max-width: 34rem;
+  margin: 0.65rem auto 1.2rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.memory-story-selection {
+  padding: 0.9rem;
+  border-radius: 18px;
+  background: rgba(88, 129, 87, 0.07);
+  border: 1px solid rgba(88, 129, 87, 0.14);
+}
+
+.memory-story-selection-head,
+.memory-story-selection-head > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.memory-story-selection-head > div {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.memory-story-selection-head span,
+.memory-story-chip-list em {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-style: normal;
+}
+
+.memory-story-selection-head .btn {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.76rem;
+}
+
+.memory-story-chip-list {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
+.memory-moment-modal-content {
+  max-width: 720px;
+  max-height: calc(100vh - 3rem);
+  overflow-y: auto;
+}
+
+.memory-moment-modal-heading {
+  margin-bottom: 1.25rem;
+}
+
+.memory-moment-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.memory-moment-upload {
+  position: relative;
+  min-height: 210px;
+  overflow: hidden;
+  border: 1.5px dashed rgba(194, 175, 157, 0.55);
+  border-radius: 22px;
+  background: rgba(255, 250, 246, 0.72);
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.memory-moment-upload.is-dragging {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 4px rgba(214, 118, 71, 0.12);
+}
+
+.memory-moment-upload img {
+  display: none;
+  width: 100%;
+  height: 260px;
+  object-fit: cover;
+}
+
+#memory-moment-upload-placeholder {
+  min-height: 210px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+#memory-moment-upload-placeholder span {
+  color: var(--text-primary);
+  font-weight: 800;
+}
+
+.memory-include-control {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  border-radius: 16px;
+  background: rgba(214, 118, 71, 0.08);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.memory-moment-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 1.25rem;
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--border-color);
+}
+
 .diary-social-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
@@ -2308,6 +2806,13 @@ body[data-current-view="workspace"] main {
   border: 1px solid rgba(194, 175, 157, 0.35);
   background: linear-gradient(135deg, rgba(248, 239, 229, 0.9), rgba(255,255,255,0.95));
   cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.diary-upload-stage.is-dragging {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 4px rgba(214, 118, 71, 0.14);
+  transform: translateY(-2px);
 }
 
 .diary-upload-image {
@@ -2456,6 +2961,29 @@ body[data-current-view="workspace"] main {
 .diary-preview-header h3 {
   margin: 0;
   font-size: 1.1rem;
+}
+
+.diary-preview-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.diary-preview-actions .btn {
+  min-height: 38px;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.78rem;
+}
+
+.diary-export-status {
+  min-height: 1.35rem;
+  margin: -0.35rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  text-align: right;
 }
 
 .diary-preview-phone {
@@ -2687,6 +3215,10 @@ body[data-current-view="workspace"] main {
 }
 
 .ws-star {
+  appearance: none;
+  border: 0;
+  padding: 0 0.08rem;
+  background: transparent;
   cursor: pointer;
   font-size: 1.75rem;
   color: var(--text-secondary);
@@ -2707,6 +3239,104 @@ body[data-current-view="workspace"] main {
 }
 
 @media (max-width: 768px) {
+  .diary-page-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .diary-page-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .diary-page-actions .btn {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .diary-page-heading > div:first-child,
+  .diary-publication-control {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .diary-view-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    border-radius: 20px;
+  }
+
+  .diary-view-tab {
+    padding-inline: 0.7rem;
+  }
+
+  .memory-moments-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 1.1rem;
+  }
+
+  .memory-moments-toolbar-actions {
+    justify-content: space-between;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .memory-moments-toolbar > div:first-child,
+  .memory-moments-toolbar-actions .btn {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .memory-timeline {
+    padding-left: 0;
+  }
+
+  .memory-timeline::before,
+  .memory-timeline-marker {
+    display: none;
+  }
+
+  .memory-moment-card,
+  .memory-moment-card.has-image {
+    grid-template-columns: 1fr;
+  }
+
+  .memory-moment-image {
+    min-height: 210px;
+    max-height: 280px;
+  }
+
+  .memory-moment-actions,
+  .memory-story-selection-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .memory-moment-actions > div,
+  .memory-moment-actions .btn,
+  .memory-include-btn,
+  .memory-story-selection-head .btn {
+    width: 100%;
+  }
+
+  .memory-moment-actions > div {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .memory-moment-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .memory-moment-modal-content {
+    max-height: calc(100dvh - 1rem);
+  }
+
   .diary-composer-card,
   .diary-preview-stage {
     padding: 1rem;
@@ -2721,6 +3351,30 @@ body[data-current-view="workspace"] main {
   .diary-preview-phone {
     width: 100%;
     max-width: 100%;
+  }
+
+  .diary-preview-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .diary-preview-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .diary-preview-actions .diary-preview-mode-pill {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .diary-preview-actions .btn {
+    width: 100%;
+  }
+
+  .diary-export-status {
+    text-align: left;
   }
 
   .diary-story-content h4 {
@@ -2992,7 +3646,9 @@ footer {
 /* ================= 9. MOBILE RWD MEDIA QUERIES ================= */
 @media (max-width: 1024px) {
   .workspace-layout {
-    grid-template-columns: 1fr;
+    /* A plain 1fr track keeps an intrinsic auto minimum and can be widened by
+       diary cards. minmax(0, 1fr) lets the workspace shrink to the viewport. */
+    grid-template-columns: minmax(0, 1fr);
   }
   .workspace-sidebar {
     position: static;
@@ -3215,6 +3871,9 @@ footer {
 
   body.mobile-workspace-mode .workspace-layout {
     gap: 0;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
   }
 
   body.mobile-workspace-mode .workspace-sidebar {
@@ -3264,6 +3923,9 @@ footer {
 
   body.mobile-workspace-mode .workspace-main {
     min-height: auto;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     padding: 1rem 1rem 1.6rem;
     background: transparent;
     border: none;
@@ -4581,6 +5243,111 @@ body.guest-readonly-active > :not(#guest-readonly-root):not(#guest-invalid-overl
   margin: -1rem -1rem 0.85rem;
   display: block;
   object-fit: cover;
+}
+
+.guest-share-diary {
+  overflow: hidden;
+}
+
+.guest-share-diary-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.guest-share-diary-kicker {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--primary, #d56535);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.guest-share-diary-rating {
+  flex: 0 0 auto;
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  background: #fff4d8;
+  color: #9a6810;
+  font-weight: 800;
+}
+
+.guest-share-diary-cover {
+  display: block;
+  width: 100%;
+  max-height: 560px;
+  object-fit: cover;
+  border-radius: 18px;
+}
+
+.guest-share-diary-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 1rem 0;
+}
+
+.guest-share-diary-meta span {
+  padding: 0.38rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(213, 101, 53, 0.09);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.guest-share-diary-story {
+  color: var(--text-primary);
+  font-size: 1rem;
+  line-height: 1.9;
+}
+
+.guest-share-memory-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.guest-share-memory-card {
+  overflow: hidden;
+  border: 1px solid rgba(141, 126, 112, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.guest-share-memory-card > img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+}
+
+.guest-share-memory-card > div {
+  padding: 1rem;
+}
+
+.guest-share-memory-card h3,
+.guest-share-memory-card p {
+  margin: 0 0 0.45rem;
+}
+
+@media (max-width: 720px) {
+  .guest-share-memory-list {
+    grid-template-columns: 1fr;
+  }
+
+  .guest-share-diary-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .guest-share-diary-rating {
+    align-self: flex-start;
+  }
 }
 
 .guest-share-guide-tags {

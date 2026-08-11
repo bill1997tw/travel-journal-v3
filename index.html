@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>悠遊小本本 Voyage Book | 您的專屬旅行規劃與分帳管家</title>
   <meta name="description" content="悠遊小本本是一個為自助旅行與重機愛好者設計的精美企劃工具，包含詳細日程、景點與餐廳備案庫、行李打包清單、多人費用代墊分帳以及回憶日記。">
-  <link rel="stylesheet" href="index.css?v=v42">
+  <link rel="stylesheet" href="index.css?v=v45">
   <link rel="stylesheet" href="cloud-sync.css?v=v40">
   <link rel="stylesheet" href="app-entry.css?v=v35">
   <link rel="manifest" href="manifest.webmanifest">
@@ -346,10 +346,7 @@
             返回我的旅程
           </button>
           <button class="btn btn-primary" data-ws-tab="diary" style="font-size:0.85rem; padding:0.45rem 0.9rem; border-radius:10px; display:inline-flex; align-items:center; gap:0.35rem; font-weight:700; box-shadow:0 3px 10px rgba(200,92,50,0.3); cursor:pointer;">
-            ✍️ 書寫回憶
-          </button>
-          <button class="btn btn-secondary" data-ws-tab="diary" style="font-size:0.85rem; padding:0.45rem 0.9rem; border-radius:10px; display:inline-flex; align-items:center; gap:0.35rem; font-weight:700; cursor:pointer; background:rgba(255,255,255,0.85);">
-            🔖 記憶書籤
+            📖 旅程回憶
           </button>
         </div>
 
@@ -388,6 +385,9 @@
               </button>
               <button class="ws-menu-item" data-ws-tab="vouchers">
                 <span>🎫 票券憑證與備忘</span>
+              </button>
+              <button class="ws-menu-item" data-ws-tab="diary">
+                <span>📖 旅程回憶</span>
               </button>
             </div>
             <div class="ws-sidebar-footer" style="display:flex; flex-direction:column; gap:0.5rem;">
@@ -969,6 +969,295 @@
                   </div>
                 </div>
 
+              </div>
+            </div>
+
+            <!-- E. 旅程回憶 -->
+            <div class="ws-tab-panel" id="ws-panel-diary">
+              <div class="panel-section-header diary-page-heading">
+                <div>
+                  <span class="diary-preview-kicker">TRIP MEMORY</span>
+                  <h2>📖 旅程回憶</h2>
+                  <p>把這趟旅行整理成一篇值得收藏的回顧，完成後也能預覽成社群圖卡。</p>
+                </div>
+                <div class="diary-page-actions">
+                  <button class="btn btn-secondary" id="ws-diary-import-cost-btn">💰 帶入帳本總花費</button>
+                  <label class="diary-publication-control" for="ws-diary-status">
+                    <span>回憶狀態</span>
+                    <select class="form-select" id="ws-diary-status">
+                      <option value="draft">草稿</option>
+                      <option value="private">私人完成</option>
+                      <option value="published">已發布</option>
+                    </select>
+                  </label>
+                  <button class="btn btn-primary" id="ws-diary-save-btn">儲存回憶</button>
+                </div>
+              </div>
+
+              <div class="diary-publication-note" id="ws-diary-status-note" role="status" aria-live="polite"></div>
+
+              <div class="diary-view-tabs" role="tablist" aria-label="旅程回憶內容">
+                <button type="button" class="diary-view-tab active" data-diary-view="moments" role="tab" aria-selected="true">🔖 記憶片段</button>
+                <button type="button" class="diary-view-tab" data-diary-view="story" role="tab" aria-selected="false">✍️ 回憶作品</button>
+              </div>
+
+              <section class="diary-view-panel active" id="ws-diary-moments-panel" data-diary-view-panel="moments" role="tabpanel">
+                <div class="memory-moments-toolbar glass">
+                  <div>
+                    <span class="diary-preview-kicker">MEMORY MOMENTS</span>
+                    <h3>把旅途中值得記住的瞬間收進來</h3>
+                    <p>每個片段都能對應 DAY 與行程項目，之後再挑選要放進整趟回憶的內容。</p>
+                  </div>
+                  <div class="memory-moments-toolbar-actions">
+                    <span id="ws-memory-count" class="memory-count-badge">0 個片段</span>
+                    <button type="button" class="btn btn-primary" id="ws-memory-add-btn">＋ 新增記憶片段</button>
+                  </div>
+                </div>
+                <div class="memory-timeline" id="ws-memory-timeline" aria-live="polite"></div>
+              </section>
+
+              <section class="diary-view-panel" id="ws-diary-story-panel" data-diary-view-panel="story" role="tabpanel">
+              <div class="diary-social-workspace" id="ws-diary-workspace" data-diary-mode="post">
+                <section class="diary-composer-card glass">
+                  <div class="diary-mode-toggle" id="ws-diary-mode-toggle" aria-label="回憶圖卡預覽尺寸">
+                    <button type="button" class="diary-mode-btn active" data-diary-mode="post">貼文 4:5</button>
+                    <button type="button" class="diary-mode-btn" data-diary-mode="story">限時動態 9:16</button>
+                  </div>
+
+                  <div class="diary-composer-section">
+                    <div class="diary-section-title-row">
+                      <div>
+                        <h3>回憶封面</h3>
+                        <p>選擇最能代表這趟旅程的照片；可點擊或拖曳上傳。</p>
+                      </div>
+                      <span class="diary-format-badge" id="ws-diary-format-badge">IG 貼文 4:5</span>
+                    </div>
+                    <div class="diary-image-editor">
+                      <div class="diary-upload-stage" id="ws-diary-upload-stage">
+                        <img id="ws-diary-preview-img" src="" alt="回憶封面預覽" class="diary-upload-image">
+                        <div id="ws-diary-upload-placeholder" class="diary-upload-placeholder">
+                          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                          <span>上傳旅程封面</span>
+                          <small>建議使用風景、餐點或最有代表性的旅行瞬間</small>
+                        </div>
+                        <input type="file" id="ws-diary-image-file" accept="image/*" style="display:none;">
+                        <input type="hidden" id="ws-diary-image-base64">
+                      </div>
+                      <div class="diary-detail-grid">
+                        <div class="form-group">
+                          <label for="ws-diary-story-title">回憶標題</label>
+                          <input type="text" class="form-input" id="ws-diary-story-title" placeholder="例如：宜蘭兩天一夜的雨中小旅行">
+                        </div>
+                        <div class="form-group">
+                          <label for="ws-diary-location">旅程地點</label>
+                          <input type="text" class="form-input" id="ws-diary-location" placeholder="例如：台灣・宜蘭">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="diary-composer-section">
+                    <div class="diary-section-title-row">
+                      <div>
+                        <h3>旅程故事</h3>
+                        <p>寫下沿途風景、難忘事件與旅程結束後最想留下的心情。</p>
+                      </div>
+                    </div>
+                    <div class="memory-story-selection">
+                      <div class="memory-story-selection-head">
+                        <div>
+                          <strong>已選記憶片段</strong>
+                          <span id="ws-memory-selected-count">尚未選取片段</span>
+                        </div>
+                        <button type="button" class="btn btn-secondary" id="ws-memory-compose-btn">依時間整理到文章</button>
+                      </div>
+                      <div class="memory-story-chip-list" id="ws-memory-story-list"></div>
+                    </div>
+                    <div class="diary-quick-inserts" aria-label="快速插入旅程資訊">
+                      <button type="button" class="diary-insert-btn" data-diary-insert="location">＋ 地點</button>
+                      <button type="button" class="diary-insert-btn" data-diary-insert="cost">＋ 花費</button>
+                      <button type="button" class="diary-insert-btn" data-diary-insert="weather">＋ 天氣</button>
+                      <button type="button" class="diary-insert-btn" data-diary-insert="companion">＋ 旅伴</button>
+                    </div>
+                    <div class="form-group">
+                      <textarea class="form-textarea diary-caption-textarea" id="ws-diary-text" placeholder="這趟旅程最難忘的是……" required></textarea>
+                    </div>
+                  </div>
+
+                  <div class="diary-composer-section">
+                    <div class="diary-section-title-row">
+                      <div>
+                        <h3>回憶標籤</h3>
+                        <p>自行新增標籤，或從系統建議中快速選取。</p>
+                      </div>
+                    </div>
+                    <div class="diary-hashtag-input-row">
+                      <input type="text" class="form-input" id="ws-diary-hashtag-input" placeholder="輸入標籤，例如：宜蘭旅行">
+                      <button type="button" class="btn btn-secondary" id="ws-diary-hashtag-add-btn">加入</button>
+                    </div>
+                    <input type="hidden" id="ws-diary-hashtags">
+                    <div class="diary-tag-block">
+                      <span class="diary-tag-label">已選標籤</span>
+                      <div class="diary-chip-list" id="ws-diary-selected-tags"></div>
+                    </div>
+                    <div class="diary-tag-block">
+                      <span class="diary-tag-label">系統建議</span>
+                      <div class="diary-chip-list diary-chip-list-muted" id="ws-diary-suggested-tags"></div>
+                    </div>
+                  </div>
+
+                  <div class="diary-composer-section">
+                    <div class="diary-section-title-row">
+                      <div>
+                        <h3>旅程資料</h3>
+                        <p>評分、天氣、旅伴及總花費會同步顯示於預覽。</p>
+                      </div>
+                    </div>
+                    <div class="diary-detail-grid">
+                      <div class="form-group">
+                        <label>旅程評分</label>
+                        <div class="rating-input" id="ws-diary-rating-stars" aria-label="旅程評分">
+                          <button type="button" class="ws-star" data-ws-rating="1" aria-label="1 星">★</button>
+                          <button type="button" class="ws-star" data-ws-rating="2" aria-label="2 星">★</button>
+                          <button type="button" class="ws-star" data-ws-rating="3" aria-label="3 星">★</button>
+                          <button type="button" class="ws-star" data-ws-rating="4" aria-label="4 星">★</button>
+                          <button type="button" class="ws-star" data-ws-rating="5" aria-label="5 星">★</button>
+                        </div>
+                        <input type="hidden" id="ws-diary-rating-val" value="5">
+                      </div>
+                      <div class="form-group">
+                        <label for="ws-diary-weather">旅程天氣</label>
+                        <select class="form-select" id="ws-diary-weather">
+                          <option value="晴天">☀️ 晴天</option>
+                          <option value="陰天">☁️ 陰天</option>
+                          <option value="雨天">🌧️ 雨天</option>
+                          <option value="雪天">❄️ 雪天</option>
+                          <option value="風天">💨 颳風</option>
+                        </select>
+                      </div>
+                      <div class="form-group">
+                        <label for="ws-diary-companion">同行旅伴</label>
+                        <input type="text" class="form-input" id="ws-diary-companion" placeholder="例如：小明、小華、小美">
+                      </div>
+                      <div class="form-group">
+                        <label for="ws-diary-cost">旅程總花費（TWD）</label>
+                        <input type="number" class="form-input" id="ws-diary-cost" min="0" placeholder="手動輸入或從帳本帶入">
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="diary-preview-stage">
+                  <div class="diary-preview-header">
+                    <div>
+                      <span class="diary-preview-kicker">LIVE PREVIEW</span>
+                      <h3>回憶圖卡預覽</h3>
+                    </div>
+                    <div class="diary-preview-actions">
+                      <span class="diary-preview-mode-pill" id="ws-diary-preview-mode-pill">貼文預覽</span>
+                      <button type="button" class="btn btn-secondary diary-export-btn" id="ws-diary-download-btn">下載 PNG</button>
+                      <button type="button" class="btn btn-primary diary-export-btn" id="ws-diary-share-image-btn">分享圖片</button>
+                    </div>
+                  </div>
+                  <p class="diary-export-status" id="ws-diary-export-status" role="status" aria-live="polite">輸出會依目前選擇產生 4:5 或 9:16 圖片。</p>
+                  <div class="diary-preview-phone">
+                    <div class="diary-preview-post active" id="ws-diary-post-preview">
+                      <div class="diary-post-topbar">
+                        <div class="diary-post-avatar">悠</div>
+                        <div class="diary-post-user"><strong id="ws-diary-post-account">悠遊小本本</strong><span id="ws-diary-post-location">旅行地點</span></div>
+                        <span class="diary-post-more">•••</span>
+                      </div>
+                      <div class="diary-post-media ratio-post"><img id="ws-diary-post-image" src="" alt="回憶貼文預覽照片"></div>
+                      <div class="diary-post-actions"><span>♡</span><span>💬</span><span>↗</span><span class="diary-post-bookmark">⌑</span></div>
+                      <div class="diary-post-copy">
+                        <div class="diary-post-likes" id="ws-diary-post-likes">把這趟旅程收藏起來</div>
+                        <p class="diary-post-caption" id="ws-diary-post-caption"></p>
+                        <div class="diary-post-tags" id="ws-diary-post-tags"></div>
+                        <div class="diary-post-meta" id="ws-diary-post-meta"></div>
+                      </div>
+                    </div>
+                    <div class="diary-preview-story" id="ws-diary-story-preview">
+                      <img id="ws-diary-story-image" src="" alt="回憶限時動態預覽照片">
+                      <div class="diary-story-overlay"></div>
+                      <div class="diary-story-top">
+                        <div class="diary-post-avatar story-avatar">悠</div>
+                        <div class="diary-story-user"><strong id="ws-diary-story-account">悠遊小本本</strong><span id="ws-diary-story-time">旅程回憶</span></div>
+                      </div>
+                      <div class="diary-story-content">
+                        <span class="diary-story-location" id="ws-diary-story-location">旅行地點</span>
+                        <h4 id="ws-diary-story-headline">這趟旅程，值得好好記住</h4>
+                        <p id="ws-diary-story-caption"></p>
+                        <div class="diary-story-stickers">
+                          <span id="ws-diary-story-weather">☀️ 晴天</span>
+                          <span id="ws-diary-story-cost">💰 NT$0</span>
+                          <span id="ws-diary-story-companion">👥 旅伴</span>
+                        </div>
+                        <div class="diary-story-tags" id="ws-diary-story-tags"></div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+              </section>
+
+              <div class="modal-overlay" id="memory-moment-modal">
+                <div class="modal-content glass memory-moment-modal-content">
+                  <button type="button" class="modal-close" id="memory-moment-modal-close" title="關閉">×</button>
+                  <div class="memory-moment-modal-heading">
+                    <span class="diary-preview-kicker">MEMORY MOMENT</span>
+                    <h2 class="modal-title" id="memory-moment-modal-title">新增記憶片段</h2>
+                    <p>用一張照片和幾句話，留下當下真正發生的故事。</p>
+                  </div>
+                  <form id="memory-moment-form">
+                    <input type="hidden" id="memory-moment-id">
+                    <div class="memory-moment-form-grid">
+                      <div class="form-group">
+                        <label for="memory-moment-day">對應日程</label>
+                        <select class="form-select" id="memory-moment-day" required></select>
+                      </div>
+                      <div class="form-group">
+                        <label for="memory-moment-time">時間</label>
+                        <input type="time" class="form-input" id="memory-moment-time">
+                      </div>
+                      <div class="form-group form-group-full">
+                        <label for="memory-moment-schedule">對應行程項目</label>
+                        <select class="form-select" id="memory-moment-schedule"></select>
+                      </div>
+                      <div class="form-group form-group-full">
+                        <label for="memory-moment-location">地點</label>
+                        <input type="text" class="form-input" id="memory-moment-location" maxlength="80" placeholder="例如：羅東夜市">
+                      </div>
+                      <div class="form-group form-group-full">
+                        <label for="memory-moment-note">當下記錄 *</label>
+                        <textarea class="form-textarea" id="memory-moment-note" maxlength="600" placeholder="第一次吃到這間蔥油餅，排了很久，但真的值得。" required></textarea>
+                      </div>
+                      <div class="form-group form-group-full">
+                        <label for="memory-moment-tags">標籤</label>
+                        <input type="text" class="form-input" id="memory-moment-tags" placeholder="以逗號分隔，例如：美食, 夜市, 下雨天">
+                      </div>
+                      <div class="form-group form-group-full">
+                        <label>片段照片</label>
+                        <div class="memory-moment-upload" id="memory-moment-upload-stage">
+                          <img id="memory-moment-image-preview" alt="記憶片段照片預覽">
+                          <div id="memory-moment-upload-placeholder">
+                            <span>📷 點擊或拖曳照片到這裡</span>
+                            <small>系統會自動縮小照片，減少雲端同步負擔</small>
+                          </div>
+                          <input type="file" id="memory-moment-image-file" accept="image/*" hidden>
+                          <input type="hidden" id="memory-moment-image-data">
+                        </div>
+                      </div>
+                      <label class="memory-include-control form-group-full">
+                        <input type="checkbox" id="memory-moment-included" checked>
+                        <span>將這個片段收進主要回憶</span>
+                      </label>
+                    </div>
+                    <div class="memory-moment-form-actions">
+                      <button type="button" class="btn btn-secondary" id="memory-moment-modal-cancel">取消</button>
+                      <button type="submit" class="btn btn-primary">儲存片段</button>
+                    </div>
+                  </form>
+                </div>
               </div>
             </div>
 
@@ -1842,7 +2131,7 @@
 
   <!-- 10. 新增/編輯憑證與備忘 Modal -->
   <div class="modal-overlay" id="voucher-modal">
-    <div class="modal-content glass" style="max-width: 500px;">
+    <div class="modal-content glass voucher-modal-content">
       <button class="modal-close" id="voucher-modal-close" title="關閉">✕</button>
       <h2 class="modal-title" id="voucher-modal-title">新增票券憑證與備忘</h2>
       <form id="voucher-form">
@@ -1856,6 +2145,7 @@
             <div class="form-group">
               <label for="v-category">類別 *</label>
               <select class="form-select" id="v-category" required>
+                <option value="" selected disabled>請選擇憑證類別</option>
                 <option value="機票">✈️ 機票憑證</option>
                 <option value="住宿">🏨 住宿預訂</option>
                 <option value="租車/車票">🏍️ 租車 / 交通車票</option>
@@ -1870,7 +2160,7 @@
           </div>
 
           <!-- ✈️ 航班資訊動態摺疊區塊 (選填) -->
-          <div class="voucher-flight-section glass" id="v-flight-details-container" style="padding: 1rem; border-radius: 12px; background: rgba(200, 92, 50, 0.04); border: 1px dashed rgba(200, 92, 50, 0.3); margin-bottom: 1rem;">
+          <div class="voucher-flight-section glass" id="v-flight-details-container" hidden>
             <div style="font-size: 0.88rem; font-weight: 700; color: var(--accent-color); margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between;">
               <span>✈️ 航班預訂詳細資訊 (機票憑證選填)</span>
               <span style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);">出國機票適用</span>
@@ -2068,6 +2358,10 @@
           <label style="display:flex; align-items:center; gap:0.5rem; grid-column:span 2; cursor:pointer;">
             <input type="checkbox" id="share-scope-tickets"> 票券摘要（不含檔案、QR Code、連結與備註）
           </label>
+          <label style="display:flex; align-items:center; gap:0.5rem; grid-column:span 2; cursor:pointer;">
+            <input type="checkbox" id="share-scope-diary">
+            <span>已發布的旅程回憶與選取片段<br><small style="color:var(--text-secondary);">草稿與私人完成內容永遠不會公開</small></span>
+          </label>
         </div>
 
         <div style="margin-top:1rem; padding-top:0.75rem; border-top:1px solid var(--border-color);">
@@ -2162,9 +2456,9 @@
   <script src="app-entry.js?v=v41"></script>
   <script src="local-account-vault.js?v=v1"></script>
   <script src="cloud-sync.js?v=v38"></script>
-  <script type="module" src="account-cloud-share.js?v=v12"></script>
+  <script type="module" src="account-cloud-share.js?v=v13"></script>
   <script src="exchange-rate.js?v=v1"></script>
-  <script src="app.js?v=v38"></script>
+  <script src="app.js?v=v41"></script>
   <script src="account-favorites.js?v=v7"></script>
 </body>
 </html>

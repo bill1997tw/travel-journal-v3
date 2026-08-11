@@ -237,6 +237,7 @@ let accessibleCloudTripCount = 0;
 
 let activeTripId = null; // 當前進入的 Workspace 旅程 ID
 let activeWorkspaceTab = "itinerary"; // 當前 Workspace 子分頁 (itinerary, checklists, budget, diary)
+let activeDiaryView = "moments";
 let activeItineraryDay = 1; // 當前行程選定天數
 let activeAlternativeTab = "sights"; // 備案庫當前子籤 (sights, restaurants)
 
@@ -799,7 +800,11 @@ function ensureDiaryState(trip) {
       mode: "post",
       storyTitle: "",
       hashtags: [],
-      locationTag: ""
+      locationTag: "",
+      status: "draft",
+      publishedAt: null,
+      updatedAt: null,
+      memories: []
     };
   }
 
@@ -808,6 +813,9 @@ function ensureDiaryState(trip) {
     ? diary.hashtags
       .map(tag => normalizeDiaryHashtag(tag))
       .filter(Boolean)
+    : [];
+  const normalizedMemories = Array.isArray(diary.memories)
+    ? diary.memories.map(normalizeMemoryMoment).filter(Boolean)
     : [];
 
   trip.diary = {
@@ -820,7 +828,11 @@ function ensureDiaryState(trip) {
     mode: diary.mode === "story" ? "story" : "post",
     storyTitle: diary.storyTitle || trip.title || "旅途片刻",
     hashtags: [...new Set(normalizedHashtags)],
-    locationTag: diary.locationTag || trip.location || ""
+    locationTag: diary.locationTag || trip.location || "",
+    status: ["draft", "private", "published"].includes(diary.status) ? diary.status : "draft",
+    publishedAt: diary.status === "published" ? diary.publishedAt || diary.updatedAt || null : null,
+    updatedAt: diary.updatedAt || null,
+    memories: normalizedMemories
   };
 
   return trip.diary;
@@ -1130,12 +1142,68 @@ function setupEventListeners() {
   document.getElementById("repay-modal-cancel").addEventListener("click", closeRepayModal);
   document.getElementById("repay-form").addEventListener("submit", handleRepaySubmit);
 
-  // 故事日記 (已於 UI 移除，添加安全保護以防 null 報錯)
+  // 旅程回憶編輯器
   const diaryImportCostBtn = document.getElementById("ws-diary-import-cost-btn");
   if (diaryImportCostBtn) diaryImportCostBtn.addEventListener("click", handleDiaryImportCost);
 
   const diarySaveBtn = document.getElementById("ws-diary-save-btn");
   if (diarySaveBtn) diarySaveBtn.addEventListener("click", handleDiarySave);
+
+  const diaryDownloadBtn = document.getElementById("ws-diary-download-btn");
+  if (diaryDownloadBtn) diaryDownloadBtn.addEventListener("click", () => exportDiaryImage("download"));
+
+  const diaryShareImageBtn = document.getElementById("ws-diary-share-image-btn");
+  if (diaryShareImageBtn) diaryShareImageBtn.addEventListener("click", () => exportDiaryImage("share"));
+
+  const diaryStatus = document.getElementById("ws-diary-status");
+  if (diaryStatus) {
+    diaryStatus.addEventListener("change", () => {
+      renderDiaryPublicationState({ status: diaryStatus.value });
+      refreshDiaryEditPermissions();
+    });
+  }
+
+  document.querySelectorAll(".diary-view-tab").forEach(btn => {
+    btn.addEventListener("click", () => switchDiaryView(btn.getAttribute("data-diary-view")));
+  });
+
+  const memoryAddBtn = document.getElementById("ws-memory-add-btn");
+  if (memoryAddBtn) memoryAddBtn.addEventListener("click", () => openMemoryMomentModal());
+
+  const memoryModalClose = document.getElementById("memory-moment-modal-close");
+  const memoryModalCancel = document.getElementById("memory-moment-modal-cancel");
+  if (memoryModalClose) memoryModalClose.addEventListener("click", closeMemoryMomentModal);
+  if (memoryModalCancel) memoryModalCancel.addEventListener("click", closeMemoryMomentModal);
+
+  const memoryForm = document.getElementById("memory-moment-form");
+  if (memoryForm) memoryForm.addEventListener("submit", handleMemoryMomentSubmit);
+
+  const memoryDay = document.getElementById("memory-moment-day");
+  if (memoryDay) {
+    memoryDay.addEventListener("change", () => {
+      const trip = trips.find(item => item.id === activeTripId);
+      if (trip) populateMemoryScheduleOptions(trip, parseInt(memoryDay.value) || 1);
+    });
+  }
+
+  const memorySchedule = document.getElementById("memory-moment-schedule");
+  if (memorySchedule) {
+    memorySchedule.addEventListener("change", () => {
+      const locationInput = document.getElementById("memory-moment-location");
+      const selectedTitle = memorySchedule.options[memorySchedule.selectedIndex]?.getAttribute("data-title") || "";
+      if (locationInput && !locationInput.value.trim() && memorySchedule.value) {
+        locationInput.value = selectedTitle;
+      }
+    });
+  }
+
+  const memoryTimeline = document.getElementById("ws-memory-timeline");
+  if (memoryTimeline) {
+    memoryTimeline.addEventListener("click", handleMemoryTimelineAction);
+  }
+
+  const memoryComposeBtn = document.getElementById("ws-memory-compose-btn");
+  if (memoryComposeBtn) memoryComposeBtn.addEventListener("click", composeDiaryFromSelectedMemories);
 
   const diaryHashtagAddBtn = document.getElementById("ws-diary-hashtag-add-btn");
   if (diaryHashtagAddBtn) diaryHashtagAddBtn.addEventListener("click", handleDiaryHashtagAdd);
@@ -1150,6 +1218,7 @@ function setupEventListeners() {
 
   // 日記照片上傳
   const dPlaceholder = document.getElementById("ws-diary-upload-placeholder");
+  const dUploadStage = document.getElementById("ws-diary-upload-stage");
   const dFileInput = document.getElementById("ws-diary-image-file");
   if (dPlaceholder) dPlaceholder.addEventListener("click", () => dFileInput && dFileInput.click());
   
@@ -1159,9 +1228,31 @@ function setupEventListeners() {
   if (dFileInput) {
     dFileInput.addEventListener("change", (e) => {
       const file = e.target.files[0];
-      if (file) handleImageUpload(file, "ws-diary-image-base64", "ws-diary-preview-img", "ws-diary-upload-placeholder");
+      if (file) handleDiaryImageFile(file);
+      e.target.value = "";
     });
   }
+
+  if (dUploadStage) {
+    ["dragenter", "dragover"].forEach(eventName => {
+      dUploadStage.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        dUploadStage.classList.add("is-dragging");
+      });
+    });
+    ["dragleave", "drop"].forEach(eventName => {
+      dUploadStage.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        dUploadStage.classList.remove("is-dragging");
+      });
+    });
+    dUploadStage.addEventListener("drop", (event) => {
+      const file = event.dataTransfer?.files?.[0];
+      if (file) handleDiaryImageFile(file);
+    });
+  }
+
+  setupMemoryMomentImageUpload();
 
   // 日記評分星級
   document.querySelectorAll("#ws-diary-rating-stars .ws-star").forEach(star => {
@@ -1211,6 +1302,7 @@ function setupEventListeners() {
   document.getElementById("voucher-modal-cancel").addEventListener("click", closeVoucherModal);
   document.getElementById("voucher-modal-submit").addEventListener("click", () => {}); // default type submit
   document.getElementById("voucher-form").addEventListener("submit", handleVoucherSubmit);
+  document.getElementById("v-category").addEventListener("change", syncVoucherFlightSectionVisibility);
 
   // 憑證上傳區點擊觸發檔案選擇
   const vUploadZone = document.getElementById("v-upload-zone");
@@ -1581,6 +1673,11 @@ window.getActiveCloudTripId = function() {
   return trip?._cloud?.tripId || null;
 };
 
+window.getActiveTripDiaryStatus = function() {
+  const trip = trips.find(item => item.id === activeTripId);
+  return trip ? ensureDiaryState(trip).status : null;
+};
+
 window.refreshWorkspaceCloudPermissions = function() {
   const trip = trips.find(item => item.id === activeTripId);
   const cloudTripId = trip?._cloud?.tripId || null;
@@ -1596,7 +1693,30 @@ window.refreshWorkspaceCloudPermissions = function() {
       : "";
   }
   document.body.dataset.activeCloudRole = role || "local";
+  refreshDiaryEditPermissions();
 };
+
+function canEditActiveTrip() {
+  const trip = trips.find(item => item.id === activeTripId);
+  if (!trip?._cloud?.tripId) return true;
+  const role = window.voyageAccountCloud?.getRoleForTrip?.(trip._cloud.tripId) || null;
+  return role === "owner" || role === "editor";
+}
+
+function refreshDiaryEditPermissions() {
+  const panel = document.getElementById("ws-panel-diary");
+  if (!panel) return;
+  const canEdit = canEditActiveTrip();
+  panel.dataset.readonly = canEdit ? "false" : "true";
+  panel.querySelectorAll("input, textarea, select, button:not(.diary-view-tab):not(.diary-mode-btn):not(.diary-export-btn)").forEach(control => {
+    control.disabled = !canEdit;
+  });
+  const note = document.getElementById("ws-diary-status-note");
+  if (!canEdit && note) {
+    note.textContent = "你目前是唯讀成員，可以查看回憶，但不能修改或發布。";
+    note.dataset.tone = "readonly";
+  }
+}
 
 function CONTINENT_NAME(code) {
   const names = { Asia: "亞洲", Europe: "歐洲", NorthAmerica: "北美", SouthAmerica: "南美", Africa: "非洲", Oceania: "大洋洲" };
@@ -1946,6 +2066,30 @@ function updateItineraryDayNavigation(dayNum) {
       button.removeAttribute("aria-current");
     }
   });
+}
+
+function normalizeMemoryMoment(moment) {
+  if (!moment || typeof moment !== "object") return null;
+  const id = String(moment.id || "").trim();
+  const note = String(moment.note || "").trim();
+  if (!id || !note) return null;
+
+  return {
+    id,
+    day: Math.max(1, parseInt(moment.day) || 1),
+    time: /^\d{2}:\d{2}$/.test(String(moment.time || "")) ? String(moment.time) : "",
+    scheduleItemId: String(moment.scheduleItemId || ""),
+    scheduleTitle: String(moment.scheduleTitle || "").trim(),
+    location: String(moment.location || "").trim(),
+    note,
+    image: String(moment.image || ""),
+    tags: [...new Set((Array.isArray(moment.tags) ? moment.tags : [])
+      .map(tag => normalizeDiaryHashtag(tag))
+      .filter(Boolean))],
+    includedInStory: moment.includedInStory !== false,
+    createdAt: moment.createdAt || "1970-01-01T00:00:00.000Z",
+    updatedAt: moment.updatedAt || moment.createdAt || "1970-01-01T00:00:00.000Z"
+  };
 }
 
 // ==================== WORKSPACE B: 旅行攻略庫 ====================
@@ -4406,7 +4550,367 @@ window.deleteRepayItem = function(id) {
 };
 
 
-// ==================== WORKSPACE D: 故事回憶與日記 ====================
+// ==================== WORKSPACE D: 旅程回憶 ====================
+function switchDiaryView(view) {
+  activeDiaryView = view === "story" ? "story" : "moments";
+  document.querySelectorAll(".diary-view-tab").forEach(button => {
+    const isActive = button.getAttribute("data-diary-view") === activeDiaryView;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-selected", String(isActive));
+  });
+  document.querySelectorAll("[data-diary-view-panel]").forEach(panel => {
+    panel.classList.toggle("active", panel.getAttribute("data-diary-view-panel") === activeDiaryView);
+  });
+  if (activeDiaryView === "story") updateDiaryPreview();
+}
+
+function getSortedMemoryMoments(diary) {
+  return [...(diary.memories || [])].sort((left, right) => {
+    const dayDifference = (parseInt(left.day) || 1) - (parseInt(right.day) || 1);
+    if (dayDifference !== 0) return dayDifference;
+    const timeDifference = String(left.time || "99:99").localeCompare(String(right.time || "99:99"));
+    if (timeDifference !== 0) return timeDifference;
+    return String(left.createdAt || "").localeCompare(String(right.createdAt || ""));
+  });
+}
+
+function renderMemoryMoments(trip, diary = ensureDiaryState(trip)) {
+  const timeline = document.getElementById("ws-memory-timeline");
+  const count = document.getElementById("ws-memory-count");
+  if (!timeline || !count) return;
+
+  const memories = getSortedMemoryMoments(diary);
+  count.innerText = `${memories.length} 個片段`;
+  if (memories.length === 0) {
+    timeline.innerHTML = `
+      <div class="memory-empty-state glass">
+        <span>🔖</span>
+        <h3>這趟旅程還沒有記憶片段</h3>
+        <p>旅行中看到喜歡的風景、吃到難忘的料理，或發生一件好笑的小事，都可以先快速記在這裡。</p>
+        <button type="button" class="btn btn-primary" data-memory-action="create">＋ 寫下第一個片段</button>
+      </div>
+    `;
+    renderSelectedMemorySummary(diary);
+    return;
+  }
+
+  timeline.innerHTML = memories.map(memory => {
+    const subtitle = [memory.time, memory.scheduleTitle || memory.location].filter(Boolean).join(" · ");
+    const tags = memory.tags.map(tag => `<span>#${escapeHTML(tag)}</span>`).join("");
+    return `
+      <article class="memory-timeline-item${memory.includedInStory ? " is-included" : ""}" data-memory-id="${escapeHTML(memory.id)}">
+        <div class="memory-timeline-marker"><span>DAY ${memory.day}</span></div>
+        <div class="memory-moment-card glass${memory.image ? " has-image" : ""}">
+          ${memory.image ? `<img class="memory-moment-image" src="${escapeHTML(memory.image)}" alt="${escapeHTML(memory.location || memory.scheduleTitle || "旅程記憶照片")}">` : ""}
+          <div class="memory-moment-body">
+            <div class="memory-moment-meta">
+              <span class="memory-day-chip">DAY ${memory.day}</span>
+              ${subtitle ? `<span>${escapeHTML(subtitle)}</span>` : ""}
+            </div>
+            ${memory.location && memory.location !== memory.scheduleTitle ? `<strong class="memory-moment-location">📍 ${escapeHTML(memory.location)}</strong>` : ""}
+            <p>${escapeHTML(memory.note)}</p>
+            ${tags ? `<div class="memory-moment-tags">${tags}</div>` : ""}
+            <div class="memory-moment-actions">
+              <button type="button" class="memory-include-btn${memory.includedInStory ? " active" : ""}" data-memory-action="toggle" data-memory-id="${escapeHTML(memory.id)}">
+                ${memory.includedInStory ? "✓ 已收進主要回憶" : "＋ 收進主要回憶"}
+              </button>
+              <div>
+                <button type="button" class="btn btn-secondary" data-memory-action="edit" data-memory-id="${escapeHTML(memory.id)}">編輯</button>
+                <button type="button" class="btn btn-secondary memory-delete-btn" data-memory-action="delete" data-memory-id="${escapeHTML(memory.id)}">刪除</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join("");
+  renderSelectedMemorySummary(diary);
+}
+
+function renderSelectedMemorySummary(diary) {
+  const list = document.getElementById("ws-memory-story-list");
+  const count = document.getElementById("ws-memory-selected-count");
+  if (!list || !count) return;
+  const selected = getSortedMemoryMoments(diary).filter(memory => memory.includedInStory);
+  count.innerText = selected.length ? `已選 ${selected.length} 個片段` : "尚未選取片段";
+  list.innerHTML = selected.length
+    ? selected.map(memory => `<span>DAY ${memory.day}${memory.time ? ` · ${escapeHTML(memory.time)}` : ""}｜${escapeHTML(memory.scheduleTitle || memory.location || "旅途片刻")}</span>`).join("")
+    : `<em>回到「記憶片段」選擇想放進文章的內容。</em>`;
+  const composeButton = document.getElementById("ws-memory-compose-btn");
+  if (composeButton) composeButton.disabled = selected.length === 0;
+}
+
+function getMemoryTripDays(trip) {
+  const itineraryDays = Array.isArray(trip?.itinerary?.days) ? trip.itinerary.days : [];
+  if (itineraryDays.length) return itineraryDays;
+  const duration = Math.max(1, parseInt(trip?.duration) || 1);
+  return Array.from({ length: duration }, (_, index) => ({ dayNum: index + 1, items: [] }));
+}
+
+function populateMemoryDayOptions(trip, selectedDay = 1) {
+  const daySelect = document.getElementById("memory-moment-day");
+  if (!daySelect) return;
+  const days = getMemoryTripDays(trip);
+  daySelect.innerHTML = days.map(day => {
+    const dayNum = parseInt(day.dayNum) || 1;
+    const label = day.date ? `DAY ${dayNum} · ${day.date}` : `DAY ${dayNum}`;
+    return `<option value="${dayNum}">${escapeHTML(label)}</option>`;
+  }).join("");
+  const safeDay = days.some(day => (parseInt(day.dayNum) || 1) === parseInt(selectedDay)) ? parseInt(selectedDay) : (parseInt(days[0]?.dayNum) || 1);
+  daySelect.value = String(safeDay);
+}
+
+function populateMemoryScheduleOptions(trip, dayNumber, selectedItemId = "") {
+  const scheduleSelect = document.getElementById("memory-moment-schedule");
+  if (!scheduleSelect) return;
+  const day = getMemoryTripDays(trip).find(item => (parseInt(item.dayNum) || 1) === parseInt(dayNumber));
+  const items = Array.isArray(day?.items) ? day.items : [];
+  scheduleSelect.innerHTML = `<option value="">不連結特定行程</option>` + items.map(item => {
+    const time = String(item.time || "").trim();
+    const label = `${time ? `${time} – ` : ""}${item.title || "未命名行程"}`;
+    return `<option value="${escapeHTML(String(item.id || ""))}" data-title="${escapeHTML(String(item.title || "未命名行程"))}">${escapeHTML(label)}</option>`;
+  }).join("");
+  scheduleSelect.value = items.some(item => String(item.id || "") === String(selectedItemId)) ? String(selectedItemId) : "";
+}
+
+function openMemoryMomentModal(memoryId = "") {
+  if (!canEditActiveTrip()) {
+    showToast("這趟旅程目前是唯讀權限，無法新增或編輯回憶。", "error");
+    return;
+  }
+  const trip = trips.find(item => item.id === activeTripId);
+  if (!trip) return;
+  const diary = ensureDiaryState(trip);
+  const memory = diary.memories.find(item => item.id === memoryId) || null;
+  const form = document.getElementById("memory-moment-form");
+  form.reset();
+  document.getElementById("memory-moment-modal-title").innerText = memory ? "編輯記憶片段" : "新增記憶片段";
+  document.getElementById("memory-moment-id").value = memory?.id || "";
+  populateMemoryDayOptions(trip, memory?.day || 1);
+  populateMemoryScheduleOptions(trip, memory?.day || 1, memory?.scheduleItemId || "");
+  document.getElementById("memory-moment-time").value = memory?.time || "";
+  document.getElementById("memory-moment-location").value = memory?.location || "";
+  document.getElementById("memory-moment-note").value = memory?.note || "";
+  document.getElementById("memory-moment-tags").value = (memory?.tags || []).join(", ");
+  document.getElementById("memory-moment-included").checked = memory?.includedInStory !== false;
+  setMemoryMomentImagePreview(memory?.image || "");
+  document.getElementById("memory-moment-modal").classList.add("active");
+}
+
+function closeMemoryMomentModal() {
+  document.getElementById("memory-moment-modal")?.classList.remove("active");
+}
+
+function setMemoryMomentImagePreview(imageData) {
+  const input = document.getElementById("memory-moment-image-data");
+  const preview = document.getElementById("memory-moment-image-preview");
+  const placeholder = document.getElementById("memory-moment-upload-placeholder");
+  if (!input || !preview || !placeholder) return;
+  input.value = imageData || "";
+  if (imageData) {
+    preview.src = imageData;
+    preview.style.display = "block";
+    placeholder.style.display = "none";
+  } else {
+    preview.removeAttribute("src");
+    preview.style.display = "none";
+    placeholder.style.display = "flex";
+  }
+}
+
+function setupMemoryMomentImageUpload() {
+  const stage = document.getElementById("memory-moment-upload-stage");
+  const fileInput = document.getElementById("memory-moment-image-file");
+  if (!stage || !fileInput) return;
+  stage.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", async event => {
+    const file = event.target.files?.[0];
+    if (file) await handleMemoryMomentImageFile(file);
+    event.target.value = "";
+  });
+  ["dragenter", "dragover"].forEach(eventName => stage.addEventListener(eventName, event => {
+    event.preventDefault();
+    stage.classList.add("is-dragging");
+  }));
+  ["dragleave", "drop"].forEach(eventName => stage.addEventListener(eventName, event => {
+    event.preventDefault();
+    stage.classList.remove("is-dragging");
+  }));
+  stage.addEventListener("drop", async event => {
+    const file = event.dataTransfer?.files?.[0];
+    if (file) await handleMemoryMomentImageFile(file);
+  });
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("照片讀取失敗"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImageFromDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("照片格式無法讀取"));
+    image.src = dataUrl;
+  });
+}
+
+async function compressMemoryMomentImage(file) {
+  const sourceData = await readFileAsDataUrl(file);
+  const image = await loadImageFromDataUrl(sourceData);
+  const maxDimension = 1280;
+  const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale));
+  canvas.height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale));
+  const context = canvas.getContext("2d");
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.78);
+}
+
+async function handleMemoryMomentImageFile(file) {
+  if (!file?.type?.startsWith("image/")) {
+    showToast("請選擇圖片檔案。", "error");
+    return;
+  }
+  if (file.size > 12 * 1024 * 1024) {
+    showToast("原始照片請勿超過 12 MB。", "error");
+    return;
+  }
+  try {
+    setMemoryMomentImagePreview(await compressMemoryMomentImage(file));
+    showToast("片段照片已完成最佳化。", "success");
+  } catch (error) {
+    showToast(error?.message || "照片處理失敗，請換一張再試。", "error");
+  }
+}
+
+function parseMemoryTags(value) {
+  return [...new Set(String(value || "")
+    .split(/[,，\n]/)
+    .map(tag => normalizeDiaryHashtag(tag))
+    .filter(Boolean))]
+    .slice(0, 10);
+}
+
+function handleMemoryMomentSubmit(event) {
+  event.preventDefault();
+  if (!canEditActiveTrip()) {
+    showToast("這趟旅程目前是唯讀權限，無法儲存回憶。", "error");
+    return;
+  }
+  const trip = trips.find(item => item.id === activeTripId);
+  if (!trip) return;
+  const diary = ensureDiaryState(trip);
+  const existingId = document.getElementById("memory-moment-id").value;
+  const note = document.getElementById("memory-moment-note").value.trim();
+  if (!note) {
+    showToast("請寫下這個片段的內容。", "error");
+    return;
+  }
+
+  const day = parseInt(document.getElementById("memory-moment-day").value) || 1;
+  const scheduleSelect = document.getElementById("memory-moment-schedule");
+  const scheduleItemId = scheduleSelect.value;
+  const scheduleTitle = scheduleItemId
+    ? scheduleSelect.options[scheduleSelect.selectedIndex]?.getAttribute("data-title") || ""
+    : "";
+  const now = new Date().toISOString();
+  const existing = diary.memories.find(item => item.id === existingId);
+  const memory = normalizeMemoryMoment({
+    id: existing?.id || `memory-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    day,
+    time: document.getElementById("memory-moment-time").value,
+    scheduleItemId,
+    scheduleTitle,
+    location: document.getElementById("memory-moment-location").value.trim(),
+    note,
+    image: document.getElementById("memory-moment-image-data").value,
+    tags: parseMemoryTags(document.getElementById("memory-moment-tags").value),
+    includedInStory: document.getElementById("memory-moment-included").checked,
+    createdAt: existing?.createdAt || now,
+    updatedAt: now
+  });
+
+  diary.memories = existing
+    ? diary.memories.map(item => item.id === existing.id ? memory : item)
+    : [...diary.memories, memory];
+  diary.updatedAt = now;
+  trip.diary = diary;
+  persistTrips();
+  closeMemoryMomentModal();
+  renderMemoryMoments(trip, diary);
+  showToast(existing ? "記憶片段已更新。" : "記憶片段已收藏。", "success");
+}
+
+function handleMemoryTimelineAction(event) {
+  const actionButton = event.target.closest("[data-memory-action]");
+  if (!actionButton) return;
+  if (!canEditActiveTrip()) {
+    showToast("這趟旅程目前是唯讀權限，無法修改回憶。", "error");
+    return;
+  }
+  const action = actionButton.getAttribute("data-memory-action");
+  if (action === "create") {
+    openMemoryMomentModal();
+    return;
+  }
+  const memoryId = actionButton.getAttribute("data-memory-id");
+  if (!memoryId) return;
+  if (action === "edit") {
+    openMemoryMomentModal(memoryId);
+    return;
+  }
+
+  const trip = trips.find(item => item.id === activeTripId);
+  if (!trip) return;
+  const diary = ensureDiaryState(trip);
+  if (action === "toggle") {
+    diary.memories = diary.memories.map(memory => memory.id === memoryId
+      ? { ...memory, includedInStory: !memory.includedInStory, updatedAt: new Date().toISOString() }
+      : memory);
+    trip.diary = diary;
+    persistTrips();
+    renderMemoryMoments(trip, diary);
+    return;
+  }
+  if (action === "delete" && confirm("確定要刪除這個記憶片段嗎？刪除後無法復原。")) {
+    diary.memories = diary.memories.filter(memory => memory.id !== memoryId);
+    trip.diary = diary;
+    persistTrips();
+    renderMemoryMoments(trip, diary);
+    showToast("記憶片段已刪除。", "info");
+  }
+}
+
+function composeDiaryFromSelectedMemories() {
+  const trip = trips.find(item => item.id === activeTripId);
+  const textarea = document.getElementById("ws-diary-text");
+  if (!trip || !textarea) return;
+  const selected = getSortedMemoryMoments(ensureDiaryState(trip)).filter(memory => memory.includedInStory);
+  if (!selected.length) {
+    showToast("請先選擇要收進主要回憶的片段。", "info");
+    return;
+  }
+  const assembled = selected.map(memory => {
+    const heading = [`DAY ${memory.day}`, memory.time, memory.scheduleTitle || memory.location].filter(Boolean).join(" · ");
+    return `${heading}\n${memory.note}`;
+  }).join("\n\n");
+  const current = textarea.value.trim();
+  if (current.includes(assembled)) {
+    showToast("這些片段已經整理到文章裡了。", "info");
+    return;
+  }
+  textarea.value = current ? `${current}\n\n${assembled}` : assembled;
+  updateDiaryPreview();
+  showToast("已依時間把片段整理到文章，仍可自由修改文字。", "success");
+}
+
 function renderWorkspaceDiary() {
   const trip = trips.find(t => t.id === activeTripId);
   if (!trip) return;
@@ -4420,6 +4924,8 @@ function renderWorkspaceDiary() {
   document.getElementById("ws-diary-story-title").value = diary.storyTitle || trip.title || "旅途片刻";
   document.getElementById("ws-diary-location").value = diary.locationTag || trip.location || "";
   document.getElementById("ws-diary-hashtags").value = JSON.stringify(diary.hashtags || []);
+  document.getElementById("ws-diary-status").value = diary.status || "draft";
+  renderDiaryPublicationState(diary);
 
   // 圖片預覽
   const preview = document.getElementById("ws-diary-preview-img");
@@ -4442,7 +4948,40 @@ function renderWorkspaceDiary() {
   setDiaryRating(diary.rating || 5);
   setDiaryMode(diary.mode || "post", { skipPreview: true });
   renderDiaryHashtagChips(trip, diary);
+  renderMemoryMoments(trip, diary);
+  switchDiaryView(activeDiaryView);
   updateDiaryPreview();
+  refreshDiaryEditPermissions();
+}
+
+function renderDiaryPublicationState(diary) {
+  const note = document.getElementById("ws-diary-status-note");
+  const saveButton = document.getElementById("ws-diary-save-btn");
+  if (!note || !saveButton) return;
+
+  const status = ["draft", "private", "published"].includes(diary?.status)
+    ? diary.status
+    : "draft";
+  const labels = {
+    draft: "草稿只供可編輯成員整理，訪客不會看見。",
+    private: "私人完成會同步給旅程 Owner／Editor，但不會顯示於免登入分享。",
+    published: "已發布；Owner 仍需在免登入分享設定中勾選「旅程回憶」，訪客才會看見。"
+  };
+  note.textContent = labels[status];
+  note.dataset.tone = status;
+  saveButton.textContent = status === "published" ? "更新已發布回憶" : "儲存回憶";
+}
+
+function handleDiaryImageFile(file) {
+  if (!file?.type?.startsWith("image/")) {
+    showToast("請選擇圖片檔案。", "error");
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    showToast("回憶封面請勿超過 5 MB。", "error");
+    return;
+  }
+  handleImageUpload(file, "ws-diary-image-base64", "ws-diary-preview-img", "ws-diary-upload-placeholder");
 }
 
 function setDiaryRating(rating) {
@@ -4617,7 +5156,7 @@ function updateDiaryPreview() {
   document.getElementById("ws-diary-post-location").innerText = locationTag;
   document.getElementById("ws-diary-post-caption").innerText = content;
   document.getElementById("ws-diary-post-meta").innerText = `${weather} · ${companion} · 推薦 ${parseInt(document.getElementById("ws-diary-rating-val").value) || diary.rating || 5} 星`;
-  document.getElementById("ws-diary-post-likes").innerText = `${trip.title || "這趟旅程"} 值得你發成貼文收藏`;
+  document.getElementById("ws-diary-post-likes").innerText = storyTitle || trip.title || "這趟旅程值得收藏";
 
   document.getElementById("ws-diary-story-account").innerText = logoName;
   document.getElementById("ws-diary-story-location").innerText = locationTag;
@@ -4651,6 +5190,276 @@ function updateDiaryPreview() {
   });
 }
 
+function getDiaryExportData() {
+  const trip = trips.find(item => item.id === activeTripId);
+  if (!trip) return null;
+  const diary = ensureDiaryState(trip);
+  const fieldValue = (id) => document.getElementById(id)?.value?.trim?.() || "";
+  return {
+    mode: document.querySelector(".diary-mode-btn.active")?.getAttribute("data-diary-mode") === "story" ? "story" : "post",
+    account: localStorage.getItem("voyage_logo_text") || "悠遊小本本",
+    title: fieldValue("ws-diary-story-title") || diary.storyTitle || trip.title || "旅途片刻",
+    location: fieldValue("ws-diary-location") || diary.locationTag || trip.location || "旅行地點",
+    content: fieldValue("ws-diary-text") || diary.content || "這趟旅程，值得好好記住。",
+    weather: document.getElementById("ws-diary-weather")?.value || diary.weather || "晴天",
+    companion: fieldValue("ws-diary-companion") || diary.companion || trip.companion || "旅伴",
+    cost: parseInt(document.getElementById("ws-diary-cost")?.value) || diary.cost || 0,
+    rating: parseInt(document.getElementById("ws-diary-rating-val")?.value) || diary.rating || 5,
+    image: document.getElementById("ws-diary-image-base64")?.value || diary.image || trip.image || "",
+    hashtags: getDiaryHashtagsFromField().slice(0, 6)
+  };
+}
+
+function diaryCanvasRoundedPath(context, x, y, width, height, radius) {
+  const safeRadius = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(x + safeRadius, y);
+  context.arcTo(x + width, y, x + width, y + height, safeRadius);
+  context.arcTo(x + width, y + height, x, y + height, safeRadius);
+  context.arcTo(x, y + height, x, y, safeRadius);
+  context.arcTo(x, y, x + width, y, safeRadius);
+  context.closePath();
+}
+
+function drawDiaryCoverImage(context, image, x, y, width, height, radius = 0) {
+  context.save();
+  if (radius) {
+    diaryCanvasRoundedPath(context, x, y, width, height, radius);
+    context.clip();
+  }
+  if (!image) {
+    const fallback = context.createLinearGradient(x, y, x + width, y + height);
+    fallback.addColorStop(0, "#efb28f");
+    fallback.addColorStop(0.52, "#d96a3c");
+    fallback.addColorStop(1, "#6f4a3d");
+    context.fillStyle = fallback;
+    context.fillRect(x, y, width, height);
+    context.restore();
+    return;
+  }
+  const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+  const sourceWidth = width / scale;
+  const sourceHeight = height / scale;
+  const sourceX = (image.naturalWidth - sourceWidth) / 2;
+  const sourceY = (image.naturalHeight - sourceHeight) / 2;
+  context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, x, y, width, height);
+  context.restore();
+}
+
+function drawDiaryWrappedText(context, text, x, y, maxWidth, lineHeight, maxLines) {
+  const paragraphs = String(text || "").split(/\r?\n/);
+  const lines = [];
+  paragraphs.forEach((paragraph, paragraphIndex) => {
+    let line = "";
+    Array.from(paragraph || " ").forEach(character => {
+      const candidate = `${line}${character}`;
+      if (line && context.measureText(candidate).width > maxWidth) {
+        lines.push(line.trimEnd());
+        line = character;
+      } else {
+        line = candidate;
+      }
+    });
+    if (line.trim() || paragraphIndex < paragraphs.length - 1) lines.push(line.trimEnd());
+  });
+  const visible = lines.slice(0, maxLines);
+  if (lines.length > maxLines && visible.length) {
+    let finalLine = visible[visible.length - 1];
+    while (finalLine && context.measureText(`${finalLine}…`).width > maxWidth) finalLine = finalLine.slice(0, -1);
+    visible[visible.length - 1] = `${finalLine}…`;
+  }
+  visible.forEach((line, index) => context.fillText(line, x, y + (index * lineHeight)));
+  return y + (visible.length * lineHeight);
+}
+
+function drawDiaryChip(context, label, x, y, options = {}) {
+  const horizontalPadding = options.padding || 22;
+  const height = options.height || 54;
+  const width = context.measureText(label).width + (horizontalPadding * 2);
+  diaryCanvasRoundedPath(context, x, y, width, height, height / 2);
+  context.fillStyle = options.background || "rgba(255,255,255,0.88)";
+  context.fill();
+  context.fillStyle = options.color || "#3f3028";
+  context.fillText(label, x + horizontalPadding, y + height * 0.68);
+  return width;
+}
+
+function loadDiaryExportImage(source) {
+  if (!source) return Promise.resolve(null);
+  return new Promise(resolve => {
+    const image = new Image();
+    if (/^https?:\/\//i.test(source)) image.crossOrigin = "anonymous";
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = source;
+  });
+}
+
+async function buildDiaryExportCanvas(data) {
+  const isStory = data.mode === "story";
+  const canvas = document.createElement("canvas");
+  canvas.width = 1080;
+  canvas.height = isStory ? 1920 : 1350;
+  const context = canvas.getContext("2d");
+  const fontFamily = '"Noto Sans TC", "Microsoft JhengHei", sans-serif';
+  const image = await loadDiaryExportImage(data.image);
+  if (data.image && !image) {
+    const imageError = new Error("回憶封面無法安全讀取。");
+    imageError.name = "DiaryImageError";
+    throw imageError;
+  }
+
+  context.fillStyle = "#fbf7f2";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (isStory) {
+    drawDiaryCoverImage(context, image, 0, 0, canvas.width, canvas.height);
+    const overlay = context.createLinearGradient(0, 260, 0, canvas.height);
+    overlay.addColorStop(0, "rgba(26,18,15,0.08)");
+    overlay.addColorStop(0.5, "rgba(26,18,15,0.18)");
+    overlay.addColorStop(1, "rgba(26,18,15,0.92)");
+    context.fillStyle = overlay;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    context.fillStyle = "#ffffff";
+    context.font = `700 32px ${fontFamily}`;
+    context.fillText(data.account, 78, 112);
+    context.font = `500 25px ${fontFamily}`;
+    context.fillStyle = "rgba(255,255,255,0.82)";
+    context.fillText("TRIP MEMORY", 78, 154);
+
+    context.font = `700 27px ${fontFamily}`;
+    drawDiaryChip(context, `📍 ${data.location}`, 72, 870, { height: 58 });
+    context.fillStyle = "#ffffff";
+    context.font = `800 72px ${fontFamily}`;
+    let cursorY = drawDiaryWrappedText(context, data.title, 72, 1015, 920, 88, 3) + 24;
+    context.font = `500 34px ${fontFamily}`;
+    context.fillStyle = "rgba(255,255,255,0.9)";
+    cursorY = drawDiaryWrappedText(context, data.content, 72, cursorY, 920, 52, 6) + 30;
+    context.font = `700 25px ${fontFamily}`;
+    let chipX = 72;
+    [`${data.weather}`, `NT$${Number(data.cost).toLocaleString()}`, `${data.rating} 星`].forEach(label => {
+      const chipWidth = drawDiaryChip(context, label, chipX, Math.min(cursorY, 1690), {
+        height: 52,
+        background: "rgba(255,255,255,0.18)",
+        color: "#ffffff"
+      });
+      chipX += chipWidth + 14;
+    });
+    context.font = `600 25px ${fontFamily}`;
+    context.fillStyle = "rgba(255,255,255,0.86)";
+    const tags = data.hashtags.map(tag => `#${tag}`).join("   ");
+    if (tags) context.fillText(tags, 72, 1818);
+  } else {
+    context.fillStyle = "#2f241f";
+    context.font = `800 34px ${fontFamily}`;
+    context.fillText(data.account, 82, 86);
+    context.font = `500 25px ${fontFamily}`;
+    context.fillStyle = "#8a7569";
+    context.fillText(data.location, 82, 124);
+    drawDiaryCoverImage(context, image, 60, 160, 960, 550, 36);
+
+    context.fillStyle = "#2f241f";
+    context.font = `800 46px ${fontFamily}`;
+    let cursorY = drawDiaryWrappedText(context, data.title, 72, 790, 936, 58, 2) + 18;
+    context.font = `500 29px ${fontFamily}`;
+    context.fillStyle = "#5f5048";
+    cursorY = drawDiaryWrappedText(context, data.content, 72, cursorY, 936, 44, 4) + 24;
+    context.font = `700 24px ${fontFamily}`;
+    context.fillStyle = "#9a4b2b";
+    const tags = data.hashtags.map(tag => `#${tag}`).join("  ");
+    if (tags) drawDiaryWrappedText(context, tags, 72, cursorY, 936, 36, 2);
+    context.strokeStyle = "rgba(114,84,68,0.16)";
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(72, 1244);
+    context.lineTo(1008, 1244);
+    context.stroke();
+    context.font = `600 24px ${fontFamily}`;
+    context.fillStyle = "#7f6b60";
+    context.fillText(`${data.weather}  ·  ${data.companion}  ·  推薦 ${data.rating} 星`, 72, 1295);
+    context.textAlign = "right";
+    context.fillText(`NT$${Number(data.cost).toLocaleString()}`, 1008, 1295);
+    context.textAlign = "left";
+  }
+  return canvas;
+}
+
+function diaryCanvasToBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    try {
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("圖片產生失敗。")), "image/png");
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+function getDiaryExportFilename(data) {
+  const safeTitle = String(data.title || "旅程回憶")
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, "-")
+    .slice(0, 48);
+  return `${safeTitle || "旅程回憶"}-${data.mode === "story" ? "9x16" : "4x5"}.png`;
+}
+
+function downloadDiaryBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function setDiaryExportBusy(isBusy, message = "") {
+  ["ws-diary-download-btn", "ws-diary-share-image-btn"].forEach(id => {
+    const button = document.getElementById(id);
+    if (button) button.disabled = isBusy;
+  });
+  const status = document.getElementById("ws-diary-export-status");
+  if (status && message) status.textContent = message;
+}
+
+async function exportDiaryImage(action = "download") {
+  const data = getDiaryExportData();
+  if (!data) return;
+  setDiaryExportBusy(true, "正在產生高畫質回憶圖卡……");
+  try {
+    const canvas = await buildDiaryExportCanvas(data);
+    const blob = await diaryCanvasToBlob(canvas);
+    const filename = getDiaryExportFilename(data);
+    const file = typeof File === "function" ? new File([blob], filename, { type: "image/png" }) : null;
+    let canShareFile = false;
+    if (action === "share" && file && typeof navigator.share === "function" && typeof navigator.canShare === "function") {
+      try {
+        canShareFile = navigator.canShare({ files: [file] });
+      } catch (error) {
+        canShareFile = false;
+      }
+    }
+    if (canShareFile) {
+      await navigator.share({ title: data.title, text: `${data.title}｜旅程回憶`, files: [file] });
+      setDiaryExportBusy(false, "回憶圖卡已交給系統分享選單。");
+      return;
+    }
+    downloadDiaryBlob(blob, filename);
+    setDiaryExportBusy(false, action === "share" ? "此裝置不支援直接分享，已改為下載 PNG。" : "高畫質 PNG 已下載。");
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      setDiaryExportBusy(false, "已取消分享，沒有下載或送出任何內容。");
+      return;
+    }
+    const isImageError = error?.name === "SecurityError" || error?.name === "DiaryImageError";
+    setDiaryExportBusy(false, isImageError
+      ? "外部圖片禁止匯出，請重新上傳封面照片後再試一次。"
+      : "圖卡產生失敗，請稍後再試。");
+    showToast(isImageError ? "請重新上傳封面照片後再匯出。" : "回憶圖卡產生失敗。", "error");
+  }
+}
+
 function handleDiaryImportCost() {
   const trip = trips.find(t => t.id === activeTripId);
   if (trip) {
@@ -4668,6 +5477,10 @@ function handleDiaryImportCost() {
 function handleDiarySave() {
   const trip = trips.find(t => t.id === activeTripId);
   if (!trip) return;
+  if (!canEditActiveTrip()) {
+    showToast("你目前只有查看權限，不能修改旅程回憶。", "error");
+    return;
+  }
 
   const mode = document.querySelector(".diary-mode-btn.active")?.getAttribute("data-diary-mode") || "post";
   const content = document.getElementById("ws-diary-text").value.trim();
@@ -4679,20 +5492,46 @@ function handleDiarySave() {
   const storyTitle = document.getElementById("ws-diary-story-title").value.trim();
   const locationTag = document.getElementById("ws-diary-location").value.trim();
   const hashtags = getDiaryHashtagsFromField();
+  const requestedStatus = document.getElementById("ws-diary-status").value;
+  const status = ["draft", "private", "published"].includes(requestedStatus)
+    ? requestedStatus
+    : "draft";
+  const savedAt = new Date().toISOString();
+  const previousDiary = ensureDiaryState(trip);
 
   if (!content) {
     showToast("請填寫日記內容！", "error");
     return;
   }
 
-  trip.diary = { ...ensureDiaryState(trip), content, weather, companion, cost, rating, image, mode, storyTitle, locationTag, hashtags };
+  trip.diary = {
+    ...previousDiary,
+    content,
+    weather,
+    companion,
+    cost,
+    rating,
+    image,
+    mode,
+    storyTitle,
+    locationTag,
+    hashtags,
+    status,
+    publishedAt: status === "published" ? previousDiary.publishedAt || savedAt : null,
+    updatedAt: savedAt
+  };
   
   // 同步更新 trip 的基本數值，以更新儀表板顯示
   trip.rating = rating;
   if (image) trip.image = image;
 
   persistTrips();
-  showToast("旅行日記與回憶已成功儲存！", "success");
+  const savedMessages = {
+    draft: "旅程回憶草稿已儲存！",
+    private: "旅程回憶已設為私人完成。",
+    published: "旅程回憶已發布；訪客權限仍由分享設定控制。"
+  };
+  showToast(savedMessages[status], "success");
   renderWorkspaceDiary();
 }
 
@@ -4772,6 +5611,14 @@ function renderWorkspaceVouchers() {
 }
 
 // 憑證 Modal 動作
+function syncVoucherFlightSectionVisibility() {
+  const category = document.getElementById("v-category");
+  const flightSection = document.getElementById("v-flight-details-container");
+  if (!category || !flightSection) return;
+
+  flightSection.hidden = category.value !== "機票";
+}
+
 window.openVoucherModal = function(id = null) {
   const modal = document.getElementById("voucher-modal");
   const form = document.getElementById("voucher-form");
@@ -4813,6 +5660,8 @@ window.openVoucherModal = function(id = null) {
   } else {
     title.innerText = "新增票券憑證與備忘";
   }
+
+  syncVoucherFlightSectionVisibility();
   
   modal.classList.add("active");
 };
@@ -5216,7 +6065,11 @@ function handleTripSubmit(e) {
         mode: "post",
         storyTitle: title || "旅途片刻",
         hashtags: [],
-        locationTag: location || ""
+        locationTag: location || "",
+        status: "draft",
+        publishedAt: null,
+        updatedAt: null,
+        memories: []
       }
     };
     trips.unshift(newTrip);

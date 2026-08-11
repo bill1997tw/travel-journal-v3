@@ -36,7 +36,8 @@ test("share manager uses only guarded RPCs", async () => {
     includeChecklists: true,
     includeBudget: true,
     includeLedger: true,
-    includeVouchers: true
+    includeVouchers: true,
+    includeDiary: true
   });
   assert.equal(created.token, "a".repeat(64));
   await manager.status("trip-1");
@@ -60,7 +61,8 @@ test("share manager uses only guarded RPCs", async () => {
     share_checklists: true,
     share_budget: true,
     share_ledger: true,
-    share_vouchers: true
+    share_vouchers: true,
+    share_diary: true
   });
 });
 
@@ -165,6 +167,10 @@ test("expanded guest view renders sanitized optional sections", () => {
   assert.match(source, /小二帳本/);
   assert.match(source, /票券與憑證摘要/);
   assert.match(source, /旅行攻略庫/);
+  assert.match(source, /TRIP MEMORY/);
+  assert.match(source, /trip\.diary\?\.status === "published"/);
+  assert.match(source, /includedInStory !== false/);
+  assert.match(source, /normalizeGuestImageUrl/);
   assert.match(source, /normalizePublicUrl/);
   assert.match(source, /QR Code、連結及備註不公開/);
   assert.doesNotMatch(source, /fileData/);
@@ -248,5 +254,5 @@ test("owner share controls bind after delayed app or account initialization", ()
   assert.match(source, /document\.readyState === "loading"/);
   assert.match(source, /shareHandlerBound === "true"/);
   assert.match(source, /shareButton\.dataset\.shareHandlerBound = "true"/);
-  assert.match(html, /account-cloud-share\.js\?v=v12/);
+  assert.match(html, /account-cloud-share\.js\?v=v13/);
 });

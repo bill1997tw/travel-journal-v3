@@ -23,6 +23,14 @@ function normalizePublicUrl(value) {
   }
 }
 
+function normalizeGuestImageUrl(value) {
+  const source = String(value || "").trim();
+  if (/^data:image\/(?:png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(source)) {
+    return source;
+  }
+  return normalizePublicUrl(source);
+}
+
 function formatMinorUnits(value, currency = "TWD") {
   const minor = Number(value);
   if (!Number.isSafeInteger(minor)) return "";
@@ -106,7 +114,8 @@ export function createGuestShareManager(client) {
       includeChecklists = false,
       includeBudget = false,
       includeLedger = false,
-      includeVouchers = false
+      includeVouchers = false,
+      includeDiary = false
     } = {}) {
       const { data, error } = await client.rpc("create_guest_readonly_share", {
         target_trip_id: tripId,
@@ -115,7 +124,8 @@ export function createGuestShareManager(client) {
         share_checklists: includeChecklists,
         share_budget: includeBudget,
         share_ledger: includeLedger,
-        share_vouchers: includeVouchers
+        share_vouchers: includeVouchers,
+        share_diary: includeDiary
       });
       if (error) throw error;
       if (!data?.token || !/^[0-9a-f]{64}$/.test(data.token)) {
@@ -165,6 +175,7 @@ function renderGuestTrip(result, refreshStatus = "") {
   const settlements = Array.isArray(ledger.settlements) ? ledger.settlements : [];
   const vouchers = Array.isArray(trip.vouchers) ? trip.vouchers : [];
   const guides = Array.isArray(trip.guides) ? trip.guides : [];
+  const diary = trip.diary?.status === "published" ? trip.diary : null;
 
   const dayHtml = days.map((day, index) => {
     const items = Array.isArray(day.items) ? day.items : [];
@@ -262,6 +273,48 @@ function renderGuestTrip(result, refreshStatus = "") {
       </article>`;
   }).join("");
 
+  const diaryMemories = Array.isArray(diary?.memories)
+    ? diary.memories.filter(item => item?.includedInStory !== false)
+    : [];
+  const diaryImage = normalizeGuestImageUrl(diary?.image);
+  const diaryHtml = diary ? `
+    <section class="guest-share-day guest-share-diary">
+      <div class="guest-share-diary-heading">
+        <div>
+          <span class="guest-share-diary-kicker">TRIP MEMORY</span>
+          <h2>${escapeHtml(diary.storyTitle || "旅程回憶")}</h2>
+        </div>
+        ${diary.rating ? `<span class="guest-share-diary-rating">★ ${escapeHtml(diary.rating)} / 5</span>` : ""}
+      </div>
+      ${diaryImage ? `<img class="guest-share-diary-cover" src="${escapeHtml(diaryImage)}" alt="${escapeHtml(diary.storyTitle || "旅程回憶封面")}" loading="lazy">` : ""}
+      <div class="guest-share-diary-meta">
+        ${diary.locationTag ? `<span>📍 ${escapeHtml(diary.locationTag)}</span>` : ""}
+        ${diary.weather ? `<span>天氣 ${escapeHtml(diary.weather)}</span>` : ""}
+        ${diary.companion ? `<span>旅伴 ${escapeHtml(diary.companion)}</span>` : ""}
+        ${Number(diary.cost) > 0 ? `<span>總花費 NT$ ${Number(diary.cost).toLocaleString("zh-TW")}</span>` : ""}
+      </div>
+      ${diary.content ? `<p class="guest-share-diary-story">${escapeHtml(diary.content).replaceAll("\n", "<br>")}</p>` : ""}
+      ${Array.isArray(diary.hashtags) && diary.hashtags.length ? `
+        <div class="guest-share-guide-tags">${diary.hashtags.slice(0, 20).map(tag => `<span>#${escapeHtml(tag)}</span>`).join("")}</div>
+      ` : ""}
+      ${diaryMemories.length ? `
+        <div class="guest-share-memory-list">
+          ${diaryMemories.map(memory => {
+            const image = normalizeGuestImageUrl(memory?.image);
+            return `<article class="guest-share-memory-card">
+              ${image ? `<img src="${escapeHtml(image)}" alt="記憶片段照片" loading="lazy">` : ""}
+              <div>
+                <p class="guest-share-muted">DAY ${escapeHtml(memory?.day || 1)}${memory?.time ? ` · ${escapeHtml(memory.time)}` : ""}</p>
+                <h3>${escapeHtml(memory?.scheduleTitle || memory?.location || "旅途片段")}</h3>
+                ${memory?.note ? `<p>${escapeHtml(memory.note).replaceAll("\n", "<br>")}</p>` : ""}
+              </div>
+            </article>`;
+          }).join("")}
+        </div>
+      ` : ""}
+    </section>
+  ` : "";
+
   const root = document.getElementById("guest-readonly-root");
   root.innerHTML = `
     <main class="guest-share-page">
@@ -285,6 +338,7 @@ function renderGuestTrip(result, refreshStatus = "") {
           <div class="guest-share-alt-grid">${guideHtml}</div>
         </section>
       ` : ""}
+      ${result.include_diary ? diaryHtml : ""}
       ${result.include_alternatives && alternativeHtml ? `
         <section class="guest-share-day">
           <h2>備案庫</h2>
@@ -460,6 +514,7 @@ function initOwnerShare(manager) {
   const budgetInput = document.getElementById("share-scope-budget");
   const ledgerInput = document.getElementById("share-scope-ledger");
   const vouchersInput = document.getElementById("share-scope-tickets");
+  const diaryInput = document.getElementById("share-scope-diary");
   const expiryInput = document.getElementById("share-expires-days");
   const statusText = document.getElementById("share-owner-status");
   let hasActiveShare = false;
@@ -506,6 +561,7 @@ function initOwnerShare(manager) {
       budgetInput.checked = Boolean(status?.has_share && status.include_budget);
       ledgerInput.checked = Boolean(status?.has_share && status.include_ledger);
       vouchersInput.checked = Boolean(status?.has_share && status.include_vouchers);
+      diaryInput.checked = Boolean(status?.has_share && status.include_diary);
     } catch {
       close();
       window.showToast?.("目前無法讀取分享設定，請稍後再試。", "error");
@@ -515,6 +571,10 @@ function initOwnerShare(manager) {
   generateButton?.addEventListener("click", async () => {
     const tripId = getTripId();
     if (!tripId) return;
+    if (diaryInput.checked && window.getActiveTripDiaryStatus?.() !== "published") {
+      window.showToast?.("請先把旅程回憶儲存為「已發布」，再開放給訪客。", "error");
+      return;
+    }
     if (hasActiveShare) {
       const confirmed = window.confirm(
         "目前已有有效的免登入分享連結。\n\n重新建立後，舊連結會立刻失效；已收到舊網址的旅伴將無法再開啟。確定要繼續嗎？"
@@ -529,7 +589,8 @@ function initOwnerShare(manager) {
         includeChecklists: checklistsInput.checked,
         includeBudget: budgetInput.checked,
         includeLedger: ledgerInput.checked,
-        includeVouchers: vouchersInput.checked
+        includeVouchers: vouchersInput.checked,
+        includeDiary: diaryInput.checked
       });
       linkInput.value = `${window.location.origin}${window.location.pathname}?share=${result.token}`;
       linkBox.style.display = "block";
