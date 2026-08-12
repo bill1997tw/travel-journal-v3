@@ -83,6 +83,31 @@ test("normalizes a complete legacy travel journal document", () => {
   assert.deepEqual(result.warnings, []);
 });
 
+test("explicit cloud clone receives an identity distinct from the copied source document", () => {
+  const result = normalizeCandidate(
+    {
+      id: "trip-clone-1",
+      title: "行程副本",
+      destination: "宜蘭",
+      source_client_key: "voyage-clone:trip-source-1:request-1"
+    },
+    {
+      revision: 1,
+      schema_version: 1,
+      state: {
+        trip: {
+          id: "copied-local-id",
+          clientTripUuid: "source-client-uuid",
+          title: "行程副本"
+        }
+      }
+    }
+  );
+
+  assert.equal(result.candidate.clientTripUuid, "trip-clone-1");
+  assert.notEqual(result.candidate.clientTripUuid, "source-client-uuid");
+});
+
 test("prepares a complete local trip for atomic cloud promotion", () => {
   const storage = createStorage({
     voyage_trips: JSON.stringify([{
@@ -96,7 +121,8 @@ test("prepares a complete local trip for atomic cloud promotion", () => {
 
   const payload = prepareLocalTripPromotion(storage, "alishan-local");
 
-  assert.equal(payload.sourceKey, "voyage-local:alishan-local");
+  assert.match(payload.sourceKey, /^voyage-client:/);
+  assert.equal(payload.state.trip.clientTripUuid, payload.clientTripUuid);
   assert.equal(payload.title, "阿里山二天一夜");
   assert.equal(payload.destination, "台灣，嘉義");
   assert.equal(payload.startDate, null);
@@ -314,6 +340,7 @@ test("refreshing a current trip creates a restorable backup", () => {
   );
   const refreshed = JSON.parse(storage.getItem("voyage_trips"))[0];
   assert.equal(refreshed.title, "revision 5");
+  assert.equal(refreshed.id, "cloud-trip-cloud-1");
   assert.equal(refreshed._cloud.revision, 5);
   assert.equal(getCloudTripState(refreshed), "current");
 

@@ -1,14 +1,22 @@
 (function (root, factory) {
-  const api = factory();
+  const identityApi = typeof module === "object" && module.exports
+    ? require("./trip-identity.js")
+    : root?.VoyageTripIdentity;
+  const api = factory(identityApi);
   if (typeof module === "object" && module.exports) {
     module.exports = api;
   }
   if (root) {
     root.VoyageCloudImport = Object.freeze(api);
   }
-})(typeof window !== "undefined" ? window : globalThis, function () {
+})(typeof window !== "undefined" ? window : globalThis, function (identityApi) {
   "use strict";
   const LATEST_BACKUP_KEY = "voyage_cloud_latest_backup_key";
+
+  function requireIdentityApi() {
+    if (!identityApi) throw new Error("trip_identity_api_unavailable");
+    return identityApi;
+  }
 
   function clone(value) {
     return JSON.parse(JSON.stringify(value));
@@ -31,6 +39,9 @@
     if (!isObject(trip)) throw new TypeError("trip_fingerprint_object_required");
     const snapshot = clone(trip);
     delete snapshot._cloud;
+    // Durable identity metadata is not user-authored trip content. Adding it
+    // to a legacy cache must not manufacture an unsaved-content conflict.
+    delete snapshot.clientTripUuid;
     const serialized = stableSerialize(snapshot);
     let hash = 2166136261;
     for (let index = 0; index < serialized.length; index += 1) {
@@ -95,8 +106,10 @@
     const remoteSnapshot = clone(remoteCandidate);
     delete localSnapshot.id;
     delete localSnapshot._cloud;
+    delete localSnapshot.clientTripUuid;
     delete remoteSnapshot.id;
     delete remoteSnapshot._cloud;
+    delete remoteSnapshot.clientTripUuid;
     return stableSerialize(localSnapshot) === stableSerialize(remoteSnapshot);
   }
 
@@ -166,6 +179,15 @@
     }
 
     candidate.id = `cloud-${cloudTrip.id}`;
+    // Explicit cloud clones must be a new logical trip, even though the clone
+    // RPC initially copies the source document state verbatim.  The clone's
+    // persisted source key is the durable signal; using its cloud id prevents
+    // the copied client UUID from linking the two trips across devices.
+    const isExplicitCloudClone = String(cloudTrip.source_client_key || "")
+      .startsWith("voyage-clone:");
+    candidate.clientTripUuid = String(
+      isExplicitCloudClone ? cloudTrip.id : (candidate.clientTripUuid || cloudTrip.id)
+    ).trim();
     candidate.title = String(candidate.title || cloudTrip.title).trim();
     candidate.location = String(candidate.location || cloudTrip.destination || "").trim();
     candidate.ledger = asArray(candidate.ledger);
@@ -301,6 +323,10 @@
     const backupKey = makeBackupKey(now);
     const previousLatestBackupKey = storage.getItem(LATEST_BACKUP_KEY);
     const replacement = clone(candidate);
+    replacement.id = trips[index].id;
+    replacement.clientTripUuid = trips[index].clientTripUuid
+      || replacement.clientTripUuid
+      || candidate._cloud.tripId;
     replacement._cloud.savedFingerprint = fingerprintTrip(replacement);
     trips[index] = replacement;
 
@@ -423,6 +449,11 @@
     if (!String(localTrip.title || "").trim()) {
       throw new TypeError("local_trip_title_required");
     }
+    const hadClientTripUuid = Boolean(requireIdentityApi().getClientTripUuid(localTrip));
+    const clientTripUuid = requireIdentityApi().ensureClientTripUuid(localTrip);
+    if (!hadClientTripUuid) {
+      storage.setItem("voyage_trips", JSON.stringify(trips));
+    }
     const cloudTrip = clone(localTrip);
     delete cloudTrip._cloud;
     const isoDate = (value) =>
@@ -430,7 +461,8 @@
         ? value.trim()
         : null;
     return {
-      sourceKey: `voyage-local:${localTripId}`,
+      sourceKey: requireIdentityApi().promotionSourceKey(localTrip),
+      clientTripUuid,
       title: String(localTrip.title).trim(),
       destination: String(localTrip.location || "").trim() || null,
       startDate: isoDate(localTrip.date),
@@ -475,6 +507,7 @@
     const backupKey = makeBackupKey(now);
     const previousLatestBackupKey = storage.getItem(LATEST_BACKUP_KEY);
     const promotedTrip = clone(trips[index]);
+    requireIdentityApi().ensureClientTripUuid(promotedTrip);
     promotedTrip._cloud = {
       tripId: cloudTripId,
       revision: Number(revision),
@@ -704,6 +737,7 @@
     }
     const copyCandidate = clone(remoteCandidate);
     copyCandidate.id = `local-copy-${now.getTime()}`;
+    copyCandidate.clientTripUuid = requireIdentityApi().createClientTripUuid();
     copyCandidate.title = `${copyCandidate.title} (雲端 rev ${copyCandidate._cloud.revision} 副本)`;
     delete copyCandidate._cloud;
 
@@ -733,6 +767,124 @@
     };
   }
 
+  function hydrateCloudCandidates(storage, remoteCandidates, queuedDrafts = [], now = new Date()) {
+    if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function") {
+      throw new TypeError("storage_required");
+    }
+    const candidates = Array.isArray(remoteCandidates) ? remoteCandidates : [];
+    const drafts = Array.isArray(queuedDrafts) ? queuedDrafts : [];
+    const previousRaw = storage.getItem("voyage_trips") || "[]";
+    const trips = parseLocalTrips(previousRaw);
+    const cloudRevisions = Object.fromEntries(
+      candidates
+        .filter(candidate => candidate?._cloud?.tripId)
+        .map(candidate => [candidate._cloud.tripId, Number(candidate._cloud.revision) || 0])
+    );
+    const diagnostics = requireIdentityApi().diagnoseDuplicateCloudTrips(trips, {
+      cloudRevisions,
+      queuedDrafts: drafts,
+      fingerprint: fingerprintTrip
+    });
+    const duplicateIds = new Set(diagnostics.map(item => item.cloudTripId));
+    const queuedIds = new Set(drafts.map(draft => draft?.tripId).filter(Boolean));
+    const results = [];
+    const additions = [];
+    let changed = false;
+
+    for (const remoteCandidate of candidates) {
+      const cloudTripId = remoteCandidate?._cloud?.tripId;
+      if (!cloudTripId) continue;
+      if (duplicateIds.has(cloudTripId)) {
+        results.push({ cloudTripId, action: "duplicate_conflict" });
+        continue;
+      }
+
+      const localIndex = trips.findIndex(
+        trip => requireIdentityApi().getCloudTripId(trip) === cloudTripId
+      );
+      if (localIndex < 0) {
+        const addition = clone(remoteCandidate);
+        requireIdentityApi().ensureClientTripUuid(addition);
+        additions.push(addition);
+        changed = true;
+        results.push({ cloudTripId, action: "hydrated" });
+        continue;
+      }
+
+      const localTrip = trips[localIndex];
+      if (!requireIdentityApi().getClientTripUuid(localTrip)) {
+        requireIdentityApi().ensureClientTripUuid(localTrip);
+        changed = true;
+      }
+      if (queuedIds.has(cloudTripId)) {
+        results.push({ cloudTripId, action: "draft_blocked" });
+        continue;
+      }
+
+      const localRevision = Number(localTrip?._cloud?.revision) || 0;
+      const remoteRevision = Number(remoteCandidate?._cloud?.revision) || 0;
+      const equivalent = hasEquivalentCloudContent(localTrip, remoteCandidate);
+      if (localRevision === remoteRevision && equivalent) {
+        const currentFingerprint = fingerprintTrip(localTrip);
+        if (localTrip._cloud.savedFingerprint !== currentFingerprint) {
+          localTrip._cloud.savedFingerprint = currentFingerprint;
+          changed = true;
+        }
+        results.push({ cloudTripId, action: "reused" });
+        continue;
+      }
+
+      if (remoteRevision > localRevision && getCloudTripState(localTrip) === "current") {
+        const replacement = clone(remoteCandidate);
+        replacement.id = localTrip.id;
+        replacement.clientTripUuid = localTrip.clientTripUuid
+          || replacement.clientTripUuid
+          || cloudTripId;
+        replacement._cloud.savedFingerprint = fingerprintTrip(replacement);
+        trips[localIndex] = replacement;
+        changed = true;
+        results.push({ cloudTripId, action: "refreshed" });
+        continue;
+      }
+
+      results.push({ cloudTripId, action: "conflict" });
+    }
+
+    if (!changed) {
+      return { changed: false, diagnostics, results, receipt: null };
+    }
+
+    const backupKey = makeBackupKey(now);
+    const previousLatestBackupKey = storage.getItem(LATEST_BACKUP_KEY);
+    try {
+      storage.setItem(backupKey, previousRaw);
+      storage.setItem(LATEST_BACKUP_KEY, backupKey);
+      storage.setItem("voyage_trips", JSON.stringify([...additions, ...trips]));
+    } catch (error) {
+      storage.removeItem(backupKey);
+      if (previousLatestBackupKey) {
+        storage.setItem(LATEST_BACKUP_KEY, previousLatestBackupKey);
+      } else {
+        storage.removeItem(LATEST_BACKUP_KEY);
+      }
+      throw error;
+    }
+
+    return {
+      changed: true,
+      diagnostics,
+      results,
+      receipt: {
+        backupKey,
+        previousLatestBackupKey,
+        previousRaw,
+        cloudTripIds: results
+          .filter(result => result.action === "hydrated" || result.action === "refreshed")
+          .map(result => result.cloudTripId)
+      }
+    };
+  }
+
   return {
     normalizeCandidate,
     parseLocalTrips,
@@ -753,6 +905,7 @@
     commitSavedRevision,
     assertStorageWritable,
     compareTripStates,
-    importRemoteAsCopy
+    importRemoteAsCopy,
+    hydrateCloudCandidates
   };
 });

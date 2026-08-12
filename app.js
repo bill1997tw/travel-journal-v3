@@ -909,6 +909,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function initData() {
   loadItineraryHistory();
   knownPlaces = loadKnownPlaces();
+  const identityApi = window.VoyageTripIdentity;
 
   // 載入客製化標題 Logo 名稱
   const savedLogoText = localStorage.getItem("voyage_logo_text");
@@ -927,6 +928,7 @@ function initData() {
     trips = JSON.parse(localTrips);
     // 防呆：確保所有屬性都存在
     trips.forEach(t => {
+      identityApi?.ensureClientTripUuid?.(t);
       if (!t.itinerary) t.itinerary = null;
       if (!t.alternativeSpots) t.alternativeSpots = { sights: [], restaurants: [] };
       if (!t.packingList) t.packingList = [...DEFAULT_PACKING_TEMPLATE];
@@ -1648,7 +1650,12 @@ function renderTripsList() {
 }
 
 function deleteTrip(id) {
-  if (confirm("您確定要刪除這個行程的全部資料嗎？此動作將連同日程、帳目、備案與行李清單一併刪除，無法復原喔！")) {
+  const targetTrip = trips.find(t => t.id === id) || null;
+  const cloudBacked = Boolean(window.VoyageTripIdentity?.isCloudBackedTrip?.(targetTrip));
+  const confirmation = cloudBacked
+    ? "確定移除此裝置上的旅程快取嗎？雲端旅程不會被刪除，下次登入或重新整理雲端旅程時會再次下載。若要停用雲端旅程，請使用雲端旅程的封存功能。"
+    : "您確定要刪除這個行程的全部資料嗎？此動作將連同日程、帳目、備案與行李清單一併刪除，無法復原喔！";
+  if (confirm(confirmation)) {
     trips = trips.filter(t => t.id !== id);
     persistTrips();
     if (activeTripId === id) {
@@ -1656,7 +1663,7 @@ function deleteTrip(id) {
     }
     renderTripsList();
     renderDashboard();
-    showToast("旅程已永久刪除", "info");
+    showToast(cloudBacked ? "已移除此裝置的旅程快取" : "旅程已永久刪除", "info");
   }
 }
 
@@ -1670,7 +1677,7 @@ function persistTrips() {
 
 window.getActiveCloudTripId = function() {
   const trip = trips.find(item => item.id === activeTripId);
-  return trip?._cloud?.tripId || null;
+  return window.VoyageTripIdentity?.getCloudTripId?.(trip) || null;
 };
 
 window.getActiveTripDiaryStatus = function() {
@@ -1698,8 +1705,9 @@ window.refreshWorkspaceCloudPermissions = function() {
 
 function canEditActiveTrip() {
   const trip = trips.find(item => item.id === activeTripId);
-  if (!trip?._cloud?.tripId) return true;
-  const role = window.voyageAccountCloud?.getRoleForTrip?.(trip._cloud.tripId) || null;
+  const cloudTripId = window.VoyageTripIdentity?.getCloudTripId?.(trip);
+  if (!cloudTripId) return true;
+  const role = window.voyageAccountCloud?.getRoleForTrip?.(cloudTripId) || null;
   return role === "owner" || role === "editor";
 }
 
@@ -6043,6 +6051,8 @@ function handleTripSubmit(e) {
     // 新增旅程
     const newTrip = {
       id: "trip-" + Date.now(),
+      clientTripUuid: window.VoyageTripIdentity?.createClientTripUuid?.()
+        || globalThis.crypto?.randomUUID?.(),
       title, location, date, duration, travelers, members: memberNames, luggage, rental, hotel, continent, dateRange,
       image: image || "assets/paris_cafe.png",
       itinerary: null,

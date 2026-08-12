@@ -13,12 +13,16 @@ test("dashboard has one account-scoped cloud trip section", () => {
   assert.match(htmlSource, /包含自己建立，以及其他 Owner 邀請您參加的旅程/);
 });
 
-test("cloud home cards distinguish roles and local import state", () => {
+test("cloud home collapses cloud cards already represented by a local cache", () => {
   assert.match(cloudSource, /function renderCloudHomeTrips\(\)/);
-  assert.match(cloudSource, /const role = getRole\(trip\)/);
-  assert.match(cloudSource, /const importedTrip = findImportedTrip\(trip\.id\)/);
-  assert.match(cloudSource, /已載入此裝置/);
-  assert.match(cloudSource, /雲端旅程/);
+  assert.match(cloudSource, /findLocalTripsByCloudId\(localTrips, trip\.id\)\.length === 0/);
+  assert.match(cloudSource, /setAccessibleCloudTripCount\?\.\(allSignedInTrips\.length\)/);
+});
+
+test("promotion identity lookup includes active and archived cloud metadata", () => {
+  assert.match(cloudSource, /for \(const cloudTrip of \[\.\.\.state\.trips, \.\.\.state\.archivedTrips\]\)/);
+  assert.match(cloudSource, /sourceClientKey\.startsWith\("voyage-client:"\)/);
+  assert.match(cloudSource, /registerCloudIdentity\(sourceClientKey\.slice/);
 });
 
 test("owner and editor can load while viewer receives readonly preview", () => {
