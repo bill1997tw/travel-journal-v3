@@ -35,7 +35,7 @@
       ]
     },
     {
-      "source": "/(app|cloud-sync|supabase-config).js",
+      "source": "/(app|cloud-sync|supabase-config|media-uploader).js",
       "headers": [
         {
           "key": "Cache-Control",

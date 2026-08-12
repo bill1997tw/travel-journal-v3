@@ -2523,6 +2523,7 @@
       return lifecycleApi.create(client);
     },
     getSession: () => state.session,
+    getClient: () => ensureClient(),
     getTrips: () => state.trips.map((trip) => ({ ...trip })),
     getSyncState: getSyncStateForTrip,
     getIdentityDiagnostics: () => structuredClone(state.identityDiagnostics),

@@ -6741,3 +6741,51 @@ body.guest-readonly-active > :not(#guest-readonly-root):not(#guest-invalid-overl
     height: 140px;
   }
 }
+/* Shared image input controls (file, camera, clipboard and secure URL import). */
+.media-input-tools {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+  position: relative;
+  z-index: 2;
+}
+
+.media-input-tools button,
+.media-url-import summary {
+  border: 1px solid var(--border-color, #e8ded5);
+  border-radius: 999px;
+  background: var(--surface-color, #fff);
+  color: var(--text-primary, #352f2a);
+  padding: 0.45rem 0.8rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.media-url-import > div {
+  display: flex;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+  padding: 0.65rem;
+  border-radius: 0.8rem;
+  background: var(--surface-color, #fff);
+  box-shadow: 0 8px 24px rgba(56, 40, 26, 0.12);
+}
+
+.media-url-import input {
+  min-width: min(16rem, 55vw);
+  border: 1px solid var(--border-color, #e8ded5);
+  border-radius: 0.65rem;
+  padding: 0.55rem 0.7rem;
+}
+
+.is-dragging {
+  outline: 2px solid var(--accent-color, #d66537);
+  outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+  .media-input-tools { flex-wrap: wrap; }
+  .media-url-import > div { flex-direction: column; }
+}

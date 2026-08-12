@@ -332,6 +332,14 @@
   }
 
   async function compressCoverImage(file) {
+    if (window.VoyageMedia?.prepareImageBlob) {
+      const prepared = await window.VoyageMedia.prepareImageBlob(file, {
+        maxBytes: MAX_COVER_BYTES,
+        maxDimension: 1800,
+        quality: 0.84
+      });
+      return prepared.blob;
+    }
     if (!file?.type?.startsWith("image/")) throw new Error("請選擇 JPG、PNG 或 WebP 圖片。");
     if (file.size > MAX_COVER_BYTES) throw new Error("圖片不可超過 10MB。");
     const dataUrl = await new Promise((resolve, reject) => {
@@ -369,6 +377,27 @@
       showToast("圖片已準備完成，儲存收藏後會上傳。", "success");
     } catch (error) {
       showToast(error.message || "圖片處理失敗。", "error");
+    }
+  }
+
+  async function importFavoriteCoverUrl(value) {
+    const normalized = safeWebUrl(value);
+    if (!normalized) {
+      if (String(value || "").trim()) setCoverPreview("", true);
+      return;
+    }
+    try {
+      const { data } = await state.client.auth.getSession();
+      const blob = await window.VoyageMedia.fetchImageUrlBlob(normalized, {
+        accessToken: data.session?.access_token || "",
+        maxBytes: MAX_COVER_BYTES
+      });
+      await selectCoverFile(blob);
+      ui.coverUrl.value = "";
+      showToast("網址圖片已匯入並將儲存到您的雲端空間。", "success");
+    } catch (error) {
+      setCoverPreview("", true);
+      showToast(error?.message || "圖片網址匯入失敗。", "error");
     }
   }
 
@@ -806,16 +835,13 @@
       event.stopPropagation();
       removeCoverSelection();
     });
-    ui.coverUrl.addEventListener("change", () => {
-      const value = safeWebUrl(ui.coverUrl.value);
-      if (!value) {
-        if (ui.coverUrl.value.trim()) setCoverPreview("", true);
-        return;
-      }
-      clearPendingCoverPreview();
-      state.pendingCoverFile = null;
-      state.removeOriginalCover = true;
-      setCoverPreview(value);
+    ui.coverUrl.addEventListener("change", () => importFavoriteCoverUrl(ui.coverUrl.value));
+    window.VoyageMedia?.bindMediaInput?.({
+      zone: ui.coverUpload,
+      fileInput: ui.coverFile,
+      dragDrop: false,
+      urlImport: false,
+      onFile: file => selectCoverFile(file)
     });
     ui.coverPreview.addEventListener("error", () => setCoverPreview("", true));
     ui.collectionForm.addEventListener("submit", createCollection);
