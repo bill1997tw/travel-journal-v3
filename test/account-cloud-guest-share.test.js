@@ -3,8 +3,30 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
   createGuestShareManager,
-  getGuestTripSignature
+  getGuestTripSignature,
+  getGuestImagePresentation
 } from "../account-cloud-share.js";
+
+test("anonymous private media degrades without exposing its Storage path", () => {
+  const privateReference = "storage://travel-assets/private-user/trips/private-trip/secret.jpg";
+  const presentation = getGuestImagePresentation(privateReference);
+  assert.deepEqual(presentation, { url: "", privateUnavailable: true });
+  assert.equal(JSON.stringify(presentation).includes("private-user"), false);
+});
+
+test("anonymous legacy Base64 and public images remain renderable", () => {
+  const base64 = "data:image/png;base64,iVBORw0KGgo=";
+  assert.deepEqual(getGuestImagePresentation(base64), { url: base64, privateUnavailable: false });
+  assert.equal(getGuestImagePresentation("https://example.com/photo.jpg").url, "https://example.com/photo.jpg");
+});
+
+test("guest renderer uses a deliberate private-media fallback and never signs Storage URLs", () => {
+  const source = fs.readFileSync(new URL("../account-cloud-share.js", import.meta.url), "utf8");
+  assert.match(source, /私人圖片僅限登入成員查看/u);
+  assert.match(source, /renderPrivateMediaFallback/);
+  assert.match(source, /item\?\.coverUrl \|\| \(item\?\.kind === "image" \? item\?\.url : ""\)/);
+  assert.doesNotMatch(source, /createSignedUrl|resolveMediaReference/);
+});
 
 test("share manager uses only guarded RPCs", async () => {
   const calls = [];
@@ -254,5 +276,5 @@ test("owner share controls bind after delayed app or account initialization", ()
   assert.match(source, /document\.readyState === "loading"/);
   assert.match(source, /shareHandlerBound === "true"/);
   assert.match(source, /shareButton\.dataset\.shareHandlerBound = "true"/);
-  assert.match(html, /account-cloud-share\.js\?v=v13/);
+  assert.match(html, /account-cloud-share\.js\?v=v14/);
 });

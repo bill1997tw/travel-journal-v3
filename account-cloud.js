@@ -30,6 +30,9 @@
     previewRole: null,
     preview: null,
     lastImportReceipt: null,
+    identityDiagnostics: [],
+    hydrationResults: [],
+    cloudIdentityIndex: {},
     mounted: false,
     busy: false
   };
@@ -72,6 +75,45 @@
     return window.VoyageCloudImport || null;
   }
 
+  function getIdentityApi() {
+    return window.VoyageTripIdentity || null;
+  }
+
+  function readLocalTrips() {
+    const importApi = getImportApi();
+    if (!importApi) return [];
+    return importApi.parseLocalTrips(localStorage.getItem("voyage_trips") || "[]");
+  }
+
+  function scanLocalIdentityDiagnostics(cloudRevisions = {}) {
+    const identityApi = getIdentityApi();
+    const importApi = getImportApi();
+    if (!identityApi || !importApi) {
+      state.identityDiagnostics = [];
+      return state.identityDiagnostics;
+    }
+    try {
+      state.identityDiagnostics = identityApi.diagnoseDuplicateCloudTrips(
+        readLocalTrips(),
+        {
+          cloudRevisions,
+          queuedDrafts: state.queuedDrafts,
+          fingerprint: importApi.fingerprintTrip
+        }
+      );
+      if (state.identityDiagnostics.length > 0) {
+        console.warn(
+          "Duplicate cloud trip identities detected; all local copies were preserved.",
+          state.identityDiagnostics
+        );
+      }
+    } catch (error) {
+      console.warn("Could not inspect local trip identities.", error);
+      state.identityDiagnostics = [];
+    }
+    return state.identityDiagnostics;
+  }
+
   function getQueueApi() {
     return window.VoyageCloudQueue || null;
   }
@@ -90,6 +132,7 @@
     if (result.changed) {
       window.voyageApp?.rehydrateAndRender?.();
     }
+    scanLocalIdentityDiagnostics();
     return result;
   }
 
@@ -656,13 +699,38 @@
     }[status] || { label: status, tone: "neutral" };
   }
 
+  function getSyncStateForTrip(tripId) {
+    if (state.savingTripIds.has(tripId)) return "saving";
+    const draft = state.queuedDrafts.find((item) => item.tripId === tripId) || null;
+    const remote = state.remoteUpdates[tripId] || null;
+    if (draft?.status === "conflict" || remote?.mode === "compare_required") {
+      return "conflict";
+    }
+    if (remote?.mode === "refresh_available") return "remote_update_available";
+    if (!navigator.onLine || draft) return "offline";
+    const localTrip = findImportedTrip(tripId);
+    const cloudState = getImportApi()?.getCloudTripState(localTrip, null);
+    return cloudState === "current" ? "synced" : "saving";
+  }
+
   function renderCloudHomeTrips() {
     const section = document.getElementById("dashboard-cloud-trips");
     const list = document.getElementById("dashboard-cloud-trips-list");
     if (!section || !list) return;
 
-    const signedInTrips = state.session ? state.trips : [];
-    window.voyageApp?.setAccessibleCloudTripCount?.(signedInTrips.length);
+    const allSignedInTrips = state.session ? state.trips : [];
+    let localTrips = [];
+    try {
+      localTrips = readLocalTrips();
+    } catch (error) {
+      console.warn("Could not collapse local and cloud dashboard trips.", error);
+    }
+    const identityApi = getIdentityApi();
+    const signedInTrips = allSignedInTrips.filter((trip) => {
+      if (!identityApi) return true;
+      return identityApi.findLocalTripsByCloudId(localTrips, trip.id).length === 0;
+    });
+    window.voyageApp?.setAccessibleCloudTripCount?.(allSignedInTrips.length);
     section.hidden = signedInTrips.length === 0;
     list.replaceChildren();
     if (signedInTrips.length === 0) return;
@@ -943,11 +1011,11 @@
 
   function findImportedTrip(tripId) {
     const importApi = getImportApi();
-    if (!importApi) return null;
+    const identityApi = getIdentityApi();
+    if (!importApi || !identityApi) return null;
     try {
-      return importApi
-        .parseLocalTrips(localStorage.getItem("voyage_trips") || "[]")
-        .find((trip) => trip?._cloud?.tripId === tripId) || null;
+      const result = identityApi.ensureSingleLocalWorkingCopy(readLocalTrips(), tripId);
+      return result.status === "single" ? result.trip : null;
     } catch (error) {
       console.warn("Could not inspect local cloud trips.", error);
       return null;
@@ -1063,6 +1131,39 @@
     return importApi.normalizeCandidate(trip, remoteDoc).candidate;
   }
 
+  async function materializeCloneMedia(sourceTripId, cloneTripId) {
+    const mediaApi = window.VoyageMedia;
+    const userId = String(state.session?.user?.id || "").trim();
+    if (!mediaApi?.materializeClonedTripMedia || !userId) {
+      throw new Error("clone_media_support_unavailable");
+    }
+    const { data: remoteDoc, error: readError } = await state.client
+      .from("trip_documents")
+      .select("trip_id, schema_version, revision, state")
+      .eq("trip_id", cloneTripId)
+      .single();
+    if (readError) throw readError;
+
+    const materialized = await mediaApi.materializeClonedTripMedia({
+      client: state.client,
+      userId,
+      sourceTripId,
+      cloneTripId,
+      state: remoteDoc.state
+    });
+    if (!materialized.copiedCount) return remoteDoc.revision;
+
+    const { data: saved, error: saveError } = await state.client.rpc("save_trip_document", {
+      target_trip_id: cloneTripId,
+      expected_revision: remoteDoc.revision,
+      next_schema_version: remoteDoc.schema_version,
+      next_state: materialized.state,
+      change_action: "update"
+    });
+    if (saveError) throw saveError;
+    return Number(saved?.revision) || Number(remoteDoc.revision) + 1;
+  }
+
   async function cloneTripAsOwner(sourceTripId) {
     const importApi = getImportApi();
     const sourceTrip = state.trips.find((item) => item.id === sourceTripId);
@@ -1094,6 +1195,8 @@
       if (!data?.trip_id || !Number.isSafeInteger(Number(data.revision))) {
         throw new Error("trip_clone_response_invalid");
       }
+
+      await materializeCloneMedia(sourceTripId, data.trip_id);
 
       await loadTrips();
       const existingLocalTrip = findImportedTrip(data.trip_id);
@@ -1823,6 +1926,16 @@
     try {
       importApi.assertStorageWritable(localStorage);
       const payload = importApi.prepareLocalTripPromotion(localStorage, localTripId);
+      const knownCloudTripId = state.cloudIdentityIndex[payload.clientTripUuid] || null;
+      if (knownCloudTripId) {
+        setMessage(
+          "這份本機旅程已有對應的雲端旅程，已停止建立第二份雲端資料。請從雲端旅程開啟或處理版本差異。",
+          true
+        );
+        scanLocalIdentityDiagnostics();
+        renderTrips();
+        return;
+      }
       const { data, error } = await state.client.rpc("create_trip_from_local_document", {
         source_key: payload.sourceKey,
         trip_title: payload.title,
@@ -1912,6 +2025,9 @@
     state.queuedDrafts = [];
     state.remoteUpdates = {};
     state.deferredRemoteRevisions = {};
+    state.identityDiagnostics = [];
+    state.hydrationResults = [];
+    state.cloudIdentityIndex = {};
     state.preview = null;
     closeLedgerSnapshot();
     closeCollaboration();
@@ -1955,6 +2071,86 @@
     state.authSubscription = data?.subscription || null;
   }
 
+  async function hydrateAuthenticatedWorkspace() {
+    const importApi = getImportApi();
+    const identityApi = getIdentityApi();
+    if (!state.client || !state.session || !importApi || !identityApi) return;
+
+    state.cloudIdentityIndex = {};
+    const registerCloudIdentity = (clientTripUuid, cloudTripId) => {
+      if (!clientTripUuid || !cloudTripId) return;
+      const existingCloudTripId = state.cloudIdentityIndex[clientTripUuid];
+      if (existingCloudTripId && existingCloudTripId !== cloudTripId) {
+        console.warn("Durable client trip identity references multiple cloud trips; no automatic merge was performed.", {
+          clientTripUuid,
+          cloudTripIds: [existingCloudTripId, cloudTripId]
+        });
+        return;
+      }
+      state.cloudIdentityIndex[clientTripUuid] = cloudTripId;
+    };
+    for (const cloudTrip of [...state.trips, ...state.archivedTrips]) {
+      const sourceClientKey = String(cloudTrip.source_client_key || "");
+      if (!sourceClientKey.startsWith("voyage-client:")) continue;
+      registerCloudIdentity(sourceClientKey.slice("voyage-client:".length), cloudTrip.id);
+    }
+
+    const editableTrips = state.trips.filter((trip) => {
+      const role = getRole(trip);
+      return role === "owner" || role === "editor";
+    });
+    if (editableTrips.length === 0) {
+      state.hydrationResults = [];
+      scanLocalIdentityDiagnostics();
+      return;
+    }
+
+    const editableIds = editableTrips.map((trip) => trip.id);
+    const { data: documents, error } = await state.client
+      .from("trip_documents")
+      .select("trip_id, schema_version, revision, state, updated_at")
+      .in("trip_id", editableIds);
+    if (error) throw error;
+
+    const tripById = new Map(editableTrips.map((trip) => [trip.id, trip]));
+    const remoteCandidates = [];
+    const cloudRevisions = {};
+    for (const documentRecord of documents || []) {
+      const cloudTrip = tripById.get(documentRecord.trip_id);
+      if (!cloudTrip) continue;
+      const candidate = importApi.normalizeCandidate(cloudTrip, documentRecord).candidate;
+      remoteCandidates.push(candidate);
+      cloudRevisions[cloudTrip.id] = Number(documentRecord.revision) || 0;
+      const clientTripUuid = identityApi.getClientTripUuid(candidate);
+      registerCloudIdentity(clientTripUuid, cloudTrip.id);
+    }
+
+    const hydration = importApi.hydrateCloudCandidates(
+      localStorage,
+      remoteCandidates,
+      state.queuedDrafts
+    );
+    state.hydrationResults = hydration.results;
+    state.identityDiagnostics = hydration.diagnostics;
+    if (hydration.receipt) {
+      state.lastImportReceipt = hydration.receipt;
+      if (ui?.undoButton) ui.undoButton.hidden = false;
+    }
+
+    for (const result of hydration.results) {
+      if (result.action !== "conflict" && result.action !== "draft_blocked") continue;
+      state.remoteUpdates[result.cloudTripId] = {
+        revision: cloudRevisions[result.cloudTripId] || 0,
+        mode: "compare_required"
+      };
+    }
+    scanLocalIdentityDiagnostics(cloudRevisions);
+    if (hydration.changed) {
+      autoSaveMutedUntil = Date.now() + 3000;
+      window.voyageApp?.rehydrateAndRender?.();
+    }
+  }
+
   async function loadTrips() {
     if (state.ledgerTestMode) {
       await refreshQueue();
@@ -1974,6 +2170,7 @@
         start_date,
         end_date,
         base_currency,
+        source_client_key,
         updated_at,
         archived_at,
         trip_members!inner(role, user_id)
@@ -1997,6 +2194,8 @@
     state.archivedTrips = (archivedResult.data || [])
       .filter((trip) => getRole(trip) === "owner");
     await refreshQueue();
+    await hydrateAuthenticatedWorkspace();
+    renderTrips();
   }
 
   function openPanel() {
@@ -2359,7 +2558,11 @@
       return lifecycleApi.create(client);
     },
     getSession: () => state.session,
+    getClient: () => ensureClient(),
     getTrips: () => state.trips.map((trip) => ({ ...trip })),
+    getSyncState: getSyncStateForTrip,
+    getIdentityDiagnostics: () => structuredClone(state.identityDiagnostics),
+    getHydrationResults: () => structuredClone(state.hydrationResults),
     getRoleForTrip: (tripId) => {
       const trip = state.trips.find((item) => item.id === tripId);
       return trip ? getRole(trip) : null;

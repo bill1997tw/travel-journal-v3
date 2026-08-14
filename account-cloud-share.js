@@ -1,6 +1,8 @@
 const INVALID_SHARE_MESSAGE = "這份旅程邀請已失效，請向旅程建立者索取新連結。";
 const TEMPORARY_SHARE_MESSAGE = "目前無法連線讀取旅程，請確認網路後重新整理。";
 
+const PRIVATE_MEDIA_FALLBACK = "私人圖片僅限登入成員查看";
+
 function createClient() {
   return window.getVoyageSupabaseClient?.() || null;
 }
@@ -29,6 +31,20 @@ function normalizeGuestImageUrl(value) {
     return source;
   }
   return normalizePublicUrl(source);
+}
+
+export function getGuestImagePresentation(value) {
+  const source = String(value || "").trim();
+  if (source.startsWith("storage://")) {
+    return { url: "", privateUnavailable: true };
+  }
+  return { url: normalizeGuestImageUrl(source), privateUnavailable: false };
+}
+
+function renderPrivateMediaFallback(presentation) {
+  return presentation.privateUnavailable
+    ? `<div class="guest-share-private-media" role="img" aria-label="${PRIVATE_MEDIA_FALLBACK}">${PRIVATE_MEDIA_FALLBACK}</div>`
+    : "";
 }
 
 function formatMinorUnits(value, currency = "TWD") {
@@ -253,7 +269,9 @@ function renderGuestTrip(result, refreshStatus = "") {
 
   const guideHtml = guides.map(item => {
     const url = normalizePublicUrl(item?.url);
-    const coverUrl = normalizePublicUrl(item?.coverUrl) || (item?.kind === "image" ? url : "");
+    const coverSource = item?.coverUrl || (item?.kind === "image" ? item?.url : "");
+    const coverMedia = getGuestImagePresentation(coverSource);
+    const coverUrl = coverMedia.url;
     const tags = Array.isArray(item?.tags) ? item.tags.slice(0, 12) : [];
     const kindLabels = {
       image: "🖼️ 圖片／地圖",
@@ -263,7 +281,7 @@ function renderGuestTrip(result, refreshStatus = "") {
     };
     return `
       <article class="guest-share-alt">
-        ${coverUrl ? `<img class="guest-share-guide-cover" src="${escapeHtml(coverUrl)}" alt="${escapeHtml(item?.title || "攻略封面")}" loading="lazy">` : ""}
+        ${coverUrl ? `<img class="guest-share-guide-cover" src="${escapeHtml(coverUrl)}" alt="${escapeHtml(item?.title || "攻略封面")}" loading="lazy">` : renderPrivateMediaFallback(coverMedia)}
         <p class="guest-share-muted">${escapeHtml(kindLabels[item?.kind] || kindLabels.note)}${item?.dayLabel ? ` · ${escapeHtml(item.dayLabel)}` : ""}</p>
         <h4>${escapeHtml(item?.title || "未命名攻略")}</h4>
         ${item?.region ? `<p class="guest-share-muted">📍 ${escapeHtml(item.region)}</p>` : ""}
@@ -276,7 +294,8 @@ function renderGuestTrip(result, refreshStatus = "") {
   const diaryMemories = Array.isArray(diary?.memories)
     ? diary.memories.filter(item => item?.includedInStory !== false)
     : [];
-  const diaryImage = normalizeGuestImageUrl(diary?.image);
+  const diaryMedia = getGuestImagePresentation(diary?.image);
+  const diaryImage = diaryMedia.url;
   const diaryHtml = diary ? `
     <section class="guest-share-day guest-share-diary">
       <div class="guest-share-diary-heading">
@@ -286,7 +305,7 @@ function renderGuestTrip(result, refreshStatus = "") {
         </div>
         ${diary.rating ? `<span class="guest-share-diary-rating">★ ${escapeHtml(diary.rating)} / 5</span>` : ""}
       </div>
-      ${diaryImage ? `<img class="guest-share-diary-cover" src="${escapeHtml(diaryImage)}" alt="${escapeHtml(diary.storyTitle || "旅程回憶封面")}" loading="lazy">` : ""}
+      ${diaryImage ? `<img class="guest-share-diary-cover" src="${escapeHtml(diaryImage)}" alt="${escapeHtml(diary.storyTitle || "旅程回憶封面")}" loading="lazy">` : renderPrivateMediaFallback(diaryMedia)}
       <div class="guest-share-diary-meta">
         ${diary.locationTag ? `<span>📍 ${escapeHtml(diary.locationTag)}</span>` : ""}
         ${diary.weather ? `<span>天氣 ${escapeHtml(diary.weather)}</span>` : ""}
@@ -300,9 +319,10 @@ function renderGuestTrip(result, refreshStatus = "") {
       ${diaryMemories.length ? `
         <div class="guest-share-memory-list">
           ${diaryMemories.map(memory => {
-            const image = normalizeGuestImageUrl(memory?.image);
+            const media = getGuestImagePresentation(memory?.image);
+            const image = media.url;
             return `<article class="guest-share-memory-card">
-              ${image ? `<img src="${escapeHtml(image)}" alt="記憶片段照片" loading="lazy">` : ""}
+              ${image ? `<img src="${escapeHtml(image)}" alt="記憶片段照片" loading="lazy">` : renderPrivateMediaFallback(media)}
               <div>
                 <p class="guest-share-muted">DAY ${escapeHtml(memory?.day || 1)}${memory?.time ? ` · ${escapeHtml(memory.time)}` : ""}</p>
                 <h3>${escapeHtml(memory?.scheduleTitle || memory?.location || "旅途片段")}</h3>

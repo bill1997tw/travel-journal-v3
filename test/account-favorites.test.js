@@ -14,7 +14,7 @@ test("favorite journal has an account-level navigation view and editor", () => {
   assert.match(html, /id="view-favorites"/u);
   assert.match(html, /id="favorite-form"/u);
   assert.match(html, /id="favorite-collection-form"/u);
-  assert.match(html, /account-favorites\.js\?v=v7/u);
+  assert.match(html, /account-favorites\.js\?v=v8/u);
 });
 
 test("favorites load and write only through private account tables", () => {
@@ -102,6 +102,6 @@ test("private favorite covers are copied into durable guide snapshot assets", ()
 });
 
 test("favorite release invalidates offline shell", () => {
-  assert.match(sw, /voyage-book-shell-v77/u);
+  assert.match(sw, /voyage-book-shell-v81/u);
   assert.match(sw, /\.\/account-favorites\.js/u);
 });

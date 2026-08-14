@@ -894,6 +894,10 @@ async function bootApp() {
   }
   initData();
   setupEventListeners();
+  window.VoyageMedia?.configure?.({
+    clientProvider: () => window.voyageAccountCloud?.getClient?.() || null
+  });
+  window.VoyageMedia?.installReferenceObserver?.();
   setupTheme();
   renderAll();
   refreshResponsiveShell();
@@ -909,6 +913,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function initData() {
   loadItineraryHistory();
   knownPlaces = loadKnownPlaces();
+  const identityApi = window.VoyageTripIdentity;
 
   // 載入客製化標題 Logo 名稱
   const savedLogoText = localStorage.getItem("voyage_logo_text");
@@ -927,6 +932,7 @@ function initData() {
     trips = JSON.parse(localTrips);
     // 防呆：確保所有屬性都存在
     trips.forEach(t => {
+      identityApi?.ensureClientTripUuid?.(t);
       if (!t.itinerary) t.itinerary = null;
       if (!t.alternativeSpots) t.alternativeSpots = { sights: [], restaurants: [] };
       if (!t.packingList) t.packingList = [...DEFAULT_PACKING_TEMPLATE];
@@ -1041,11 +1047,18 @@ function setupEventListeners() {
       switchWorkspaceTab(tabId);
     });
   });
+  window.VoyageMedia?.bindMediaInput?.({
+    zone: tUploadZone,
+    fileInput: tFileInput,
+    onFile: file => handleImageUpload(file, "t-image-base64", "t-upload-preview", "t-upload-text"),
+    onUrl: url => importImageUrlIntoField(url, "t-image-base64", "t-upload-preview", "t-upload-text")
+  });
 
   document.getElementById("guides-add-btn").addEventListener("click", () => openGuideModal());
   document.getElementById("guide-modal-close").addEventListener("click", closeGuideModal);
   document.getElementById("guide-modal-cancel").addEventListener("click", closeGuideModal);
   document.getElementById("guide-form").addEventListener("submit", handleGuideSubmit);
+  setupGuideCoverMediaInput();
 
   // Workspace 行程與備案相關事件
   document.getElementById("ws-edit-trip-btn").addEventListener("click", () => openTripEditorModal(activeTripId));
@@ -1252,6 +1265,20 @@ function setupEventListeners() {
     });
   }
 
+  window.VoyageMedia?.bindMediaInput?.({
+    zone: dUploadStage,
+    fileInput: dFileInput,
+    dragDrop: false,
+    onFile: file => handleDiaryImageFile(file),
+    onUrl: url => importImageUrlIntoField(
+      url,
+      "ws-diary-image-base64",
+      "ws-diary-preview-img",
+      "ws-diary-upload-placeholder",
+      { maxDimension: 1600, quality: 0.8, onApplied: updateDiaryPreview }
+    )
+  });
+
   setupMemoryMomentImageUpload();
 
   // 日記評分星級
@@ -1327,6 +1354,13 @@ function setupEventListeners() {
     vFileInput.addEventListener("change", (e) => {
       const file = e.target.files[0];
       if (file) handleVoucherFileUpload(file);
+    });
+    window.VoyageMedia?.bindMediaInput?.({
+      zone: vUploadZone,
+      fileInput: vFileInput,
+      dragDrop: false,
+      onFile: file => handleVoucherFileUpload(file),
+      onUrl: url => importVoucherImageUrl(url)
     });
   }
 
@@ -1473,7 +1507,7 @@ function renderDashboard() {
 
     card.innerHTML = `
       <div style="position:relative;">
-        <img class="carousel-card-img" src="${imgUrl}" alt="${escapeHTML(trip.title)}">
+        <img class="carousel-card-img" src="${escapeHTML(imgUrl)}" data-media-ref="${escapeHTML(imgUrl)}" alt="${escapeHTML(trip.title)}">
         <button class="carousel-card-delete-btn" onclick="event.stopPropagation(); deleteTrip('${trip.id}')" title="刪除此旅程" style="position:absolute; top:12px; right:12px; background:rgba(0,0,0,0.65); color:#ffffff; border:1px solid rgba(255,255,255,0.3); border-radius:50%; width:34px; height:34px; display:flex; align-items:center; justify-content:center; cursor:pointer; backdrop-filter:blur(8px); transition:all 0.2s ease; z-index:5;">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
         </button>
@@ -1612,7 +1646,7 @@ function renderTripsList() {
 
     card.innerHTML = `
       <div class="trip-card-img-wrap">
-        <img src="${imgUrl}" alt="${trip.title}">
+        <img src="${escapeHTML(imgUrl)}" data-media-ref="${escapeHTML(imgUrl)}" alt="${escapeHTML(trip.title)}">
         <span class="trip-card-category">${CONTINENT_NAME(trip.continent)}</span>
         <button class="trip-card-delete-btn" title="刪除此旅程">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -1648,7 +1682,12 @@ function renderTripsList() {
 }
 
 function deleteTrip(id) {
-  if (confirm("您確定要刪除這個行程的全部資料嗎？此動作將連同日程、帳目、備案與行李清單一併刪除，無法復原喔！")) {
+  const targetTrip = trips.find(t => t.id === id) || null;
+  const cloudBacked = Boolean(window.VoyageTripIdentity?.isCloudBackedTrip?.(targetTrip));
+  const confirmation = cloudBacked
+    ? "確定移除此裝置上的旅程快取嗎？雲端旅程不會被刪除，下次登入或重新整理雲端旅程時會再次下載。若要停用雲端旅程，請使用雲端旅程的封存功能。"
+    : "您確定要刪除這個行程的全部資料嗎？此動作將連同日程、帳目、備案與行李清單一併刪除，無法復原喔！";
+  if (confirm(confirmation)) {
     trips = trips.filter(t => t.id !== id);
     persistTrips();
     if (activeTripId === id) {
@@ -1656,7 +1695,7 @@ function deleteTrip(id) {
     }
     renderTripsList();
     renderDashboard();
-    showToast("旅程已永久刪除", "info");
+    showToast(cloudBacked ? "已移除此裝置的旅程快取" : "旅程已永久刪除", "info");
   }
 }
 
@@ -1670,7 +1709,7 @@ function persistTrips() {
 
 window.getActiveCloudTripId = function() {
   const trip = trips.find(item => item.id === activeTripId);
-  return trip?._cloud?.tripId || null;
+  return window.VoyageTripIdentity?.getCloudTripId?.(trip) || null;
 };
 
 window.getActiveTripDiaryStatus = function() {
@@ -1698,9 +1737,60 @@ window.refreshWorkspaceCloudPermissions = function() {
 
 function canEditActiveTrip() {
   const trip = trips.find(item => item.id === activeTripId);
-  if (!trip?._cloud?.tripId) return true;
-  const role = window.voyageAccountCloud?.getRoleForTrip?.(trip._cloud.tripId) || null;
+  const cloudTripId = window.VoyageTripIdentity?.getCloudTripId?.(trip);
+  if (!cloudTripId) return true;
+  const role = window.voyageAccountCloud?.getRoleForTrip?.(cloudTripId) || null;
   return role === "owner" || role === "editor";
+}
+
+function getActiveMediaCloudContext() {
+  const trip = trips.find(item => item.id === activeTripId);
+  const cloudTripId = window.VoyageTripIdentity?.getCloudTripId?.(trip) || "";
+  const accountCloud = window.voyageAccountCloud;
+  const session = accountCloud?.getSession?.();
+  return {
+    client: accountCloud?.getClient?.() || null,
+    userId: session?.user?.id || "",
+    accessToken: session?.access_token || "",
+    cloudTripId
+  };
+}
+
+function applyMediaReference(reference, inputId, previewId, placeholderId) {
+  const input = document.getElementById(inputId);
+  const preview = document.getElementById(previewId);
+  const placeholder = document.getElementById(placeholderId);
+  if (input) input.value = reference || "";
+  if (preview) {
+    if (reference) {
+      preview.src = reference;
+      preview.dataset.mediaRef = reference;
+      preview.style.display = "block";
+      preview.classList.add("active");
+      window.VoyageMedia?.resolveMediaElements?.(preview);
+    } else {
+      preview.removeAttribute("src");
+      delete preview.dataset.mediaRef;
+      preview.style.display = "none";
+      preview.classList.remove("active");
+    }
+  }
+  if (placeholder) placeholder.style.display = reference ? "none" : "";
+}
+
+async function importImageUrlIntoField(url, inputId, previewId, placeholderId, options = {}) {
+  try {
+    const result = await window.VoyageMedia.importImageUrl(url, {
+      ...getActiveMediaCloudContext(),
+      maxDimension: options.maxDimension || 1800,
+      quality: options.quality || 0.82
+    });
+    applyMediaReference(result.reference, inputId, previewId, placeholderId);
+    options.onApplied?.(result);
+    showToast("圖片網址已匯入。", "success");
+  } catch (error) {
+    showToast(error?.message || "圖片網址匯入失敗。", "error");
+  }
 }
 
 function refreshDiaryEditPermissions() {
@@ -1743,8 +1833,11 @@ window.enterWorkspace = function(tripId) {
   // 渲染 Workspace 頂部 Cover 資訊
   const coverBg = document.getElementById("ws-cover-bg");
   if (trip.image) {
+    coverBg.dataset.mediaBackgroundRef = trip.image;
     coverBg.style.backgroundImage = `url('${trip.image}')`;
+    window.VoyageMedia?.resolveMediaElements?.(coverBg);
   } else {
+    delete coverBg.dataset.mediaBackgroundRef;
     coverBg.style.backgroundImage = `url('https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=600')`;
   }
 
@@ -2111,7 +2204,8 @@ function ensureGuideState(trip) {
       title: String(item.title || "").trim(),
       description: String(item.description || "").trim(),
       url: normalizeExternalUrl(String(item.url || "")),
-      coverUrl: normalizeExternalUrl(String(item.coverUrl || "")),
+      coverUrl: window.VoyageMedia?.normalizeMediaReference?.(String(item.coverUrl || ""))
+        || normalizeExternalUrl(String(item.coverUrl || "")),
       region: String(item.region || "").trim(),
       tags: Array.isArray(item.tags)
         ? item.tags.map(tag => String(tag).trim()).filter(Boolean).slice(0, 12)
@@ -2124,6 +2218,77 @@ function ensureGuideState(trip) {
     }))
     .filter(item => item.title);
   return trip.guides;
+}
+
+function setupGuideCoverMediaInput() {
+  const urlInput = document.getElementById("guide-cover-url");
+  if (!urlInput || document.getElementById("guide-cover-upload")) return;
+  const zone = document.createElement("div");
+  zone.id = "guide-cover-upload";
+  zone.className = "file-upload-zone guide-cover-upload";
+  zone.tabIndex = 0;
+  zone.innerHTML = `
+    <input type="file" id="guide-cover-file" accept="image/jpeg,image/png,image/webp" hidden>
+    <img id="guide-cover-preview" alt="攻略封面預覽" style="display:none;max-height:180px;max-width:100%;object-fit:cover;border-radius:12px;">
+    <div id="guide-cover-placeholder">點選、拖曳、貼上圖片，或使用相機</div>
+    <button type="button" class="btn btn-secondary guide-cover-remove" data-guide-cover-remove>移除封面</button>`;
+  urlInput.insertAdjacentElement("afterend", zone);
+  const fileInput = zone.querySelector("input[type='file']");
+  urlInput.addEventListener("input", () => {
+    urlInput.dataset.mediaReference = "";
+    urlInput.dataset.mediaReferenceDirty = "true";
+  });
+  zone.addEventListener("click", event => {
+    if (!event.target.closest(".media-input-tools, [data-guide-cover-remove]")) fileInput.click();
+  });
+  zone.querySelector("[data-guide-cover-remove]")?.addEventListener("click", () => {
+    urlInput.value = "";
+    urlInput.dataset.mediaReference = "";
+    urlInput.dataset.mediaReferenceDirty = "true";
+    applyMediaReference("", "guide-cover-url", "guide-cover-preview", "guide-cover-placeholder");
+  });
+  fileInput.addEventListener("change", event => {
+    const file = event.target.files?.[0];
+    if (file) handleGuideCoverFile(file);
+    event.target.value = "";
+  });
+  window.VoyageMedia?.bindMediaInput?.({
+    zone,
+    fileInput,
+    onFile: file => handleGuideCoverFile(file),
+    onUrl: url => importGuideCoverUrl(url)
+  });
+}
+
+async function handleGuideCoverFile(file) {
+  const result = await handleImageUpload(file, "guide-cover-url", "guide-cover-preview", "guide-cover-placeholder", {
+    maxDimension: 1600,
+    quality: 0.82
+  });
+  if (result) {
+    const input = document.getElementById("guide-cover-url");
+    input.dataset.mediaReference = result.reference;
+    input.dataset.mediaReferenceDirty = "false";
+    if (result.reference.startsWith("storage://") || result.reference.startsWith("data:")) input.value = "";
+  }
+}
+
+async function importGuideCoverUrl(url) {
+  const result = await window.VoyageMedia.importImageUrl(url, {
+    ...getActiveMediaCloudContext(),
+    maxDimension: 1600,
+    quality: 0.82
+  }).catch(error => {
+    showToast(error?.message || "圖片網址匯入失敗。", "error");
+    return null;
+  });
+  if (!result) return;
+  applyMediaReference(result.reference, "guide-cover-url", "guide-cover-preview", "guide-cover-placeholder");
+  const input = document.getElementById("guide-cover-url");
+  input.dataset.mediaReference = result.reference;
+  input.dataset.mediaReferenceDirty = "false";
+  if (result.reference.startsWith("storage://") || result.reference.startsWith("data:")) input.value = "";
+  showToast("圖片網址已匯入。", "success");
 }
 
 function renderWorkspaceGuides() {
@@ -2157,8 +2322,10 @@ function renderWorkspaceGuides() {
         <div class="guide-live-grid">
           ${items.map(item => {
             const safeUrl = normalizeExternalUrl(item.url);
-            const safeCover = normalizeExternalUrl(item.coverUrl) || (item.kind === "image" ? safeUrl : "");
-            const coverInner = `${safeCover ? `<img src="${escapeHTML(safeCover)}" alt="${escapeHTML(item.title)}" loading="lazy">` : ""}<span class="guide-card-kind">${meta.icon} ${meta.label}</span>`;
+            const safeCover = window.VoyageMedia?.normalizeMediaReference?.(item.coverUrl)
+              || normalizeExternalUrl(item.coverUrl)
+              || (item.kind === "image" ? safeUrl : "");
+            const coverInner = `${safeCover ? `<img src="${escapeHTML(safeCover)}" data-media-ref="${escapeHTML(safeCover)}" alt="${escapeHTML(item.title)}" loading="lazy">` : ""}<span class="guide-card-kind">${meta.icon} ${meta.label}</span>`;
             const imageHtml = safeUrl
               ? `<a href="${escapeHTML(safeUrl)}" target="_blank" rel="noopener noreferrer" class="guide-live-cover">${coverInner}</a>`
               : `<div class="guide-live-cover">${coverInner}</div>`;
@@ -2206,7 +2373,16 @@ function openGuideModal(guideId = "") {
   document.getElementById("guide-kind").value = guide?.kind || "image";
   document.getElementById("guide-title").value = guide?.title || "";
   document.getElementById("guide-url").value = guide?.url || "";
-  document.getElementById("guide-cover-url").value = guide?.coverUrl || "";
+  const guideCoverInput = document.getElementById("guide-cover-url");
+  const guideCoverReference = guide?.coverUrl || "";
+  guideCoverInput.dataset.mediaReference = guideCoverReference;
+  guideCoverInput.dataset.originalMediaReference = guideCoverReference;
+  guideCoverInput.dataset.mediaReferenceDirty = "false";
+  guideCoverInput.value = /^https?:/i.test(guideCoverReference) ? guideCoverReference : "";
+  applyMediaReference(guideCoverReference, "guide-cover-url", "guide-cover-preview", "guide-cover-placeholder");
+  guideCoverInput.dataset.mediaReference = guideCoverReference;
+  guideCoverInput.dataset.mediaReferenceDirty = "false";
+  if (guideCoverReference && !/^https?:/i.test(guideCoverReference)) guideCoverInput.value = "";
   document.getElementById("guide-region").value = guide?.region || "";
   document.getElementById("guide-tags").value = (guide?.tags || []).join("、");
   document.getElementById("guide-day-label").value = guide?.dayLabel || "";
@@ -2229,8 +2405,10 @@ function handleGuideSubmit(event) {
   const title = document.getElementById("guide-title").value.trim();
   const rawUrl = document.getElementById("guide-url").value.trim();
   const url = normalizeExternalUrl(rawUrl);
-  const rawCoverUrl = document.getElementById("guide-cover-url").value.trim();
-  const coverUrl = normalizeExternalUrl(rawCoverUrl);
+  const guideCoverInput = document.getElementById("guide-cover-url");
+  const rawCoverUrl = guideCoverInput.dataset.mediaReference || guideCoverInput.value.trim();
+  const coverUrl = window.VoyageMedia?.normalizeMediaReference?.(rawCoverUrl)
+    || normalizeExternalUrl(rawCoverUrl);
   if (!title) return;
   if (rawUrl && !url) {
     showToast("網址格式不正確，請使用 http 或 https 連結", "error");
@@ -4709,10 +4887,12 @@ function setMemoryMomentImagePreview(imageData) {
   input.value = imageData || "";
   if (imageData) {
     preview.src = imageData;
+    preview.dataset.mediaRef = imageData;
     preview.style.display = "block";
     placeholder.style.display = "none";
   } else {
     preview.removeAttribute("src");
+    delete preview.dataset.mediaRef;
     preview.style.display = "none";
     placeholder.style.display = "flex";
   }
@@ -4739,6 +4919,25 @@ function setupMemoryMomentImageUpload() {
   stage.addEventListener("drop", async event => {
     const file = event.dataTransfer?.files?.[0];
     if (file) await handleMemoryMomentImageFile(file);
+  });
+  window.VoyageMedia?.bindMediaInput?.({
+    zone: stage,
+    fileInput,
+    dragDrop: false,
+    onFile: file => handleMemoryMomentImageFile(file),
+    onUrl: async url => {
+      try {
+        const result = await window.VoyageMedia.importImageUrl(url, {
+          ...getActiveMediaCloudContext(),
+          maxDimension: 1280,
+          quality: 0.78
+        });
+        setMemoryMomentImagePreview(result.reference);
+        showToast("圖片網址已匯入。", "success");
+      } catch (error) {
+        showToast(error?.message || "圖片網址匯入失敗。", "error");
+      }
+    }
   });
 }
 
@@ -4783,7 +4982,12 @@ async function handleMemoryMomentImageFile(file) {
     return;
   }
   try {
-    setMemoryMomentImagePreview(await compressMemoryMomentImage(file));
+    const result = await window.VoyageMedia.processImageFile(file, {
+      ...getActiveMediaCloudContext(),
+      maxDimension: 1280,
+      quality: 0.78
+    });
+    setMemoryMomentImagePreview(result.reference);
     showToast("片段照片已完成最佳化。", "success");
   } catch (error) {
     showToast(error?.message || "照片處理失敗，請換一張再試。", "error");
@@ -4972,7 +5176,7 @@ function renderDiaryPublicationState(diary) {
   saveButton.textContent = status === "published" ? "更新已發布回憶" : "儲存回憶";
 }
 
-function handleDiaryImageFile(file) {
+async function handleDiaryImageFile(file) {
   if (!file?.type?.startsWith("image/")) {
     showToast("請選擇圖片檔案。", "error");
     return;
@@ -4981,7 +5185,11 @@ function handleDiaryImageFile(file) {
     showToast("回憶封面請勿超過 5 MB。", "error");
     return;
   }
-  handleImageUpload(file, "ws-diary-image-base64", "ws-diary-preview-img", "ws-diary-upload-placeholder");
+  return handleImageUpload(file, "ws-diary-image-base64", "ws-diary-preview-img", "ws-diary-upload-placeholder", {
+    maxDimension: 1600,
+    quality: 0.8,
+    onApplied: updateDiaryPreview
+  });
 }
 
 function setDiaryRating(rating) {
@@ -5176,9 +5384,15 @@ function updateDiaryPreview() {
   if (image) {
     postImage.src = image;
     storyImage.src = image;
+    postImage.dataset.mediaRef = image;
+    storyImage.dataset.mediaRef = image;
+    window.VoyageMedia?.resolveMediaElements?.(postImage);
+    window.VoyageMedia?.resolveMediaElements?.(storyImage);
   } else {
     postImage.removeAttribute("src");
     storyImage.removeAttribute("src");
+    delete postImage.dataset.mediaRef;
+    delete storyImage.dataset.mediaRef;
   }
 
   renderDiaryHashtagChips(trip, {
@@ -5284,14 +5498,15 @@ function drawDiaryChip(context, label, x, y, options = {}) {
   return width;
 }
 
-function loadDiaryExportImage(source) {
+async function loadDiaryExportImage(source) {
   if (!source) return Promise.resolve(null);
+  const resolvedSource = await window.VoyageMedia?.resolveMediaReference?.(source) || source;
   return new Promise(resolve => {
     const image = new Image();
-    if (/^https?:\/\//i.test(source)) image.crossOrigin = "anonymous";
+    if (/^https?:\/\//i.test(resolvedSource)) image.crossOrigin = "anonymous";
     image.onload = () => resolve(image);
     image.onerror = () => resolve(null);
-    image.src = source;
+    image.src = resolvedSource;
   });
 }
 
@@ -5671,8 +5886,27 @@ function closeVoucherModal() {
 }
 
 // 處理憑證上傳
-function handleVoucherFileUpload(file) {
+async function handleVoucherFileUpload(file) {
   if (!file) return;
+
+  if (file.type?.startsWith("image/")) {
+    try {
+      const result = await window.VoyageMedia.processImageFile(file, {
+        ...getActiveMediaCloudContext(),
+        maxDimension: 1200,
+        quality: 0.75
+      });
+      document.getElementById("v-file-data").value = result.reference;
+      document.getElementById("v-file-name").value = file.name || "image.jpg";
+      document.getElementById("v-file-type").value = result.mimeType;
+      showVoucherFilePreview(file.name || "image.jpg", formatBytes(result.blob.size), result.mimeType, result.reference);
+      window.VoyageMedia?.resolveMediaElements?.(document.getElementById("v-file-preview-container"));
+      showToast("圖片憑證已載入。", "success");
+    } catch (error) {
+      showToast(error?.message || "圖片憑證處理失敗。", "error");
+    }
+    return;
+  }
   
   // PDF 檔案限制 1.5MB 以內
   if (file.type === "application/pdf") {
@@ -5971,6 +6205,8 @@ function openTripEditorModal(tripId = null) {
         document.getElementById("t-image-base64").value = trip.image;
         const preview = document.getElementById("t-upload-preview");
         preview.src = trip.image;
+        preview.dataset.mediaRef = trip.image;
+        window.VoyageMedia?.resolveMediaElements?.(preview);
         preview.style.display = "block";
         document.getElementById("t-upload-text").style.display = "none";
       }
@@ -6043,6 +6279,8 @@ function handleTripSubmit(e) {
     // 新增旅程
     const newTrip = {
       id: "trip-" + Date.now(),
+      clientTripUuid: window.VoyageTripIdentity?.createClientTripUuid?.()
+        || globalThis.crypto?.randomUUID?.(),
       title, location, date, duration, travelers, members: memberNames, luggage, rental, hotel, continent, dateRange,
       image: image || "assets/paris_cafe.png",
       itinerary: null,
@@ -6088,7 +6326,7 @@ function handleTripSubmit(e) {
 }
 
 // 圖片轉 base64 上傳輔助
-function handleImageUpload(file, base64InputId, previewImgId, uploadTextId) {
+function handleImageUploadLegacy(file, base64InputId, previewImgId, uploadTextId) {
   const reader = new FileReader();
   reader.onload = (e) => {
     const base64Data = e.target.result;
@@ -6105,6 +6343,43 @@ function handleImageUpload(file, base64InputId, previewImgId, uploadTextId) {
     showToast("封面照片上傳成功！", "success");
   };
   reader.readAsDataURL(file);
+}
+
+async function importVoucherImageUrl(url) {
+  try {
+    const result = await window.VoyageMedia.importImageUrl(url, {
+      ...getActiveMediaCloudContext(),
+      maxDimension: 1200,
+      quality: 0.75
+    });
+    document.getElementById("v-file-data").value = result.reference;
+    document.getElementById("v-file-name").value = "imported-image.jpg";
+    document.getElementById("v-file-type").value = result.mimeType;
+    showVoucherFilePreview("imported-image.jpg", formatBytes(result.blob.size), result.mimeType, result.reference);
+    window.VoyageMedia?.resolveMediaElements?.(document.getElementById("v-file-preview-container"));
+    showToast("圖片網址已匯入。", "success");
+  } catch (error) {
+    showToast(error?.message || "圖片網址匯入失敗。", "error");
+  }
+}
+
+async function handleImageUpload(file, inputId, previewId, placeholderId, options = {}) {
+  try {
+    const result = await window.VoyageMedia.processImageFile(file, {
+      ...getActiveMediaCloudContext(),
+      maxDimension: options.maxDimension || 1800,
+      quality: options.quality || 0.82,
+      sourceType: options.sourceType || "file"
+    });
+    applyMediaReference(result.reference, inputId, previewId, placeholderId);
+    options.onApplied?.(result);
+    if (inputId === "ws-diary-image-base64") updateDiaryPreview();
+    showToast("圖片已載入。", "success");
+    return result;
+  } catch (error) {
+    showToast(error?.message || "圖片處理失敗。", "error");
+    return null;
+  }
 }
 
 
