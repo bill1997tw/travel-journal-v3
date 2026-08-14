@@ -2230,11 +2230,22 @@ function setupGuideCoverMediaInput() {
   zone.innerHTML = `
     <input type="file" id="guide-cover-file" accept="image/jpeg,image/png,image/webp" hidden>
     <img id="guide-cover-preview" alt="攻略封面預覽" style="display:none;max-height:180px;max-width:100%;object-fit:cover;border-radius:12px;">
-    <div id="guide-cover-placeholder">點選、拖曳、貼上圖片，或使用相機</div>`;
+    <div id="guide-cover-placeholder">點選、拖曳、貼上圖片，或使用相機</div>
+    <button type="button" class="btn btn-secondary guide-cover-remove" data-guide-cover-remove>移除封面</button>`;
   urlInput.insertAdjacentElement("afterend", zone);
   const fileInput = zone.querySelector("input[type='file']");
+  urlInput.addEventListener("input", () => {
+    urlInput.dataset.mediaReference = "";
+    urlInput.dataset.mediaReferenceDirty = "true";
+  });
   zone.addEventListener("click", event => {
-    if (!event.target.closest(".media-input-tools")) fileInput.click();
+    if (!event.target.closest(".media-input-tools, [data-guide-cover-remove]")) fileInput.click();
+  });
+  zone.querySelector("[data-guide-cover-remove]")?.addEventListener("click", () => {
+    urlInput.value = "";
+    urlInput.dataset.mediaReference = "";
+    urlInput.dataset.mediaReferenceDirty = "true";
+    applyMediaReference("", "guide-cover-url", "guide-cover-preview", "guide-cover-placeholder");
   });
   fileInput.addEventListener("change", event => {
     const file = event.target.files?.[0];
@@ -2257,6 +2268,7 @@ async function handleGuideCoverFile(file) {
   if (result) {
     const input = document.getElementById("guide-cover-url");
     input.dataset.mediaReference = result.reference;
+    input.dataset.mediaReferenceDirty = "false";
     if (result.reference.startsWith("storage://") || result.reference.startsWith("data:")) input.value = "";
   }
 }
@@ -2274,6 +2286,7 @@ async function importGuideCoverUrl(url) {
   applyMediaReference(result.reference, "guide-cover-url", "guide-cover-preview", "guide-cover-placeholder");
   const input = document.getElementById("guide-cover-url");
   input.dataset.mediaReference = result.reference;
+  input.dataset.mediaReferenceDirty = "false";
   if (result.reference.startsWith("storage://") || result.reference.startsWith("data:")) input.value = "";
   showToast("圖片網址已匯入。", "success");
 }
@@ -2363,9 +2376,12 @@ function openGuideModal(guideId = "") {
   const guideCoverInput = document.getElementById("guide-cover-url");
   const guideCoverReference = guide?.coverUrl || "";
   guideCoverInput.dataset.mediaReference = guideCoverReference;
+  guideCoverInput.dataset.originalMediaReference = guideCoverReference;
+  guideCoverInput.dataset.mediaReferenceDirty = "false";
   guideCoverInput.value = /^https?:/i.test(guideCoverReference) ? guideCoverReference : "";
   applyMediaReference(guideCoverReference, "guide-cover-url", "guide-cover-preview", "guide-cover-placeholder");
   guideCoverInput.dataset.mediaReference = guideCoverReference;
+  guideCoverInput.dataset.mediaReferenceDirty = "false";
   if (guideCoverReference && !/^https?:/i.test(guideCoverReference)) guideCoverInput.value = "";
   document.getElementById("guide-region").value = guide?.region || "";
   document.getElementById("guide-tags").value = (guide?.tags || []).join("、");

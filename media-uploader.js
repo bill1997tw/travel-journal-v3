@@ -57,6 +57,22 @@
     return "";
   }
 
+  function hasCloudMediaContext(options = {}) {
+    return Boolean(options.client && options.userId && options.cloudTripId);
+  }
+
+  function isMediaUploadOnline(options = {}) {
+    if (typeof options.online === "boolean") return options.online;
+    return typeof navigator === "undefined" || navigator.onLine !== false;
+  }
+
+  function mediaUploadError(message, code, cause) {
+    const error = new Error(message);
+    error.code = code;
+    if (cause) error.cause = cause;
+    return error;
+  }
+
   function storageReference(bucket, path) {
     const cleanBucket = String(bucket || "").trim();
     const cleanPath = String(path || "").replace(/^\/+/, "").trim();
@@ -154,11 +170,26 @@
   }
 
   async function processImageFile(file, options = {}) {
+    const cloudUpload = hasCloudMediaContext(options);
+    if (cloudUpload && !isMediaUploadOnline(options)) {
+      throw mediaUploadError(
+        "目前離線，圖片尚未變更，請連線後重試。",
+        "media_upload_offline"
+      );
+    }
     const prepared = await prepareImageBlob(file, options);
     let reference;
     let storagePath = "";
-    if (options.client && options.userId && options.cloudTripId) {
-      reference = await uploadTripImage({ ...options, ...prepared });
+    if (cloudUpload) {
+      try {
+        reference = await uploadTripImage({ ...options, ...prepared });
+      } catch (cause) {
+        throw mediaUploadError(
+          "圖片上傳失敗，原圖片未變更，請確認網路後重試。",
+          "media_upload_failed",
+          cause
+        );
+      }
       storagePath = parseStorageReference(reference)?.path || "";
     } else {
       reference = await readBlobAsDataUrl(prepared.blob);
@@ -207,6 +238,96 @@
     const blob = await response.blob();
     await validateImageBlob(blob, options);
     return blob;
+  }
+
+  function tripStorageDescriptor(reference, sourceTripId = "") {
+    const parsed = parseStorageReference(reference);
+    if (!parsed) return null;
+    const segments = parsed.path.split("/");
+    if (segments.length !== 4 || segments[1] !== "trips") return null;
+    if (sourceTripId && segments[2] !== sourceTripId) return null;
+    return {
+      ...parsed,
+      uploaderUserId: segments[0],
+      tripId: segments[2],
+      fileName: segments[3]
+    };
+  }
+
+  function collectTripStorageReferences(value, sourceTripId = "", found = new Set()) {
+    if (typeof value === "string") {
+      if (tripStorageDescriptor(value, sourceTripId)) found.add(value);
+      return found;
+    }
+    if (Array.isArray(value)) {
+      value.forEach(item => collectTripStorageReferences(item, sourceTripId, found));
+      return found;
+    }
+    if (value && typeof value === "object") {
+      Object.values(value).forEach(item => collectTripStorageReferences(item, sourceTripId, found));
+    }
+    return found;
+  }
+
+  function rewriteMediaReferences(value, replacements) {
+    if (typeof value === "string") return replacements.get(value) || value;
+    if (Array.isArray(value)) return value.map(item => rewriteMediaReferences(item, replacements));
+    if (!value || typeof value !== "object") return value;
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, rewriteMediaReferences(item, replacements)])
+    );
+  }
+
+  function isObjectAlreadyPresent(error) {
+    const status = Number(error?.statusCode || error?.status);
+    const message = String(error?.message || "").toLowerCase();
+    return status === 409 || message.includes("already exists") || message.includes("duplicate");
+  }
+
+  async function materializeClonedTripMedia(options = {}) {
+    const client = options.client;
+    const userId = String(options.userId || "").trim();
+    const sourceTripId = String(options.sourceTripId || "").trim();
+    const cloneTripId = String(options.cloneTripId || "").trim();
+    if (!client || !userId || !sourceTripId || !cloneTripId || !options.state) {
+      throw new Error("clone_media_context_required");
+    }
+    if (!isMediaUploadOnline(options)) {
+      throw mediaUploadError(
+        "目前離線，複製旅程圖片尚未完成，請連線後重試。",
+        "clone_media_offline"
+      );
+    }
+
+    const references = [...collectTripStorageReferences(options.state, sourceTripId)];
+    const replacements = new Map();
+    if (!references.length) {
+      return {
+        state: rewriteMediaReferences(options.state, replacements),
+        replacements,
+        copiedCount: 0
+      };
+    }
+    const bucket = client.storage.from(STORAGE_BUCKET);
+    for (const reference of references) {
+      const source = tripStorageDescriptor(reference, sourceTripId);
+      const targetPath = `${userId}/trips/${cloneTripId}/${source.fileName}`;
+      const { data: blob, error: downloadError } = await bucket.download(source.path);
+      if (downloadError || !blob) throw downloadError || new Error("clone_media_download_failed");
+      const { error: uploadError } = await bucket.upload(targetPath, blob, {
+        contentType: blob.type || undefined,
+        cacheControl: "31536000",
+        upsert: false
+      });
+      if (uploadError && !isObjectAlreadyPresent(uploadError)) throw uploadError;
+      replacements.set(reference, storageReference(STORAGE_BUCKET, targetPath));
+    }
+
+    return {
+      state: rewriteMediaReferences(options.state, replacements),
+      replacements,
+      copiedCount: replacements.size
+    };
   }
 
   function isTextEditingTarget(target) {
@@ -347,6 +468,8 @@
     normalizeMediaReference,
     replaceMediaReference,
     removeMediaReference,
+    hasCloudMediaContext,
+    isMediaUploadOnline,
     storageReference,
     sniffImageMime,
     validateImageBlob,
@@ -354,6 +477,10 @@
     processImageFile,
     importImageUrl,
     fetchImageUrlBlob,
+    tripStorageDescriptor,
+    collectTripStorageReferences,
+    rewriteMediaReferences,
+    materializeClonedTripMedia,
     clipboardImageFile,
     bindMediaInput,
     resolveMediaReference,

@@ -37,8 +37,19 @@ test("guides survive cloud import, conflict comparison, and guest rendering", ()
   assert.match(shareSource, /<h2>旅行攻略庫<\/h2>/);
 });
 
+test("existing guide covers support typed replacement, removal and cancel-safe editing", () => {
+  assert.match(appSource, /urlInput\.addEventListener\("input"/);
+  assert.match(appSource, /urlInput\.dataset\.mediaReference = ""/);
+  assert.match(appSource, /data-guide-cover-remove/);
+  assert.match(appSource, /dataset\.originalMediaReference = guideCoverReference/);
+  assert.match(appSource, /const rawCoverUrl = guideCoverInput\.dataset\.mediaReference \|\| guideCoverInput\.value\.trim\(\)/);
+  assert.match(appSource, /if \(!result\) return/);
+  assert.doesNotMatch(appSource, /storage\.from\([^)]*\)\.remove\(/);
+});
+
 test("guide release invalidates browser and offline caches", () => {
-  assert.match(htmlSource, /index\.css\?v=v45/);
-  assert.match(htmlSource, /account-cloud-share\.js\?v=v13/);
-  assert.match(htmlSource, /app\.js\?v=v44/);
+  assert.match(htmlSource, /index\.css\?v=v46/);
+  assert.match(htmlSource, /account-cloud-share\.js\?v=v14/);
+  assert.match(htmlSource, /media-uploader\.js\?v=v3/);
+  assert.match(htmlSource, /app\.js\?v=v45/);
 });

@@ -1131,6 +1131,39 @@
     return importApi.normalizeCandidate(trip, remoteDoc).candidate;
   }
 
+  async function materializeCloneMedia(sourceTripId, cloneTripId) {
+    const mediaApi = window.VoyageMedia;
+    const userId = String(state.session?.user?.id || "").trim();
+    if (!mediaApi?.materializeClonedTripMedia || !userId) {
+      throw new Error("clone_media_support_unavailable");
+    }
+    const { data: remoteDoc, error: readError } = await state.client
+      .from("trip_documents")
+      .select("trip_id, schema_version, revision, state")
+      .eq("trip_id", cloneTripId)
+      .single();
+    if (readError) throw readError;
+
+    const materialized = await mediaApi.materializeClonedTripMedia({
+      client: state.client,
+      userId,
+      sourceTripId,
+      cloneTripId,
+      state: remoteDoc.state
+    });
+    if (!materialized.copiedCount) return remoteDoc.revision;
+
+    const { data: saved, error: saveError } = await state.client.rpc("save_trip_document", {
+      target_trip_id: cloneTripId,
+      expected_revision: remoteDoc.revision,
+      next_schema_version: remoteDoc.schema_version,
+      next_state: materialized.state,
+      change_action: "update"
+    });
+    if (saveError) throw saveError;
+    return Number(saved?.revision) || Number(remoteDoc.revision) + 1;
+  }
+
   async function cloneTripAsOwner(sourceTripId) {
     const importApi = getImportApi();
     const sourceTrip = state.trips.find((item) => item.id === sourceTripId);
@@ -1162,6 +1195,8 @@
       if (!data?.trip_id || !Number.isSafeInteger(Number(data.revision))) {
         throw new Error("trip_clone_response_invalid");
       }
+
+      await materializeCloneMedia(sourceTripId, data.trip_id);
 
       await loadTrips();
       const existingLocalTrip = findImportedTrip(data.trip_id);

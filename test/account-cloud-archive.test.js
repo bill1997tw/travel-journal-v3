@@ -50,6 +50,6 @@ test("archived trips stay collapsed until the owner chooses to reveal them", () 
 
 test("archive release assets use a fresh cache version", () => {
   assert.match(bootstrapSource, /account-cloud\.js\?v=v38/);
-  assert.match(configSource, /account-cloud\.js\?v=account_cloud_v36/);
+  assert.match(configSource, /account-cloud\.js\?v=account_cloud_v37/);
   assert.match(cloudStyles, /\.account-cloud-archived-list/);
 });

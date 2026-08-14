@@ -111,9 +111,106 @@ test("failed replacement keeps the previous valid image reference", () => {
   assert.equal(media.replaceMediaReference(oldValue, "not-a-media-reference"), oldValue);
 });
 
+test("offline cloud upload is refused before a broken reference can be created", async () => {
+  await assert.rejects(
+    media.processImageFile(imageBlob(), {
+      client: {},
+      userId: "user-1",
+      cloudTripId: "trip-1",
+      online: false
+    }),
+    error => error.code === "media_upload_offline" && /尚未變更/u.test(error.message)
+  );
+});
+
+test("offline replacement leaves every existing representation untouched", async () => {
+  for (const current of [
+    "data:image/jpeg;base64,/9j/",
+    "https://example.com/old.jpg",
+    "storage://travel-assets/user-1/trips/trip-1/old.jpg"
+  ]) {
+    let selected = current;
+    await media.processImageFile(imageBlob(), {
+      client: {}, userId: "user-1", cloudTripId: "trip-1", online: false
+    }).then(result => { selected = result.reference; }).catch(() => {});
+    assert.equal(selected, current);
+  }
+});
+
+test("online state can be retried manually without claiming a durable queue", () => {
+  assert.equal(media.isMediaUploadOnline({ online: false }), false);
+  assert.equal(media.isMediaUploadOnline({ online: true }), true);
+});
+
+test("clone media is copied under the new owner and trip without mutating source state", async () => {
+  const sourceReference = "storage://travel-assets/old-user/trips/source-trip/11111111-1111-4111-8111-111111111111.jpg";
+  const originalState = {
+    trip: {
+      image: sourceReference,
+      guides: [{ coverUrl: sourceReference }],
+      diary: { image: "data:image/png;base64,iVBORw0KGgo=" }
+    }
+  };
+  const uploaded = [];
+  let removed = false;
+  const bucket = {
+    async download(path) {
+      assert.equal(path, "old-user/trips/source-trip/11111111-1111-4111-8111-111111111111.jpg");
+      return { data: imageBlob("image/jpeg"), error: null };
+    },
+    async upload(path, blob, options) {
+      uploaded.push({ path, blob, options });
+      return { error: null };
+    },
+    async remove() { removed = true; }
+  };
+  const result = await media.materializeClonedTripMedia({
+    client: { storage: { from: bucketName => (assert.equal(bucketName, "travel-assets"), bucket) } },
+    userId: "new-user",
+    sourceTripId: "source-trip",
+    cloneTripId: "clone-trip",
+    state: originalState,
+    online: true
+  });
+
+  const expected = "storage://travel-assets/new-user/trips/clone-trip/11111111-1111-4111-8111-111111111111.jpg";
+  assert.equal(result.copiedCount, 1);
+  assert.equal(result.state.trip.image, expected);
+  assert.equal(result.state.trip.guides[0].coverUrl, expected);
+  assert.equal(originalState.trip.image, sourceReference);
+  assert.equal(uploaded.length, 1);
+  assert.equal(uploaded[0].path, "new-user/trips/clone-trip/11111111-1111-4111-8111-111111111111.jpg");
+  assert.equal(removed, false);
+});
+
+test("clone materialization ignores public and Base64 images", async () => {
+  const result = await media.materializeClonedTripMedia({
+    client: { storage: { from: () => { throw new Error("storage should not be called"); } } },
+    userId: "new-user",
+    sourceTripId: "source-trip",
+    cloneTripId: "clone-trip",
+    state: { trip: { image: "https://example.com/a.jpg", diary: { image: "data:image/png;base64,iVBORw0KGgo=" } } },
+    online: true
+  });
+  assert.equal(result.copiedCount, 0);
+  assert.equal(result.state.trip.image, "https://example.com/a.jpg");
+});
+
 test("successful replacement and explicit removal are deterministic", () => {
   assert.equal(media.replaceMediaReference("https://old.test/a.jpg", "https://new.test/b.jpg"), "https://new.test/b.jpg");
   assert.equal(media.removeMediaReference("https://old.test/a.jpg"), "");
+});
+
+test("Base64, URL and Storage covers can all be atomically replaced", () => {
+  const next = "storage://travel-assets/new-user/trips/new-trip/new.jpg";
+  for (const current of [
+    "data:image/jpeg;base64,/9j/",
+    "https://example.com/old.jpg",
+    "storage://travel-assets/old-user/trips/old-trip/old.jpg"
+  ]) {
+    assert.equal(media.replaceMediaReference(current, next), next);
+    assert.equal(media.replaceMediaReference(current, "invalid"), current);
+  }
 });
 
 test("new media references survive JSON save/load without device-local identity", () => {
@@ -140,6 +237,6 @@ test("all six existing image entry points are wired to shared media support", ()
 
 test("service worker caches the shared uploader and uses the new cache generation", () => {
   const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  assert.match(sw, /voyage-book-shell-v80/);
+  assert.match(sw, /voyage-book-shell-v81/);
   assert.match(sw, /media-uploader\.js/);
 });

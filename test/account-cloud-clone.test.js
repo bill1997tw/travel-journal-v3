@@ -24,6 +24,11 @@ test("clone uses the guarded RPC and imports only the returned new trip", () => 
   assert.match(cloudSource, /await loadTrips\(\)/);
   assert.match(cloudSource, /fetchRemoteCandidate\(data\.trip_id\)/);
   assert.match(cloudSource, /importApi\.importCandidate/);
+  assert.match(cloudSource, /await materializeCloneMedia\(sourceTripId, data\.trip_id\)/);
+  assert.match(cloudSource, /mediaApi\.materializeClonedTripMedia/);
+  assert.match(cloudSource, /state\.session\?\.user\?\.id/);
+  assert.match(cloudSource, /target_trip_id: cloneTripId/);
+  assert.doesNotMatch(cloudSource, /storage\.from\([^)]*\)\.remove\(/);
 });
 
 test("clone retries reuse an existing owner copy instead of duplicating it", () => {
@@ -33,6 +38,6 @@ test("clone retries reuse an existing owner copy instead of duplicating it", () 
 
 test("clone release uses fresh script and offline cache versions", () => {
   assert.match(configSource, /account-cloud-import\.js\?v=account_cloud_v12/);
-  assert.match(configSource, /account-cloud\.js\?v=account_cloud_v36/);
-  assert.match(serviceWorkerSource, /voyage-book-shell-v80/);
+  assert.match(configSource, /account-cloud\.js\?v=account_cloud_v37/);
+  assert.match(serviceWorkerSource, /voyage-book-shell-v81/);
 });

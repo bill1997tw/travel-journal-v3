@@ -5245,6 +5245,18 @@ body.guest-readonly-active > :not(#guest-readonly-root):not(#guest-invalid-overl
   object-fit: cover;
 }
 
+.guest-share-private-media {
+  display: grid;
+  min-height: 7rem;
+  place-items: center;
+  padding: 1rem;
+  border: 1px dashed var(--border-color, #e8ded5);
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary, #7d736c);
+  text-align: center;
+}
+
 .guest-share-diary {
   overflow: hidden;
 }
@@ -6761,6 +6773,12 @@ body.guest-readonly-active > :not(#guest-readonly-root):not(#guest-invalid-overl
   padding: 0.45rem 0.8rem;
   font: inherit;
   cursor: pointer;
+}
+
+.guide-cover-remove {
+  position: relative;
+  z-index: 2;
+  margin-top: 0.75rem;
 }
 
 .media-url-import > div {
