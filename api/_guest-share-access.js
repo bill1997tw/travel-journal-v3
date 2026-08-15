@@ -3,6 +3,7 @@
 const crypto = require("node:crypto");
 
 const STORAGE_BUCKET = "travel-assets";
+const LEGACY_GUIDE_BUCKET = "travel-guide-assets";
 const SHARE_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MEDIA_ID_PATTERN = /^(voucher|guide|memory):([a-z0-9._-]{1,128}):(file|qr|cover|image)$/i;
@@ -154,7 +155,10 @@ function getSharedGuides(context, rawToken) {
   const guides = Array.isArray(context.sourceTrip?.guides) ? context.sourceTrip.guides : [];
   return guides.map(item => {
     const id = String(item?.id || "");
-    const source = item?.coverUrl || (item?.kind === "image" ? item?.url : "");
+    const legacySnapshotPath = String(item?.coverStoragePath || "").trim();
+    const source = legacySnapshotPath
+      ? `storage://${LEGACY_GUIDE_BUCKET}/${legacySnapshotPath}`
+      : item?.coverUrl || (item?.kind === "image" ? item?.url : "");
     return {
       id,
       kind: String(item?.kind || "note"),
@@ -213,7 +217,10 @@ function resolveMediaReference(context, descriptor) {
     const guide = (Array.isArray(trip.guides) ? trip.guides : [])
       .find(item => String(item?.id || "") === id);
     if (!guide || slot !== "cover") return "";
-    return String(guide.coverUrl || (guide.kind === "image" ? guide.url : "") || "");
+    const legacySnapshotPath = String(guide.coverStoragePath || "").trim();
+    return legacySnapshotPath
+      ? `storage://${LEGACY_GUIDE_BUCKET}/${legacySnapshotPath}`
+      : String(guide.coverUrl || (guide.kind === "image" ? guide.url : "") || "");
   }
 
   const diary = trip.diary;
@@ -228,16 +235,22 @@ function resolveMediaReference(context, descriptor) {
 
 function parseAuthorizedStorageReference(context, descriptor) {
   const reference = resolveMediaReference(context, descriptor).trim();
-  if (!reference.startsWith(`storage://${STORAGE_BUCKET}/`)) return null;
-  const path = reference.slice(`storage://${STORAGE_BUCKET}/`.length).replace(/^\/+/, "");
+  const bucket = reference.startsWith(`storage://${STORAGE_BUCKET}/`)
+    ? STORAGE_BUCKET
+    : reference.startsWith(`storage://${LEGACY_GUIDE_BUCKET}/`)
+      ? LEGACY_GUIDE_BUCKET
+      : "";
+  if (!bucket) return null;
+  const path = reference.slice(`storage://${bucket}/`.length).replace(/^\/+/, "");
   const parts = path.split("/");
   const fileMatch = String(parts[3] || "").match(/^([0-9a-f-]{36})\.(jpg|jpeg|png|webp)$/i);
-  if (parts.length !== 4 || !UUID_PATTERN.test(parts[0]) || parts[1] !== "trips"
+  const expectedFolder = bucket === LEGACY_GUIDE_BUCKET ? "guide-snapshots" : "trips";
+  if (parts.length !== 4 || !UUID_PATTERN.test(parts[0]) || parts[1] !== expectedFolder
     || parts[2].toLowerCase() !== String(context.trip.id).toLowerCase()
     || !fileMatch || !UUID_PATTERN.test(fileMatch[1])) {
     return null;
   }
-  return { bucket: STORAGE_BUCKET, path };
+  return { bucket, path };
 }
 
 async function createSignedMediaUrl(context, storageReference, expiresIn = 60) {
@@ -262,6 +275,7 @@ async function createSignedMediaUrl(context, storageReference, expiresIn = 60) {
 
 module.exports = {
   STORAGE_BUCKET,
+  LEGACY_GUIDE_BUCKET,
   SHARE_TOKEN_PATTERN,
   getServerConfig,
   hashShareToken,
