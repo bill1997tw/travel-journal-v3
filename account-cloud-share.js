@@ -27,18 +27,88 @@ function normalizePublicUrl(value) {
 
 function normalizeGuestImageUrl(value) {
   const source = String(value || "").trim();
+  if (source.startsWith("/api/guest-share-media?")) return source;
   if (/^data:image\/(?:png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(source)) {
     return source;
   }
   return normalizePublicUrl(source);
 }
 
-export function getGuestImagePresentation(value) {
+function normalizeGuestFileUrl(value) {
+  const source = String(value || "").trim();
+  if (source.startsWith("/api/guest-share-media?")) return source;
+  if (/^data:application\/pdf;base64,[a-z0-9+/=\s]+$/i.test(source)) return source;
+  return normalizeGuestImageUrl(source) || normalizePublicUrl(source);
+}
+
+function guestMediaUrl(shareToken, mediaId) {
+  if (!/^[0-9a-f]{64}$/.test(String(shareToken || "")) || !mediaId) return "";
+  const params = new URLSearchParams({ token: shareToken, media: mediaId });
+  return `/api/guest-share-media?${params.toString()}`;
+}
+
+export function getGuestImagePresentation(value, { shareToken = "", mediaId = "" } = {}) {
   const source = String(value || "").trim();
   if (source.startsWith("storage://")) {
-    return { url: "", privateUnavailable: true };
+    const authorizedUrl = guestMediaUrl(shareToken, mediaId);
+    return { url: authorizedUrl, privateUnavailable: !authorizedUrl };
   }
   return { url: normalizeGuestImageUrl(source), privateUnavailable: false };
+}
+
+export function getCompactExternalLinks(value) {
+  const source = String(value || "");
+  const links = [];
+  const text = source.replace(/https?:\/\/[^\s<>"']+/gi, rawUrl => {
+    const cleaned = rawUrl.replace(/[),.;!?，。；！？]+$/u, "");
+    const trailing = rawUrl.slice(cleaned.length);
+    const url = normalizePublicUrl(cleaned);
+    if (url && !links.includes(url)) links.push(url);
+    return trailing;
+  }).replace(/\s{2,}/g, " ").trim();
+  return { text, links };
+}
+
+function externalLinkLabel(url, fallback = "🔗 開啟連結") {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (host.includes("google.") || host.includes("goo.gl")) return "🗺️ 開啟地圖";
+    if (host.includes("instagram.com")) return "🔗 開啟 Instagram";
+  } catch {
+    return fallback;
+  }
+  return fallback;
+}
+
+function renderCompactLinks(links, className = "guest-share-actions") {
+  if (!links.length) return "";
+  return `<div class="${className}">${links.map(url => `
+    <a class="guest-share-action" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(externalLinkLabel(url))}</a>
+  `).join("")}</div>`;
+}
+
+export async function copyGuestText(value, options = {}) {
+  const text = String(value || "");
+  if (!text) return false;
+  const clipboard = options.clipboard || globalThis.navigator?.clipboard;
+  try {
+    if (!clipboard?.writeText) throw new Error("clipboard_unavailable");
+    await clipboard.writeText(text);
+    return true;
+  } catch {
+    const documentRef = options.document || globalThis.document;
+    if (!documentRef?.createElement || !documentRef.body) return false;
+    const input = documentRef.createElement("textarea");
+    input.value = text;
+    input.setAttribute("readonly", "");
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    documentRef.body.appendChild(input);
+    input.select();
+    const copied = Boolean(documentRef.execCommand?.("copy"));
+    input.remove();
+    return copied;
+  }
 }
 
 function renderPrivateMediaFallback(presentation) {
@@ -120,8 +190,39 @@ export function getGuestTripSignature(result) {
   });
 }
 
-export function createGuestShareManager(client) {
+export function createGuestShareManager(client, options = {}) {
   if (!client?.rpc) throw new TypeError("supabase_client_required");
+  const fetchImpl = options.fetchImpl || globalThis.fetch;
+
+  async function loadSecureSharedContent(token, result) {
+    // Guides are served by the guarded guest endpoint even when the legacy RPC
+    // payload has no `guides` field. Always hydrate a valid share so Preview and
+    // Production cannot silently fall back to the legacy anonymous renderer.
+    if (typeof fetchImpl !== "function") return result;
+    try {
+      const response = await fetchImpl("/api/guest-share-content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token })
+      });
+      if (!response.ok) return { ...result, secure_content_unavailable: true };
+      const content = await response.json();
+      if (Array.isArray(content.guides)) result.trip.guides = content.guides;
+      if (result.include_vouchers && Array.isArray(content.vouchers)) {
+        result.trip.vouchers = content.vouchers;
+      }
+      if (content.diaryMedia && result.trip?.diary) {
+        result.trip.diary.image = content.diaryMedia.imageUrl || "";
+        const images = new Map((content.diaryMedia.memories || []).map(item => [String(item.id), item.imageUrl]));
+        (result.trip.diary.memories || []).forEach(memory => {
+          memory.image = images.get(String(memory.id)) || "";
+        });
+      }
+      return result;
+    } catch {
+      return { ...result, secure_content_unavailable: true };
+    }
+  }
 
   return Object.freeze({
     async create(tripId, {
@@ -173,12 +274,13 @@ export function createGuestShareManager(client) {
         raw_token: token
       });
       if (error) return { ok: false, error: "temporarily_unavailable", retryable: true };
-      return data;
+      if (!data?.ok || !data.trip) return data;
+      return loadSecureSharedContent(token, data);
     }
   });
 }
 
-function renderGuestTrip(result, refreshStatus = "") {
+export function renderGuestTrip(result, refreshStatus = "", shareToken = "") {
   const trip = result.trip || {};
   const days = Array.isArray(trip.itinerary?.days) ? trip.itinerary.days : [];
   const alternatives = trip.alternativeSpots || {};
@@ -195,16 +297,36 @@ function renderGuestTrip(result, refreshStatus = "") {
 
   const dayHtml = days.map((day, index) => {
     const items = Array.isArray(day.items) ? day.items : [];
-    const itemHtml = items.map(item => `
-      <article class="guest-share-item">
-        <time>${escapeHtml(item.time || "")}</time>
-        <div>
-          <h4>${escapeHtml(item.title || "未命名行程")}</h4>
-          ${item.content ? `<p>${escapeHtml(item.content)}</p>` : ""}
-          ${item.address ? `<p class="guest-share-muted">📍 ${escapeHtml(item.address)}</p>` : ""}
-        </div>
-      </article>
-    `).join("");
+    const itemHtml = items.map(item => {
+      const content = getCompactExternalLinks(item.content);
+      const explicitLinks = [item.url, item.link]
+        .map(normalizePublicUrl)
+        .filter(Boolean);
+      const links = [...new Set([...content.links, ...explicitLinks])];
+      const mapsUrl = normalizePublicUrl(item.mapsUrl);
+      const address = String(item.address || "").trim();
+      const navigationUrl = mapsUrl || (address
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
+        : "");
+      return `
+        <article class="guest-share-item">
+          <div class="guest-share-item-time"><time>${escapeHtml(item.time || "時間未定")}</time></div>
+          <div class="guest-share-item-body">
+            <h4>${escapeHtml(item.title || "未命名行程")}</h4>
+            ${content.text ? `<p class="guest-share-item-description">${escapeHtml(content.text).replaceAll("\n", "<br>")}</p>` : ""}
+            ${address ? `
+              <div class="guest-share-address-row">
+                <span>📍 ${escapeHtml(address)}</span>
+                <div class="guest-share-address-actions">
+                  <button type="button" class="guest-share-action" data-copy-address="${escapeHtml(address)}">複製</button>
+                  ${navigationUrl ? `<a class="guest-share-action" href="${escapeHtml(navigationUrl)}" target="_blank" rel="noopener noreferrer">導航</a>` : ""}
+                </div>
+                <span class="guest-share-copy-status" role="status" aria-live="polite"></span>
+              </div>` : ""}
+            ${renderCompactLinks(links)}
+          </div>
+        </article>`;
+    }).join("");
     return `
       <section class="guest-share-day">
         <h2>DAY ${escapeHtml(day.dayNum || index + 1)}　${escapeHtml(day.theme || "")}</h2>
@@ -258,19 +380,44 @@ function renderGuestTrip(result, refreshStatus = "") {
     </article>
   `).join("");
 
-  const voucherHtml = vouchers.map(item => `
-    <article class="guest-share-alt">
-      <h4>${escapeHtml(item.title || "未命名票券")}</h4>
-      <p>${escapeHtml(item.category || "")}</p>
-      ${item.date ? `<p class="guest-share-muted">${escapeHtml(item.date)}</p>` : ""}
-      <p class="guest-share-muted">為保護隱私，檔案、QR Code、連結及備註不公開。</p>
-    </article>
-  `).join("");
+  const voucherHtml = vouchers.map(item => {
+    const link = normalizePublicUrl(item.link);
+    const fileUrl = normalizeGuestFileUrl(item.fileUrl);
+    const qrUrl = normalizeGuestImageUrl(item.qrUrl);
+    const fileIsImage = String(item.fileType || "").startsWith("image/")
+      || /^data:image\//i.test(fileUrl);
+    const fileIsPdf = item.fileType === "application/pdf" || /^data:application\/pdf/i.test(fileUrl);
+    const fileHtml = fileUrl && fileIsImage
+      ? `<a href="${escapeHtml(fileUrl)}" target="_blank" rel="noopener noreferrer" class="guest-share-ticket-media-link"><img class="guest-share-ticket-image" src="${escapeHtml(fileUrl)}" alt="${escapeHtml(item.title || "票券附件")}" loading="lazy"></a>`
+      : fileUrl && fileIsPdf
+        ? `<a class="guest-share-action guest-share-ticket-file" href="${escapeHtml(fileUrl)}" target="_blank" rel="noopener noreferrer">📄 開啟 ${escapeHtml(item.fileName || "PDF 憑證")}</a>`
+        : fileUrl
+          ? `<a class="guest-share-action guest-share-ticket-file" href="${escapeHtml(fileUrl)}" target="_blank" rel="noopener noreferrer">📎 開啟附件</a>`
+          : "";
+    return `
+      <article class="guest-share-alt guest-share-ticket-card">
+        <div class="guest-share-ticket-heading">
+          <h4>${escapeHtml(item.title || "未命名票券")}</h4>
+          ${item.category ? `<span class="guest-share-ticket-category">${escapeHtml(item.category)}</span>` : ""}
+        </div>
+        ${item.date ? `<p class="guest-share-muted">📅 ${escapeHtml(item.date)}</p>` : ""}
+        ${item.notes ? `<p class="guest-share-ticket-notes">${escapeHtml(item.notes).replaceAll("\n", "<br>")}</p>` : ""}
+        ${fileHtml}
+        ${qrUrl ? `<div class="guest-share-ticket-qr"><img src="${escapeHtml(qrUrl)}" alt="${escapeHtml(item.title || "票券")} QR Code" loading="lazy"><span>QR Code</span></div>` : ""}
+        ${link ? `<a class="guest-share-action" href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">🔗 開啟票券連結</a>` : ""}
+        ${result.secure_content_unavailable ? `<p class="guest-share-muted">部分附件暫時無法顯示，請稍後重新整理。</p>` : ""}
+      </article>`;
+  }).join("");
 
   const guideHtml = guides.map(item => {
     const url = normalizePublicUrl(item?.url);
+    const description = getCompactExternalLinks(item?.description);
+    const guideLinks = [...new Set([url, ...description.links].filter(Boolean))];
     const coverSource = item?.coverUrl || (item?.kind === "image" ? item?.url : "");
-    const coverMedia = getGuestImagePresentation(coverSource);
+    const coverMedia = getGuestImagePresentation(coverSource, {
+      shareToken,
+      mediaId: item?.id ? `guide:${item.id}:cover` : ""
+    });
     const coverUrl = coverMedia.url;
     const tags = Array.isArray(item?.tags) ? item.tags.slice(0, 12) : [];
     const kindLabels = {
@@ -285,16 +432,16 @@ function renderGuestTrip(result, refreshStatus = "") {
         <p class="guest-share-muted">${escapeHtml(kindLabels[item?.kind] || kindLabels.note)}${item?.dayLabel ? ` · ${escapeHtml(item.dayLabel)}` : ""}</p>
         <h4>${escapeHtml(item?.title || "未命名攻略")}</h4>
         ${item?.region ? `<p class="guest-share-muted">📍 ${escapeHtml(item.region)}</p>` : ""}
-        ${item?.description ? `<p>${escapeHtml(item.description)}</p>` : ""}
-        ${tags.length ? `<div class="guest-share-guide-tags">${tags.map(tag => `<span>${escapeHtml(tag)}</span>`).join("")}</div>` : ""}
-        ${url ? `<p><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">開啟攻略連結</a></p>` : ""}
+        ${description.text ? `<p>${escapeHtml(description.text).replaceAll("\n", "<br>")}</p>` : ""}
+        ${tags.length ? `<div class="guest-share-guide-tags">${globalThis.VoyageTagChips?.render(tags) || tags.map(tag => `<span class="favorite-tag">${escapeHtml(tag)}</span>`).join("")}</div>` : ""}
+        ${renderCompactLinks(guideLinks)}
       </article>`;
   }).join("");
 
   const diaryMemories = Array.isArray(diary?.memories)
     ? diary.memories.filter(item => item?.includedInStory !== false)
     : [];
-  const diaryMedia = getGuestImagePresentation(diary?.image);
+  const diaryMedia = getGuestImagePresentation(diary?.image, { shareToken, mediaId: "diary:cover" });
   const diaryImage = diaryMedia.url;
   const diaryHtml = diary ? `
     <section class="guest-share-day guest-share-diary">
@@ -319,7 +466,10 @@ function renderGuestTrip(result, refreshStatus = "") {
       ${diaryMemories.length ? `
         <div class="guest-share-memory-list">
           ${diaryMemories.map(memory => {
-            const media = getGuestImagePresentation(memory?.image);
+            const media = getGuestImagePresentation(memory?.image, {
+              shareToken,
+              mediaId: memory?.id ? `memory:${memory.id}:image` : ""
+            });
             const image = media.url;
             return `<article class="guest-share-memory-card">
               ${image ? `<img src="${escapeHtml(image)}" alt="記憶片段照片" loading="lazy">` : renderPrivateMediaFallback(media)}
@@ -401,6 +551,14 @@ function renderGuestTrip(result, refreshStatus = "") {
   `;
   root.hidden = false;
   document.body.classList.add("guest-readonly-active");
+
+  root.querySelectorAll("[data-copy-address]").forEach(button => {
+    button.addEventListener("click", async () => {
+      const copied = await copyGuestText(button.dataset.copyAddress);
+      const status = button.closest(".guest-share-address-row")?.querySelector(".guest-share-copy-status");
+      if (status) status.textContent = copied ? "已複製地址" : "請長按地址複製";
+    });
+  });
 }
 
 function showInvalidShare(text = INVALID_SHARE_MESSAGE) {
@@ -486,7 +644,7 @@ async function initGuestReader(manager, token) {
           : `更新於 ${checkedAt}`;
 
       if (changed) {
-        renderGuestTrip(result, statusText);
+        renderGuestTrip(result, statusText, token);
         currentSignature = nextSignature;
         attachRefreshButton();
       } else {

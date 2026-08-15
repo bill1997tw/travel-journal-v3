@@ -2342,7 +2342,7 @@ function renderWorkspaceGuides() {
                   </div>
                   <h4>${escapeHTML(item.title)}</h4>
                   ${item.description ? `<p>${escapeHTML(item.description)}</p>` : ""}
-                  ${item.tags.length ? `<div class="guide-live-tags">${item.tags.map(tag => `<span class="favorite-tag">${escapeHTML(tag)}</span>`).join("")}</div>` : ""}
+                  ${item.tags.length ? `<div class="guide-live-tags">${window.VoyageTagChips?.render(item.tags) || item.tags.map(tag => `<span class="favorite-tag">${escapeHTML(tag)}</span>`).join("")}</div>` : ""}
                   <div class="guide-live-actions">
                     ${linkHtml}
                     <button type="button" class="guide-action-btn" data-guide-edit="${escapeHTML(item.id)}">編輯</button>

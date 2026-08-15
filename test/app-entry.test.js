@@ -112,9 +112,9 @@ test("entry assets are responsive and included in the offline shell", () => {
   assert.match(entryStyles, /\.stats-bar\[hidden\]/);
   assert.match(entryStyles, /@media \(max-width: 480px\)/);
   assert.match(entryStyles, /@media \(prefers-reduced-motion: reduce\)/);
-  assert.match(workerSource, /voyage-book-shell-v81/);
-  assert.match(workerSource, /"\.\/app-entry\.js"/);
-  assert.match(workerSource, /"\.\/app-entry\.css"/);
-  assert.match(workerSource, /"\.\/exchange-rate\.js"/);
-  assert.match(workerSource, /"\.\/local-account-vault\.js"/);
+  assert.match(workerSource, /voyage-book-shell-v83/);
+  assert.match(workerSource, /"\.\/app-entry\.js\?v=v41"/);
+  assert.match(workerSource, /"\.\/app-entry\.css\?v=v35"/);
+  assert.match(workerSource, /"\.\/exchange-rate\.js\?v=v1"/);
+  assert.match(workerSource, /"\.\/local-account-vault\.js\?v=v1"/);
 });
