@@ -61,15 +61,9 @@
       .slice(0, MAX_TAGS);
   }
 
-  function tagColorIndex(tag) {
-    return [...String(tag || "")].reduce((total, char) => total + char.codePointAt(0), 0) % 6;
-  }
-
   function tagHtml(tag, removable = false) {
-    const safeTag = escapeHtml(tag);
-    return `<span class="favorite-tag favorite-tag-color-${tagColorIndex(tag)}">${safeTag}${removable
-      ? `<button type="button" data-favorite-tag-remove="${safeTag}" aria-label="移除標籤 ${safeTag}">×</button>`
-      : ""}</span>`;
+    return window.VoyageTagChips?.render([tag], { removable })
+      || `<span class="favorite-tag">${escapeHtml(tag)}</span>`;
   }
 
   function favoriteNotesHtml(notes) {

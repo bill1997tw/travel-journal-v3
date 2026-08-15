@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>悠遊小本本 Voyage Book | 您的專屬旅行規劃與分帳管家</title>
   <meta name="description" content="悠遊小本本是一個為自助旅行與重機愛好者設計的精美企劃工具，包含詳細日程、景點與餐廳備案庫、行李打包清單、多人費用代墊分帳以及回憶日記。">
-  <link rel="stylesheet" href="index.css?v=v46">
+  <link rel="stylesheet" href="index.css?v=v48">
   <link rel="stylesheet" href="cloud-sync.css?v=v40">
   <link rel="stylesheet" href="app-entry.css?v=v35">
   <link rel="manifest" href="manifest.webmanifest">
@@ -2356,7 +2356,7 @@
             <input type="checkbox" id="share-scope-ledger"> 小二帳本及目前結算
           </label>
           <label style="display:flex; align-items:center; gap:0.5rem; grid-column:span 2; cursor:pointer;">
-            <input type="checkbox" id="share-scope-tickets"> 票券摘要（不含檔案、QR Code、連結與備註）
+            <input type="checkbox" id="share-scope-tickets"> 票券、憑證、備註與附件
           </label>
           <label style="display:flex; align-items:center; gap:0.5rem; grid-column:span 2; cursor:pointer;">
             <input type="checkbox" id="share-scope-diary">
@@ -2378,7 +2378,7 @@
 
       <!-- 敏感資訊防護聲明 -->
       <div style="font-size:0.75rem; color:var(--text-secondary); background:rgba(255,255,255,0.05); padding:0.75rem; border-radius:8px; margin-bottom:1.25rem; line-height:1.4;">
-        🛡️ <b>隱私保護須知：</b>私人備註、收款帳號、條碼/QR Code、訂單完整編號及未主動公開的個人欠款均自動遮蔽。
+        🛡️ <b>隱私保護須知：</b>只有您勾選的區段會公開；收款帳號、登入資訊、內部識別碼及未主動公開的個人欠款仍會自動遮蔽。
       </div>
 
       <!-- 連結展示與操作區 -->
@@ -2457,10 +2457,11 @@
   <script src="trip-identity.js?v=v1"></script>
   <script src="local-account-vault.js?v=v1"></script>
   <script src="cloud-sync.js?v=v38"></script>
-  <script type="module" src="account-cloud-share.js?v=v14"></script>
+  <script src="tag-chips.js?v=v1"></script>
+  <script type="module" src="account-cloud-share.js?v=v15"></script>
   <script src="exchange-rate.js?v=v1"></script>
   <script src="media-uploader.js?v=v3"></script>
-  <script src="app.js?v=v45"></script>
-  <script src="account-favorites.js?v=v8"></script>
+  <script src="app.js?v=v46"></script>
+  <script src="account-favorites.js?v=v9"></script>
 </body>
 </html>

@@ -35,7 +35,7 @@
       ]
     },
     {
-      "source": "/(app|cloud-sync|supabase-config|media-uploader).js",
+      "source": "/(app|app-entry|account-cloud-share|account-favorites|cloud-sync|supabase-config|media-uploader|tag-chips).js",
       "headers": [
         {
           "key": "Cache-Control",

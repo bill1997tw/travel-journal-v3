@@ -2,10 +2,24 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
+  copyGuestText,
   createGuestShareManager,
+  getCompactExternalLinks,
   getGuestTripSignature,
   getGuestImagePresentation
 } from "../account-cloud-share.js";
+
+test("anonymous address copy uses the supplied clipboard and raw links become compact actions", async () => {
+  let copied = "";
+  assert.equal(await copyGuestText("宜蘭縣羅東鎮", {
+    clipboard: { async writeText(value) { copied = value; } }
+  }), true);
+  assert.equal(copied, "宜蘭縣羅東鎮");
+  assert.deepEqual(
+    getCompactExternalLinks("行前閱讀 https://example.com/a/very/long/path 後再出發"),
+    { text: "行前閱讀 後再出發", links: ["https://example.com/a/very/long/path"] }
+  );
+});
 
 test("anonymous private media degrades without exposing its Storage path", () => {
   const privateReference = "storage://travel-assets/private-user/trips/private-trip/secret.jpg";
@@ -20,12 +34,13 @@ test("anonymous legacy Base64 and public images remain renderable", () => {
   assert.equal(getGuestImagePresentation("https://example.com/photo.jpg").url, "https://example.com/photo.jpg");
 });
 
-test("guest renderer uses a deliberate private-media fallback and never signs Storage URLs", () => {
+test("guest renderer keeps fallback but can request controlled authorized media", () => {
   const source = fs.readFileSync(new URL("../account-cloud-share.js", import.meta.url), "utf8");
   assert.match(source, /私人圖片僅限登入成員查看/u);
   assert.match(source, /renderPrivateMediaFallback/);
   assert.match(source, /item\?\.coverUrl \|\| \(item\?\.kind === "image" \? item\?\.url : ""\)/);
-  assert.doesNotMatch(source, /createSignedUrl|resolveMediaReference/);
+  assert.match(source, /guestMediaUrl/);
+  assert.doesNotMatch(source, /createSignedUrl|SUPABASE_SERVICE_ROLE_KEY/);
 });
 
 test("share manager uses only guarded RPCs", async () => {
@@ -194,8 +209,9 @@ test("expanded guest view renders sanitized optional sections", () => {
   assert.match(source, /includedInStory !== false/);
   assert.match(source, /normalizeGuestImageUrl/);
   assert.match(source, /normalizePublicUrl/);
-  assert.match(source, /QR Code、連結及備註不公開/);
-  assert.doesNotMatch(source, /fileData/);
+  assert.match(source, /guest-share-ticket-image/);
+  assert.match(source, /開啟票券連結/);
+  assert.doesNotMatch(source, /storage:\/\/travel-assets\//);
 });
 
 test("guest readers can refresh and receive visible-page updates", () => {
@@ -276,5 +292,5 @@ test("owner share controls bind after delayed app or account initialization", ()
   assert.match(source, /document\.readyState === "loading"/);
   assert.match(source, /shareHandlerBound === "true"/);
   assert.match(source, /shareButton\.dataset\.shareHandlerBound = "true"/);
-  assert.match(html, /account-cloud-share\.js\?v=v14/);
+  assert.match(html, /account-cloud-share\.js\?v=v15/);
 });

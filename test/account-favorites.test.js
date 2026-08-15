@@ -8,13 +8,14 @@ const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const share = fs.readFileSync(new URL("../account-cloud-share.js", import.meta.url), "utf8");
 const sw = fs.readFileSync(new URL("../sw.js", import.meta.url), "utf8");
 const css = fs.readFileSync(new URL("../index.css", import.meta.url), "utf8");
+const tagChips = fs.readFileSync(new URL("../tag-chips.js", import.meta.url), "utf8");
 
 test("favorite journal has an account-level navigation view and editor", () => {
   assert.match(html, /data-view="favorites"/u);
   assert.match(html, /id="view-favorites"/u);
   assert.match(html, /id="favorite-form"/u);
   assert.match(html, /id="favorite-collection-form"/u);
-  assert.match(html, /account-favorites\.js\?v=v8/u);
+  assert.match(html, /account-favorites\.js\?v=v9/u);
 });
 
 test("favorites load and write only through private account tables", () => {
@@ -37,7 +38,8 @@ test("favorite tags are entered and removed as separate colored chips", () => {
   assert.match(html, /id="favorite-tag-input"/u);
   assert.match(html, /id="favorite-tag-add"/u);
   assert.match(source, /data-favorite-tag-remove/u);
-  assert.match(source, /favorite-tag-color-/u);
+  assert.match(source, /VoyageTagChips\?\.render/u);
+  assert.match(tagChips, /favorite-tag-color-/u);
   assert.match(source, /event\.key !== "Enter"/u);
 });
 
@@ -102,6 +104,6 @@ test("private favorite covers are copied into durable guide snapshot assets", ()
 });
 
 test("favorite release invalidates offline shell", () => {
-  assert.match(sw, /voyage-book-shell-v81/u);
+  assert.match(sw, /voyage-book-shell-v82/u);
   assert.match(sw, /\.\/account-favorites\.js/u);
 });
