@@ -507,9 +507,18 @@
   function registerServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js").catch((error) => {
-        console.warn("Service worker registration failed:", error);
+      const hadServiceWorkerController = Boolean(navigator.serviceWorker.controller);
+      let reloadingForFreshWorker = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!hadServiceWorkerController || reloadingForFreshWorker) return;
+        reloadingForFreshWorker = true;
+        window.location.reload();
       });
+      navigator.serviceWorker.register("./sw.js?v=v83", { updateViaCache: "none" })
+        .then((registration) => registration.update())
+        .catch((error) => {
+          console.warn("Service worker registration failed:", error);
+        });
     });
   }
 

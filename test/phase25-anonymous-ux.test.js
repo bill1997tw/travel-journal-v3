@@ -7,6 +7,10 @@ const styles = fs.readFileSync(new URL("../index.css", import.meta.url), "utf8")
 const favorites = fs.readFileSync(new URL("../account-favorites.js", import.meta.url), "utf8");
 const app = fs.readFileSync(new URL("../app.js", import.meta.url), "utf8");
 const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const mobileStyles = fs.readFileSync(new URL("../mobile-viewport.css", import.meta.url), "utf8");
+const mobileViewport = fs.readFileSync(new URL("../mobile-viewport.js", import.meta.url), "utf8");
+const worker = fs.readFileSync(new URL("../sw.js", import.meta.url), "utf8");
+const cloudSync = fs.readFileSync(new URL("../cloud-sync.js", import.meta.url), "utf8");
 
 test("anonymous itinerary cards provide copy, navigation, and compact external links", () => {
   assert.match(shareSource, /data-copy-address=/);
@@ -60,5 +64,20 @@ test("390px itinerary, action, tag and ticket layouts are contained", () => {
 test("mobile form controls avoid iOS focus zoom without disabling page zoom", () => {
   assert.match(html, /width=device-width, initial-scale=1\.0/);
   assert.doesNotMatch(html, /user-scalable\s*=\s*no|maximum-scale\s*=\s*1/i);
-  assert.match(styles, /@media \(max-width: 768px\)[\s\S]*input:not\(\[type="checkbox"\]\)[\s\S]*textarea,[\s\S]*select[\s\S]*font-size: 16px !important/);
+  assert.match(html, /app-entry\.css\?v=v35[\s\S]*mobile-viewport\.css\?v=v1/);
+  assert.match(mobileStyles, /html body input:not\(\[type="checkbox"\]\)[\s\S]*textarea,[\s\S]*select[\s\S]*font-size: 16px !important/);
+  assert.match(mobileViewport, /visualViewport/);
+  assert.match(mobileViewport, /focusout/);
+  assert.match(mobileViewport, /restoreScrollPosition/);
+  assert.doesNotMatch(mobileViewport, /maximum-scale|user-scalable/);
+});
+
+test("service worker upgrades mutable assets and reloads a newly controlled page once", () => {
+  assert.match(worker, /voyage-book-shell-v83/);
+  assert.match(worker, /mobile-viewport\.css\?v=v1/);
+  assert.match(worker, /mobile-viewport\.js\?v=v1/);
+  assert.match(worker, /cache: "reload"/);
+  assert.match(cloudSync, /register\("\.\/sw\.js\?v=v83", \{ updateViaCache: "none" \}\)/);
+  assert.match(cloudSync, /hadServiceWorkerController/);
+  assert.match(cloudSync, /controllerchange/);
 });

@@ -237,6 +237,6 @@ test("all six existing image entry points are wired to shared media support", ()
 
 test("service worker caches the shared uploader and uses the new cache generation", () => {
   const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  assert.match(sw, /voyage-book-shell-v82/);
+  assert.match(sw, /voyage-book-shell-v83/);
   assert.match(sw, /media-uploader\.js/);
 });

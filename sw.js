@@ -1,20 +1,22 @@
-const CACHE_NAME = "voyage-book-shell-v82";
+const CACHE_NAME = "voyage-book-shell-v83";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./index.css",
-  "./cloud-sync.css",
-  "./app-entry.css",
-  "./app.js",
-  "./media-uploader.js",
-  "./account-cloud-share.js",
-  "./account-favorites.js",
-  "./tag-chips.js",
-  "./app-entry.js",
-  "./trip-identity.js",
-  "./local-account-vault.js",
-  "./cloud-sync.js",
-  "./exchange-rate.js",
+  "./index.css?v=v49",
+  "./cloud-sync.css?v=v40",
+  "./app-entry.css?v=v35",
+  "./mobile-viewport.css?v=v1",
+  "./app.js?v=v46",
+  "./media-uploader.js?v=v3",
+  "./account-cloud-share.js?v=v15",
+  "./account-favorites.js?v=v9",
+  "./tag-chips.js?v=v1",
+  "./app-entry.js?v=v41",
+  "./mobile-viewport.js?v=v1",
+  "./trip-identity.js?v=v1",
+  "./local-account-vault.js?v=v1",
+  "./cloud-sync.js?v=v39",
+  "./exchange-rate.js?v=v1",
   "./supabase-config.js",
   "./manifest.webmanifest",
   "./assets/app-icon.svg",
@@ -63,7 +65,7 @@ self.addEventListener("fetch", (event) => {
 
   if (shouldUseNetworkFirst) {
     event.respondWith(
-      fetch(event.request)
+      fetch(new Request(event.request, { cache: "reload" }))
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             const responseClone = networkResponse.clone();

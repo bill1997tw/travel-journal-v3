@@ -195,9 +195,10 @@ export function createGuestShareManager(client, options = {}) {
   const fetchImpl = options.fetchImpl || globalThis.fetch;
 
   async function loadSecureSharedContent(token, result) {
-    const shouldLoad = result?.include_vouchers || result?.include_diary
-      || Array.isArray(result?.trip?.guides);
-    if (!shouldLoad || typeof fetchImpl !== "function") return result;
+    // Guides are served by the guarded guest endpoint even when the legacy RPC
+    // payload has no `guides` field. Always hydrate a valid share so Preview and
+    // Production cannot silently fall back to the legacy anonymous renderer.
+    if (typeof fetchImpl !== "function") return result;
     try {
       const response = await fetchImpl("/api/guest-share-content", {
         method: "POST",

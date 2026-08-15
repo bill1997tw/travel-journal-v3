@@ -294,3 +294,30 @@ test("owner share controls bind after delayed app or account initialization", ()
   assert.match(source, /shareButton\.dataset\.shareHandlerBound = "true"/);
   assert.match(html, /account-cloud-share\.js\?v=v15/);
 });
+
+test("valid anonymous shares always hydrate guarded guide content", async () => {
+  const requests = [];
+  const manager = createGuestShareManager({
+    async rpc() {
+      return {
+        data: { ok: true, trip: { title: "小明的旅行" } },
+        error: null
+      };
+    }
+  }, {
+    async fetchImpl(url, options) {
+      requests.push({ url, options });
+      return {
+        ok: true,
+        async json() {
+          return { guides: [{ id: "guide-1", title: "雨天攻略" }] };
+        }
+      };
+    }
+  });
+
+  const result = await manager.read("d".repeat(64));
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, "/api/guest-share-content");
+  assert.deepEqual(result.trip.guides, [{ id: "guide-1", title: "雨天攻略" }]);
+});
