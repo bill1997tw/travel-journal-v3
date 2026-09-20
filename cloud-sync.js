@@ -514,7 +514,7 @@
         reloadingForFreshWorker = true;
         window.location.reload();
       });
-      navigator.serviceWorker.register("./sw.js?v=v83", { updateViaCache: "none" })
+      navigator.serviceWorker.register("./sw.js?v=v84", { updateViaCache: "none" })
         .then((registration) => registration.update())
         .catch((error) => {
           console.warn("Service worker registration failed:", error);

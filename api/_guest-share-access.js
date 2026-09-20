@@ -158,7 +158,7 @@ function getSharedGuides(context, rawToken) {
     const legacySnapshotPath = String(item?.coverStoragePath || "").trim();
     const source = legacySnapshotPath
       ? `storage://${LEGACY_GUIDE_BUCKET}/${legacySnapshotPath}`
-      : item?.coverUrl || (item?.kind === "image" ? item?.url : "");
+      : item?.coverUrl || "";
     return {
       id,
       kind: String(item?.kind || "note"),
@@ -220,7 +220,7 @@ function resolveMediaReference(context, descriptor) {
     const legacySnapshotPath = String(guide.coverStoragePath || "").trim();
     return legacySnapshotPath
       ? `storage://${LEGACY_GUIDE_BUCKET}/${legacySnapshotPath}`
-      : String(guide.coverUrl || (guide.kind === "image" ? guide.url : "") || "");
+      : String(guide.coverUrl || "");
   }
 
   const diary = trip.diary;

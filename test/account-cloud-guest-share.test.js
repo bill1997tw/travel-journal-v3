@@ -38,7 +38,9 @@ test("guest renderer keeps fallback but can request controlled authorized media"
   const source = fs.readFileSync(new URL("../account-cloud-share.js", import.meta.url), "utf8");
   assert.match(source, /私人圖片僅限登入成員查看/u);
   assert.match(source, /renderPrivateMediaFallback/);
-  assert.match(source, /item\?\.coverUrl \|\| \(item\?\.kind === "image" \? item\?\.url : ""\)/);
+  assert.match(source, /const coverSource = item\?\.coverUrl \|\| ""/);
+  assert.match(source, /此攻略尚未設定封面圖片/u);
+  assert.doesNotMatch(source, /item\?\.kind === "image" \? item\?\.url/);
   assert.match(source, /guestMediaUrl/);
   assert.doesNotMatch(source, /createSignedUrl|SUPABASE_SERVICE_ROLE_KEY/);
 });
@@ -292,7 +294,7 @@ test("owner share controls bind after delayed app or account initialization", ()
   assert.match(source, /document\.readyState === "loading"/);
   assert.match(source, /shareHandlerBound === "true"/);
   assert.match(source, /shareButton\.dataset\.shareHandlerBound = "true"/);
-  assert.match(html, /account-cloud-share\.js\?v=v15/);
+  assert.match(html, /account-cloud-share\.js\?v=v16/);
 });
 
 test("valid anonymous shares always hydrate guarded guide content", async () => {

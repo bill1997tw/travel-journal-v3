@@ -133,6 +133,25 @@ test("legacy travel guide snapshots are exposed through the guarded guest media 
   );
 });
 
+test("a guide destination page is never treated as an image cover", () => {
+  const context = {
+    share: { include_diary: false },
+    sourceTrip: {
+      guides: [{
+        id: "guide-instagram",
+        kind: "image",
+        title: "宜蘭短影音攻略",
+        url: "https://www.instagram.com/reel/example/"
+      }]
+    }
+  };
+
+  const guides = access.getSharedGuides(context, TOKEN);
+  assert.equal(guides[0].url, "https://www.instagram.com/reel/example/");
+  assert.equal(guides[0].coverUrl, "");
+  assert.equal(access.resolveMediaReference(context, "guide:guide-instagram:cover"), "");
+});
+
 test("a shared trip cannot retrieve a legacy guide snapshot belonging to another trip", async () => {
   const fixture = createContext({ guideTripId: TRIP_B });
   const context = await access.loadShareContext(TOKEN, { config: CONFIG, fetchImpl: fixture.fetchImpl });

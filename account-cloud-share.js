@@ -117,6 +117,14 @@ function renderPrivateMediaFallback(presentation) {
     : "";
 }
 
+function renderGuideCoverFallback() {
+  return `
+    <div class="guest-share-guide-cover guest-share-guide-cover-placeholder" role="img" aria-label="此攻略尚未設定封面圖片">
+      <span aria-hidden="true">🗺️</span>
+      <strong>此攻略尚未設定封面圖片</strong>
+    </div>`;
+}
+
 function formatMinorUnits(value, currency = "TWD") {
   const minor = Number(value);
   if (!Number.isSafeInteger(minor)) return "";
@@ -413,7 +421,10 @@ export function renderGuestTrip(result, refreshStatus = "", shareToken = "") {
     const url = normalizePublicUrl(item?.url);
     const description = getCompactExternalLinks(item?.description);
     const guideLinks = [...new Set([url, ...description.links].filter(Boolean))];
-    const coverSource = item?.coverUrl || (item?.kind === "image" ? item?.url : "");
+    // The guide URL is a destination page (for example an Instagram Reel), not
+    // necessarily an image resource. Only a dedicated cover may be rendered in
+    // an <img>; otherwise Safari displays a broken white image frame.
+    const coverSource = item?.coverUrl || "";
     const coverMedia = getGuestImagePresentation(coverSource, {
       shareToken,
       mediaId: item?.id ? `guide:${item.id}:cover` : ""
@@ -428,7 +439,7 @@ export function renderGuestTrip(result, refreshStatus = "", shareToken = "") {
     };
     return `
       <article class="guest-share-alt">
-        ${coverUrl ? `<img class="guest-share-guide-cover" src="${escapeHtml(coverUrl)}" alt="${escapeHtml(item?.title || "攻略封面")}" loading="lazy">` : renderPrivateMediaFallback(coverMedia)}
+        ${coverUrl ? `<img class="guest-share-guide-cover" src="${escapeHtml(coverUrl)}" alt="${escapeHtml(item?.title || "攻略封面")}" loading="lazy">` : renderPrivateMediaFallback(coverMedia) || renderGuideCoverFallback()}
         <p class="guest-share-muted">${escapeHtml(kindLabels[item?.kind] || kindLabels.note)}${item?.dayLabel ? ` · ${escapeHtml(item.dayLabel)}` : ""}</p>
         <h4>${escapeHtml(item?.title || "未命名攻略")}</h4>
         ${item?.region ? `<p class="guest-share-muted">📍 ${escapeHtml(item.region)}</p>` : ""}
