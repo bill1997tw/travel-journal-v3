@@ -104,6 +104,6 @@ test("private favorite covers are copied into durable guide snapshot assets", ()
 });
 
 test("favorite release invalidates offline shell", () => {
-  assert.match(sw, /voyage-book-shell-v85/u);
+  assert.match(sw, /voyage-book-shell-v86/u);
   assert.match(sw, /\.\/account-favorites\.js/u);
 });

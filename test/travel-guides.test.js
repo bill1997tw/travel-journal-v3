@@ -50,9 +50,19 @@ test("existing guide covers support typed replacement, removal and cancel-safe e
   assert.doesNotMatch(appSource, /storage\.from\([^)]*\)\.remove\(/);
 });
 
+test("guide saving waits for a pending mobile cover upload", () => {
+  assert.match(htmlSource, /id="guide-submit-btn"/);
+  assert.match(appSource, /let guideCoverUploadPromise = null/);
+  assert.match(appSource, /submitButton\.disabled = true/);
+  assert.match(appSource, /submitButton\.textContent = "上傳圖片中…"/u);
+  assert.match(appSource, /async function handleGuideSubmit\(event\)/);
+  assert.match(appSource, /const pendingCoverUpload = guideCoverUploadPromise/);
+  assert.match(appSource, /await pendingCoverUpload/);
+});
+
 test("guide release invalidates browser and offline caches", () => {
   assert.match(htmlSource, /index\.css\?v=v50/);
   assert.match(htmlSource, /account-cloud-share\.js\?v=v16/);
   assert.match(htmlSource, /media-uploader\.js\?v=v3/);
-  assert.match(htmlSource, /app\.js\?v=v47/);
+  assert.match(htmlSource, /app\.js\?v=v48/);
 });

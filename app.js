@@ -2192,6 +2192,7 @@ const GUIDE_KIND_META = Object.freeze({
   link: { icon: "🔗", label: "文章／網站", action: "開啟連結" },
   note: { icon: "📝", label: "文字備忘", action: "" }
 });
+let guideCoverUploadPromise = null;
 
 function ensureGuideState(trip) {
   if (!trip) return [];
@@ -2260,17 +2261,35 @@ function setupGuideCoverMediaInput() {
   });
 }
 
-async function handleGuideCoverFile(file) {
-  const result = await handleImageUpload(file, "guide-cover-url", "guide-cover-preview", "guide-cover-placeholder", {
-    maxDimension: 1600,
-    quality: 0.82
-  });
-  if (result) {
-    const input = document.getElementById("guide-cover-url");
-    input.dataset.mediaReference = result.reference;
-    input.dataset.mediaReferenceDirty = "false";
-    if (result.reference.startsWith("storage://") || result.reference.startsWith("data:")) input.value = "";
+function handleGuideCoverFile(file) {
+  const submitButton = document.getElementById("guide-submit-btn");
+  const uploadTask = (async () => {
+    const result = await handleImageUpload(file, "guide-cover-url", "guide-cover-preview", "guide-cover-placeholder", {
+      maxDimension: 1600,
+      quality: 0.82
+    });
+    if (result) {
+      const input = document.getElementById("guide-cover-url");
+      input.dataset.mediaReference = result.reference;
+      input.dataset.mediaReferenceDirty = "false";
+      if (result.reference.startsWith("storage://") || result.reference.startsWith("data:")) input.value = "";
+    }
+    return result;
+  })();
+  guideCoverUploadPromise = uploadTask;
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = "上傳圖片中…";
   }
+  uploadTask.finally(() => {
+    if (guideCoverUploadPromise !== uploadTask) return;
+    guideCoverUploadPromise = null;
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = "儲存攻略";
+    }
+  });
+  return uploadTask;
 }
 
 async function importGuideCoverUrl(url) {
@@ -2395,8 +2414,14 @@ function closeGuideModal() {
   document.getElementById("guide-modal").classList.remove("active");
 }
 
-function handleGuideSubmit(event) {
+async function handleGuideSubmit(event) {
   event.preventDefault();
+  const pendingCoverUpload = guideCoverUploadPromise;
+  if (pendingCoverUpload) {
+    showToast("正在完成圖片上傳，完成後會繼續儲存。", "info");
+    const uploadedCover = await pendingCoverUpload;
+    if (!uploadedCover) return;
+  }
   const trip = trips.find(item => item.id === activeTripId);
   if (!trip) return;
 
