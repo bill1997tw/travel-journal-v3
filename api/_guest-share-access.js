@@ -27,11 +27,17 @@ function hashShareToken(rawToken) {
 }
 
 function serviceHeaders(config) {
-  return {
+  const headers = {
     apikey: config.serviceRoleKey,
-    Authorization: `Bearer ${config.serviceRoleKey}`,
     Accept: "application/json"
   };
+  // Supabase's current `sb_secret_...` keys authenticate through `apikey`.
+  // Only legacy service-role JWTs are valid bearer tokens; sending a new
+  // secret key as Authorization causes the gateway to reject the request.
+  if (/^eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(config.serviceRoleKey)) {
+    headers.Authorization = `Bearer ${config.serviceRoleKey}`;
+  }
+  return headers;
 }
 
 async function fetchRows(config, table, params, fetchImpl = fetch) {
@@ -283,6 +289,7 @@ module.exports = {
   SHARE_TOKEN_PATTERN,
   getServerConfig,
   hashShareToken,
+  serviceHeaders,
   loadShareContext,
   normalizePublicUrl,
   safeLegacyMedia,

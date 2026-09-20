@@ -12,7 +12,8 @@ const TRIP_B = "33333333-3333-4333-8333-333333333333";
 const LOCAL_TRIP_A = "trip-local-yilan";
 const MEDIA = "44444444-4444-4444-8444-444444444444.jpg";
 const GUIDE_MEDIA = "55555555-5555-4555-8555-555555555555.webp";
-const CONFIG = { supabaseUrl: "https://project.supabase.co", serviceRoleKey: "service-secret" };
+const LEGACY_SERVICE_ROLE_JWT = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature";
+const CONFIG = { supabaseUrl: "https://project.supabase.co", serviceRoleKey: LEGACY_SERVICE_ROLE_JWT };
 
 function response(payload, status = 200) {
   return {
@@ -173,6 +174,20 @@ test("media signing uses a short lifetime and keeps service credentials server-s
   });
   assert.match(signedUrl, /signed-ticket\?token=short$/);
   assert.deepEqual(JSON.parse(request.options.body), { expiresIn: 60 });
-  assert.equal(request.options.headers.Authorization, "Bearer service-secret");
-  assert.doesNotMatch(signedUrl, /service-secret/);
+  assert.equal(request.options.headers.Authorization, `Bearer ${LEGACY_SERVICE_ROLE_JWT}`);
+  assert.doesNotMatch(signedUrl, /service_role/);
+});
+
+test("new Supabase secret keys use apikey without an invalid bearer header", () => {
+  assert.deepEqual(
+    access.serviceHeaders({ serviceRoleKey: "sb_secret_server_only" }),
+    {
+      apikey: "sb_secret_server_only",
+      Accept: "application/json"
+    }
+  );
+  assert.equal(
+    access.serviceHeaders({ serviceRoleKey: LEGACY_SERVICE_ROLE_JWT }).Authorization,
+    `Bearer ${LEGACY_SERVICE_ROLE_JWT}`
+  );
 });
