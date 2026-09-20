@@ -24,7 +24,10 @@ test("travel guides are editable per trip and persist through the existing cloud
 
 test("guide links are restricted to web URLs and arbitrary embeds are not rendered", () => {
   assert.match(appSource, /normalizeExternalUrl\(rawUrl\)/);
-  assert.match(appSource, /圖片、短影片與文章攻略需要填寫網址/);
+  assert.match(appSource, /if \(rawUrl && !url\)/);
+  assert.doesNotMatch(appSource, /kind !== "note" && !url/);
+  assert.match(htmlSource, /相關連結（選填）/u);
+  assert.match(htmlSource, /沒有網址也能儲存/u);
   assert.doesNotMatch(appSource, /<iframe[^>]*\$\{.*guide/);
   assert.match(shareSource, /normalizePublicUrl/);
   assert.match(shareSource, /rel="noopener noreferrer"/);
@@ -51,5 +54,5 @@ test("guide release invalidates browser and offline caches", () => {
   assert.match(htmlSource, /index\.css\?v=v50/);
   assert.match(htmlSource, /account-cloud-share\.js\?v=v16/);
   assert.match(htmlSource, /media-uploader\.js\?v=v3/);
-  assert.match(htmlSource, /app\.js\?v=v46/);
+  assert.match(htmlSource, /app\.js\?v=v47/);
 });

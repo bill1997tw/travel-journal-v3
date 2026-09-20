@@ -2418,11 +2418,6 @@ function handleGuideSubmit(event) {
     showToast("封面網址格式不正確，請使用 http 或 https 連結", "error");
     return;
   }
-  if (kind !== "note" && !url) {
-    showToast("圖片、短影片與文章攻略需要填寫網址", "error");
-    return;
-  }
-
   const now = new Date().toISOString();
   const guides = ensureGuideState(trip);
   const existingIndex = guides.findIndex(item => item.id === id);
