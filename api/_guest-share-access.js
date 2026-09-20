@@ -44,7 +44,15 @@ async function fetchRows(config, table, params, fetchImpl = fetch) {
   const url = new URL(`${config.supabaseUrl}/rest/v1/${table}`);
   Object.entries(params).forEach(([name, value]) => url.searchParams.set(name, value));
   const response = await fetchImpl(url, { headers: serviceHeaders(config) });
-  if (!response.ok) throw new Error("share_service_unavailable");
+  if (!response.ok) {
+    // Keep credentials and response bodies out of logs while still making
+    // Preview configuration failures diagnosable from Vercel's request logs.
+    console.error("guest_share_supabase_request_failed", {
+      table,
+      status: response.status
+    });
+    throw new Error("share_service_unavailable");
+  }
   const rows = await response.json().catch(() => []);
   return Array.isArray(rows) ? rows : [];
 }
