@@ -245,8 +245,12 @@ function parseAuthorizedStorageReference(context, descriptor) {
   const parts = path.split("/");
   const fileMatch = String(parts[3] || "").match(/^([0-9a-f-]{36})\.(jpg|jpeg|png|webp)$/i);
   const expectedFolder = bucket === LEGACY_GUIDE_BUCKET ? "guide-snapshots" : "trips";
+  const allowedTripIds = new Set([
+    String(context.trip.id || "").toLowerCase(),
+    String(context.sourceTrip?.id || "").toLowerCase()
+  ].filter(Boolean));
   if (parts.length !== 4 || !UUID_PATTERN.test(parts[0]) || parts[1] !== expectedFolder
-    || parts[2].toLowerCase() !== String(context.trip.id).toLowerCase()
+    || !allowedTripIds.has(parts[2].toLowerCase())
     || !fileMatch || !UUID_PATTERN.test(fileMatch[1])) {
     return null;
   }

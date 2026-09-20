@@ -9,6 +9,7 @@ const TOKEN = "a".repeat(64);
 const USER_A = "11111111-1111-4111-8111-111111111111";
 const TRIP_A = "22222222-2222-4222-8222-222222222222";
 const TRIP_B = "33333333-3333-4333-8333-333333333333";
+const LOCAL_TRIP_A = "trip-local-yilan";
 const MEDIA = "44444444-4444-4444-8444-444444444444.jpg";
 const GUIDE_MEDIA = "55555555-5555-4555-8555-555555555555.webp";
 const CONFIG = { supabaseUrl: "https://project.supabase.co", serviceRoleKey: "service-secret" };
@@ -21,8 +22,9 @@ function response(payload, status = 200) {
   };
 }
 
-function createContext({ includeVouchers = true, expiresAt = null, revokedAt = null, fileTripId = TRIP_A, guideTripId = TRIP_A } = {}) {
+function createContext({ includeVouchers = true, expiresAt = null, revokedAt = null, fileTripId = TRIP_A, guideTripId = LOCAL_TRIP_A } = {}) {
   const sourceTrip = {
+    id: LOCAL_TRIP_A,
     vouchers: [{
       id: "voucher-1",
       title: "小明的車票",
@@ -126,7 +128,7 @@ test("legacy travel guide snapshots are exposed through the guarded guest media 
     access.parseAuthorizedStorageReference(context, "guide:guide-1:cover"),
     {
       bucket: "travel-guide-assets",
-      path: `${USER_A}/guide-snapshots/${TRIP_A}/${GUIDE_MEDIA}`
+      path: `${USER_A}/guide-snapshots/${LOCAL_TRIP_A}/${GUIDE_MEDIA}`
     }
   );
 });
