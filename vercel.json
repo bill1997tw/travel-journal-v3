@@ -21,6 +21,15 @@
       "headers": [
         {
           "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)\\.css",
+      "headers": [
+        {
+          "key": "Cache-Control",
           "value": "no-cache"
         }
       ]
@@ -35,7 +44,7 @@
       ]
     },
     {
-      "source": "/(app|cloud-sync|supabase-config|media-uploader).js",
+      "source": "/(app|app-entry|account-cloud-share|account-favorites|cloud-sync|supabase-config|media-uploader|tag-chips|mobile-viewport).js",
       "headers": [
         {
           "key": "Cache-Control",

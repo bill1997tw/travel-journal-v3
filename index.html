@@ -8,9 +8,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>悠遊小本本 Voyage Book | 您的專屬旅行規劃與分帳管家</title>
   <meta name="description" content="悠遊小本本是一個為自助旅行與重機愛好者設計的精美企劃工具，包含詳細日程、景點與餐廳備案庫、行李打包清單、多人費用代墊分帳以及回憶日記。">
-  <link rel="stylesheet" href="index.css?v=v46">
+  <link rel="stylesheet" href="index.css?v=v50">
   <link rel="stylesheet" href="cloud-sync.css?v=v40">
   <link rel="stylesheet" href="app-entry.css?v=v35">
+  <link rel="stylesheet" href="mobile-viewport.css?v=v1">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/app-icon.svg">
@@ -1971,9 +1972,9 @@
             <input type="text" class="form-input" id="guide-title" maxlength="120" placeholder="例如：雨天備案與交通提醒" required>
           </div>
           <div class="form-group">
-            <label for="guide-url">圖片或內容網址</label>
-            <input type="url" class="form-input" id="guide-url" maxlength="2000" placeholder="https://...（文字備忘可留空）">
-            <small class="form-hint">目前使用網路連結保存，不會把大型圖片或影片直接塞進帳號資料。</small>
+            <label for="guide-url">相關連結（選填）</label>
+            <input type="url" class="form-input" id="guide-url" maxlength="2000" placeholder="Instagram、地圖、文章或影片網址（可留空）">
+            <small class="form-hint">沒有網址也能儲存；可只填標題、封面、摘要或標籤。填寫時僅接受 http／https 連結。</small>
           </div>
           <div class="form-group">
             <label for="guide-cover-url">封面圖片網址</label>
@@ -1998,7 +1999,7 @@
         </div>
         <div style="display:flex; justify-content:flex-end; gap:1rem; border-top:1px solid var(--border-color); padding-top:1.5rem; margin-top:1rem;">
           <button type="button" class="btn btn-secondary" id="guide-modal-cancel">取消</button>
-          <button type="submit" class="btn btn-primary">儲存攻略</button>
+          <button type="submit" class="btn btn-primary" id="guide-submit-btn">儲存攻略</button>
         </div>
       </form>
     </div>
@@ -2356,7 +2357,7 @@
             <input type="checkbox" id="share-scope-ledger"> 小二帳本及目前結算
           </label>
           <label style="display:flex; align-items:center; gap:0.5rem; grid-column:span 2; cursor:pointer;">
-            <input type="checkbox" id="share-scope-tickets"> 票券摘要（不含檔案、QR Code、連結與備註）
+            <input type="checkbox" id="share-scope-tickets"> 票券、憑證、備註與附件
           </label>
           <label style="display:flex; align-items:center; gap:0.5rem; grid-column:span 2; cursor:pointer;">
             <input type="checkbox" id="share-scope-diary">
@@ -2378,7 +2379,7 @@
 
       <!-- 敏感資訊防護聲明 -->
       <div style="font-size:0.75rem; color:var(--text-secondary); background:rgba(255,255,255,0.05); padding:0.75rem; border-radius:8px; margin-bottom:1.25rem; line-height:1.4;">
-        🛡️ <b>隱私保護須知：</b>私人備註、收款帳號、條碼/QR Code、訂單完整編號及未主動公開的個人欠款均自動遮蔽。
+        🛡️ <b>隱私保護須知：</b>只有您勾選的區段會公開；收款帳號、登入資訊、內部識別碼及未主動公開的個人欠款仍會自動遮蔽。
       </div>
 
       <!-- 連結展示與操作區 -->
@@ -2454,13 +2455,15 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js"></script>
   <script src="app-entry.js?v=v41"></script>
+  <script src="mobile-viewport.js?v=v1"></script>
   <script src="trip-identity.js?v=v1"></script>
   <script src="local-account-vault.js?v=v1"></script>
-  <script src="cloud-sync.js?v=v38"></script>
-  <script type="module" src="account-cloud-share.js?v=v14"></script>
+  <script src="cloud-sync.js?v=v39"></script>
+  <script src="tag-chips.js?v=v1"></script>
+  <script type="module" src="account-cloud-share.js?v=v16"></script>
   <script src="exchange-rate.js?v=v1"></script>
   <script src="media-uploader.js?v=v3"></script>
-  <script src="app.js?v=v45"></script>
-  <script src="account-favorites.js?v=v8"></script>
+  <script src="app.js?v=v48"></script>
+  <script src="account-favorites.js?v=v9"></script>
 </body>
 </html>

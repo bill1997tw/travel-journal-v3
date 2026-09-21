@@ -1,0 +1,29 @@
+/* Mobile Safari input and keyboard viewport hardening.
+   This file is intentionally loaded after every feature stylesheet. */
+@media (max-width: 768px) {
+  html body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  html body textarea,
+  html body select {
+    font-size: 16px !important;
+  }
+
+  .app-entry,
+  .modal-overlay.active,
+  .account-cloud-overlay {
+    min-height: var(--voyage-visual-viewport-height, 100dvh);
+  }
+
+  .modal-overlay .modal-content {
+    max-height: min(
+      88vh,
+      calc(var(--voyage-visual-viewport-height, 100dvh) - env(safe-area-inset-top) - 0.75rem)
+    ) !important;
+    overscroll-behavior: contain;
+  }
+
+  body.voyage-mobile-keyboard-open .modal-overlay .modal-content,
+  body.voyage-mobile-keyboard-open .app-entry-card {
+    animation: none !important;
+    transform: none !important;
+  }
+}
