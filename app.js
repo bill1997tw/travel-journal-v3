@@ -699,6 +699,14 @@ function ensureScheduleTimeControls() {
   const wrapper = document.createElement("div");
   wrapper.id = "s-time-range-controls";
   wrapper.innerHTML = `
+    <div class="schedule-time-kind">
+      <label for="s-time-type">時間性質</label>
+      <select class="form-select" id="s-time-type">
+        <option value="estimated">預估時間（可彈性調整）</option>
+        <option value="fixed">固定時間（預約／班次）</option>
+        <option value="unset">未設定時間</option>
+      </select>
+    </div>
     <div class="time-range-grid">
       <select class="form-select" id="s-time-start" required>
         <option value="">開始時間</option>
@@ -715,11 +723,24 @@ function ensureScheduleTimeControls() {
 
   const startSelect = document.getElementById("s-time-start");
   const endSelect = document.getElementById("s-time-end");
+  const typeSelect = document.getElementById("s-time-type");
   const timeOptions = buildScheduleTimeOptions();
   timeOptions.forEach(timeValue => {
     startSelect.appendChild(new Option(timeValue, timeValue));
     endSelect.appendChild(new Option(timeValue, timeValue));
   });
+  typeSelect.addEventListener("change", syncScheduleTimeTypeControls);
+}
+
+function syncScheduleTimeTypeControls() {
+  const typeSelect = document.getElementById("s-time-type");
+  const startSelect = document.getElementById("s-time-start");
+  const endSelect = document.getElementById("s-time-end");
+  if (!typeSelect || !startSelect || !endSelect) return;
+  const isUnset = typeSelect.value === "unset";
+  startSelect.disabled = isUnset;
+  endSelect.disabled = isUnset;
+  startSelect.required = !isUnset;
 }
 
 function parseScheduleTimeValue(timeText) {
@@ -730,17 +751,21 @@ function parseScheduleTimeValue(timeText) {
   };
 }
 
-function setScheduleTimeControls(timeText = "") {
+function setScheduleTimeControls(timeText = "", timeType = "") {
   ensureScheduleTimeControls();
   const startSelect = document.getElementById("s-time-start");
   const endSelect = document.getElementById("s-time-end");
   const timeInput = document.getElementById("s-time");
-  if (!startSelect || !endSelect || !timeInput) return;
+  const typeSelect = document.getElementById("s-time-type");
+  if (!startSelect || !endSelect || !timeInput || !typeSelect) return;
 
   const { start, end } = parseScheduleTimeValue(timeText);
   startSelect.value = start;
   endSelect.value = end;
   timeInput.value = timeText || "";
+  typeSelect.value = window.VoyageItineraryTime?.normalizeTimeType(timeType, timeText)
+    || (start ? "estimated" : "unset");
+  syncScheduleTimeTypeControls();
 }
 
 function buildScheduleTimeValue() {
@@ -748,7 +773,13 @@ function buildScheduleTimeValue() {
   const startSelect = document.getElementById("s-time-start");
   const endSelect = document.getElementById("s-time-end");
   const timeInput = document.getElementById("s-time");
-  if (!startSelect || !endSelect || !timeInput) return "";
+  const typeSelect = document.getElementById("s-time-type");
+  if (!startSelect || !endSelect || !timeInput || !typeSelect) return "";
+
+  if (typeSelect.value === "unset") {
+    timeInput.value = "";
+    return "";
+  }
 
   const start = startSelect.value.trim();
   const end = endSelect.value.trim();
@@ -1914,6 +1945,105 @@ function switchWorkspaceTab(tabId) {
 // 🗂️ 全景看板跨天/同天拖曳移動處理函數
 // ==================== WORKSPACE A: 詳細行程與備案 ====================
 let itineraryViewMode = "overview"; // 'overview' | 'singleday'
+const dismissedItineraryConflictKeys = new Set();
+
+function getItineraryConflictKey(trip, dayData) {
+  const identity = trip?._cloud?.tripId || trip?.clientTripUuid || trip?.id || "trip";
+  const signature = (dayData?.items || [])
+    .map(item => `${item.id || ""}:${item.time || ""}`)
+    .join("|");
+  return `${identity}:${dayData?.dayNum || 1}:${signature}`;
+}
+
+function getActiveScheduleContext(itemId = "") {
+  const trip = trips.find(candidate => candidate.id === activeTripId);
+  const dayData = trip?.itinerary?.days?.find(day => day.dayNum === activeItineraryDay);
+  const item = itemId ? dayData?.items?.find(candidate => candidate.id === itemId) : null;
+  return { trip, dayData, item };
+}
+
+window.openInlineScheduleTimeEditor = function(event, itemId) {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  document.querySelectorAll(".inline-time-editor:not([hidden])").forEach(editor => {
+    editor.hidden = true;
+  });
+  const itemElement = document.querySelector(`.ws-time-item[data-id="${CSS.escape(String(itemId))}"]`);
+  const editor = itemElement?.querySelector(".inline-time-editor");
+  if (!editor) return;
+  editor.hidden = false;
+  editor.querySelector('input[type="time"]:not(:disabled)')?.focus();
+};
+
+window.openOverviewScheduleTimeEditor = function(event, itemId, dayNum) {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  selectWorkspaceItineraryDay(dayNum, { scrollToDetail: true });
+  window.requestAnimationFrame(() => window.openInlineScheduleTimeEditor(null, itemId));
+};
+
+window.cancelInlineScheduleTimeEditor = function(event) {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  event?.currentTarget?.closest(".inline-time-editor")?.setAttribute("hidden", "");
+};
+
+window.syncInlineScheduleTimeType = function(select) {
+  const editor = select?.closest(".inline-time-editor");
+  if (!editor) return;
+  const isUnset = select.value === "unset";
+  editor.querySelectorAll('input[type="time"]').forEach(input => {
+    input.disabled = isUnset;
+  });
+};
+
+window.saveInlineScheduleTime = function(event, itemId) {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  const { trip, item } = getActiveScheduleContext(itemId);
+  const editor = event?.currentTarget?.closest(".inline-time-editor");
+  if (!trip || !item || !editor) return;
+  const timeType = editor.querySelector("[data-inline-time-type]")?.value || "estimated";
+  const start = editor.querySelector("[data-inline-time-start]")?.value || "";
+  const end = editor.querySelector("[data-inline-time-end]")?.value || "";
+  const nextTime = timeType === "unset"
+    ? ""
+    : window.VoyageItineraryTime?.buildTimeValue(start, end);
+  if (timeType !== "unset" && !start) {
+    showToast("請選擇開始時間，或改成「未設定時間」。", "error");
+    return;
+  }
+  if (nextTime === null) {
+    showToast("結束時間要晚於開始時間。", "error");
+    return;
+  }
+  pushItineraryHistorySnapshot(trip);
+  item.time = nextTime || "";
+  item.timeType = timeType;
+  persistTrips();
+  renderWorkspaceItinerary();
+  showToast("行程時間已更新。", "success");
+};
+
+window.keepItineraryTimeOrder = function(event) {
+  event?.preventDefault?.();
+  const { trip, dayData } = getActiveScheduleContext();
+  if (!trip || !dayData) return;
+  dismissedItineraryConflictKeys.add(getItineraryConflictKey(trip, dayData));
+  renderWorkspaceItinerary();
+  showToast("已保留目前順序與時間。", "success");
+};
+
+window.autoSortItineraryByTime = function(event) {
+  event?.preventDefault?.();
+  const { trip, dayData } = getActiveScheduleContext();
+  if (!trip || !dayData || !window.VoyageItineraryTime) return;
+  pushItineraryHistorySnapshot(trip);
+  dayData.items = window.VoyageItineraryTime.sortItemsChronologically(dayData.items);
+  persistTrips();
+  renderWorkspaceItinerary();
+  showToast("已依開始時間重排行程；固定時間本身沒有被修改。", "success");
+};
 
 window.switchItineraryViewMode = function(mode) {
   itineraryViewMode = mode;
@@ -2091,7 +2221,7 @@ function renderOverviewBoard(trip) {
 
         cardEl.innerHTML = `
           <div class="overview-item-top">
-            <span class="overview-item-time">${escapeHTML(item.time || '')}</span>
+            <button type="button" class="overview-item-time" onclick="openOverviewScheduleTimeEditor(event, '${escapeHTML(item.id)}', ${i})" title="直接修改時間">${escapeHTML(item.time || '未設定')}</button>
             <button class="ws-title-copy-btn" onclick="event.stopPropagation(); copyToClipboard('${safeTitle.replace(/'/g, "\\'")}')" title="複製名稱">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
               複製
@@ -2644,12 +2774,34 @@ function renderSingleDayTimeline(trip, dayNum) {
     `;
   } else {
     const typeIcons = { "flight": "✈️", "train": "🚆", "bike": "🏍️", "food": "🍜", "hotel": "🏨", "sight": "📷", "other": "📍" };
+    const timeApi = window.VoyageItineraryTime;
+    const conflicts = timeApi?.detectConflicts(scheduleItems) || [];
+    const conflictItemIds = new Set(conflicts.flatMap(conflict => [conflict.previousId, conflict.currentId]));
+    const conflictKey = getItineraryConflictKey(trip, dayData);
+    if (conflicts.length && !dismissedItineraryConflictKeys.has(conflictKey)) {
+      timelineContainer.innerHTML = `
+        <div class="itinerary-time-conflict" role="status">
+          <div>
+            <strong>時間順序有衝突</strong>
+            <span>${conflicts.length} 組行程沒有依開始時間排列。</span>
+          </div>
+          <div class="itinerary-time-conflict-actions">
+            <button type="button" class="btn btn-primary" onclick="autoSortItineraryByTime(event)">自動調整順序</button>
+            <button type="button" class="btn btn-secondary" onclick="keepItineraryTimeOrder(event)">保留原時間</button>
+          </div>
+        </div>
+      `;
+    }
     
     scheduleItems.forEach(item => {
       const icon = typeIcons[item.type] || "📍";
       const isHigh = item.highlight ? "highlight" : "";
+      const hasTimeConflict = conflictItemIds.has(String(item.id || ""));
+      const parsedTime = timeApi?.parseTimeRange(item.time) || parseScheduleTimeValue(item.time);
+      const timeType = timeApi?.inferTimeType(item) || (parsedTime.start ? "estimated" : "unset");
+      const timeTypeLabel = timeApi?.getTimeTypeLabel(timeType) || "預估";
       const itemEl = document.createElement("div");
-      itemEl.className = `ws-time-item ${isHigh}`;
+      itemEl.className = `ws-time-item ${isHigh} ${hasTimeConflict ? "has-time-conflict" : ""}`.trim();
       itemEl.setAttribute("draggable", "true");
       itemEl.setAttribute("data-id", item.id);
       
@@ -2720,7 +2872,10 @@ function renderSingleDayTimeline(trip, dayNum) {
       }
 
       itemEl.innerHTML = `
-        <div class="ws-time-label">${escapeHTML(item.time)}</div>
+        <button type="button" class="ws-time-label ws-inline-time-trigger" onclick="openInlineScheduleTimeEditor(event, '${escapeHTML(item.id)}')" title="直接修改時間">
+          <span>${escapeHTML(item.time || "未設定")}</span>
+          <small>${escapeHTML(timeTypeLabel)}</small>
+        </button>
         <div class="ws-time-dot"></div>
         <div class="ws-time-card">
           <div class="ws-time-card-header">
@@ -2740,6 +2895,27 @@ function renderSingleDayTimeline(trip, dayNum) {
           </div>
           ${item.content ? `<div class="ws-time-card-desc">${escapeHTML(item.content)}</div>` : ''}
           ${metaHtml}
+          <div class="inline-time-editor" hidden>
+            <div class="inline-time-editor-fields">
+              <label>時間性質
+                <select class="form-select" data-inline-time-type onchange="syncInlineScheduleTimeType(this)">
+                  <option value="estimated" ${timeType === "estimated" ? "selected" : ""}>預估</option>
+                  <option value="fixed" ${timeType === "fixed" ? "selected" : ""}>固定</option>
+                  <option value="unset" ${timeType === "unset" ? "selected" : ""}>未設定</option>
+                </select>
+              </label>
+              <label>開始
+                <input class="form-input" type="time" data-inline-time-start value="${escapeHTML(parsedTime.start)}" ${timeType === "unset" ? "disabled" : ""}>
+              </label>
+              <label>結束
+                <input class="form-input" type="time" data-inline-time-end value="${escapeHTML(parsedTime.end)}" ${timeType === "unset" ? "disabled" : ""}>
+              </label>
+            </div>
+            <div class="inline-time-editor-actions">
+              <button type="button" class="btn btn-secondary" onclick="cancelInlineScheduleTimeEditor(event)">取消</button>
+              <button type="button" class="btn btn-primary" onclick="saveInlineScheduleTime(event, '${escapeHTML(item.id)}')">儲存時間</button>
+            </div>
+          </div>
         </div>
       `;
 
@@ -2921,7 +3097,7 @@ function openScheduleModal(itemId = null) {
 
     if (foundItem) {
       document.getElementById("sche-id").value = foundItem.id;
-      setScheduleTimeControls(foundItem.time);
+      setScheduleTimeControls(foundItem.time, foundItem.timeType);
       document.getElementById("s-title").value = foundItem.title;
       document.getElementById("s-type").value = foundItem.type;
       document.getElementById("s-content").value = foundItem.content;
@@ -2960,6 +3136,11 @@ function handleScheduleSubmit(e) {
     showToast("結束時間要晚於開始時間。", "error");
     return;
   }
+  const selectedTimeType = document.getElementById("s-time-type")?.value || "estimated";
+  if (selectedTimeType !== "unset" && !time) {
+    showToast("請選擇開始時間，或改成「未設定時間」。", "error");
+    return;
+  }
   const title = document.getElementById("s-title").value.trim();
   const type = document.getElementById("s-type").value;
   const content = document.getElementById("s-content").value.trim();
@@ -2968,6 +3149,10 @@ function handleScheduleSubmit(e) {
   const address = document.getElementById("s-address").value.trim();
   const rating = document.getElementById("s-rating").value.trim();
   const hours = document.getElementById("s-hours").value.trim();
+  const timeType = window.VoyageItineraryTime?.normalizeTimeType(
+    selectedTimeType,
+    time
+  ) || (time ? "estimated" : "unset");
 
   pushItineraryHistorySnapshot(trip, { activeDay: dayNum });
 
@@ -2992,14 +3177,14 @@ function handleScheduleSubmit(e) {
     // 編輯
     const idx = dayData.items.findIndex(item => item.id === id);
     if (idx !== -1) {
-      dayData.items[idx] = { id, time, title, type, content, highlight, mapsUrl, address, rating, hours };
+      dayData.items[idx] = { id, time, timeType, title, type, content, highlight, mapsUrl, address, rating, hours };
     }
     showToast("行程項目已成功修改！", "success");
   } else {
     // 新增
     const newItem = {
       id: "sche-" + Date.now(),
-      time, title, type, content, highlight, mapsUrl, address, rating, hours
+      time, timeType, title, type, content, highlight, mapsUrl, address, rating, hours
     };
     dayData.items.push(newItem);
     showToast("已成功新增行程日程！", "success");

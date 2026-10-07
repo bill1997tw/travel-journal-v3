@@ -73,7 +73,7 @@ test("mobile form controls avoid iOS focus zoom without disabling page zoom", ()
 });
 
 test("service worker upgrades mutable assets and reloads a newly controlled page once", () => {
-  assert.match(worker, /voyage-book-shell-v86/);
+  assert.match(worker, /voyage-book-shell-v87/);
   assert.match(worker, /mobile-viewport\.css\?v=v1/);
   assert.match(worker, /mobile-viewport\.js\?v=v1/);
   assert.match(worker, /cache: "reload"/);
