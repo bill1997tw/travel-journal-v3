@@ -74,6 +74,6 @@ test("mobile inline time editor uses native controls without iOS focus zoom", ()
   assert.match(cssSource, /\.inline-time-editor[\s\S]*position:\s*fixed/);
   assert.match(cssSource, /\.inline-time-editor-fields \.form-input,[\s\S]*font-size:\s*16px/);
   assert.match(appSource, /type="time" data-inline-time-start/);
-  assert.match(swSource, /voyage-book-shell-v88/);
+  assert.match(swSource, /voyage-book-shell-v89/);
   assert.match(swSource, /itinerary-time\.js\?v=v1/);
 });

@@ -498,7 +498,21 @@ function applyInitialView() {
 function refreshResponsiveShell() {
   const activeView = activeTripId ? "workspace" : currentPrimaryView;
   syncAppShellState(activeView);
+  updateMobileBackToTopVisibility();
 }
+
+function updateMobileBackToTopVisibility() {
+  const button = document.getElementById("mobile-back-to-top");
+  if (!button) return;
+
+  const shouldShow = isMobileViewport() && Boolean(activeTripId) && window.scrollY > 480;
+  button.classList.toggle("is-visible", shouldShow);
+}
+
+window.scrollMobileWorkspaceToTop = function() {
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  document.getElementById("mobile-back-to-top")?.blur();
+};
 
 function buildScheduleTimeOptions() {
   const options = [];
@@ -1011,6 +1025,7 @@ function setupEventListeners() {
   // 主題切換
   document.getElementById("theme-toggle-btn").addEventListener("click", toggleTheme);
   window.addEventListener("resize", refreshResponsiveShell);
+  window.addEventListener("scroll", updateMobileBackToTopVisibility, { passive: true });
 
   // 客製化標題 Logo 與招呼語編輯
   document.getElementById("edit-logo-btn").addEventListener("click", (e) => {

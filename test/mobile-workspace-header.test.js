@@ -34,9 +34,19 @@ test("mobile management actions reuse existing desktop behavior and owner permis
 });
 
 test("mobile shell cache versions are bumped for the compact workspace UI", () => {
-  assert.match(html, /index\.css\?v=v51/);
-  assert.match(html, /app\.js\?v=v49/);
-  assert.match(worker, /voyage-book-shell-v88/);
-  assert.match(worker, /index\.css\?v=v51/);
-  assert.match(worker, /app\.js\?v=v49/);
+  assert.match(html, /index\.css\?v=v52/);
+  assert.match(html, /app\.js\?v=v50/);
+  assert.match(worker, /voyage-book-shell-v89/);
+  assert.match(worker, /index\.css\?v=v52/);
+  assert.match(worker, /app\.js\?v=v50/);
+});
+
+test("mobile workspace offers a contextual back-to-top control", () => {
+  assert.match(html, /id="mobile-back-to-top"/);
+  assert.match(html, /onclick="scrollMobileWorkspaceToTop\(\)"/);
+  assert.match(css, /body\.mobile-workspace-mode \.mobile-back-to-top\.is-visible/);
+  assert.match(css, /bottom:\s*calc\(5\.25rem \+ env\(safe-area-inset-bottom, 0px\)\)/);
+  assert.match(app, /window\.scrollY > 480/);
+  assert.match(app, /window\.scrollTo\(\{ top: 0, behavior: "smooth" \}\)/);
+  assert.match(app, /addEventListener\("scroll", updateMobileBackToTopVisibility, \{ passive: true \}\)/);
 });
