@@ -15,7 +15,8 @@ const shareSource = fs.readFileSync(
 test("workspace cloud actions follow the signed-in trip role", () => {
   assert.match(appSource, /function\(\) \{\s*const trip = trips\.find\(item => item\.id === activeTripId\)/);
   assert.match(appSource, /window\.voyageAccountCloud\?\.getRoleForTrip\?\.\(cloudTripId\)/);
-  assert.match(appSource, /shareButton\.hidden = role !== "owner"/);
+  assert.match(appSource, /\[shareButton, mobileShareButton\]\.forEach/);
+  assert.match(appSource, /button\.hidden = role !== "owner"/);
   assert.match(appSource, /document\.body\.dataset\.activeCloudRole = role \|\| "local"/);
   assert.match(cloudSource, /window\.refreshWorkspaceCloudPermissions\?\.\(\)/);
 });

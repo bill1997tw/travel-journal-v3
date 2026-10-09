@@ -1,12 +1,12 @@
-const CACHE_NAME = "voyage-book-shell-v87";
+const CACHE_NAME = "voyage-book-shell-v88";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./index.css?v=v50",
+  "./index.css?v=v51",
   "./cloud-sync.css?v=v40",
   "./app-entry.css?v=v35",
   "./mobile-viewport.css?v=v1",
-  "./app.js?v=v48",
+  "./app.js?v=v49",
   "./media-uploader.js?v=v3",
   "./account-cloud-share.js?v=v16",
   "./account-favorites.js?v=v9",

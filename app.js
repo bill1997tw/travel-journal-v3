@@ -1076,7 +1076,30 @@ function setupEventListeners() {
     btn.addEventListener("click", () => {
       const tabId = btn.getAttribute("data-ws-tab");
       switchWorkspaceTab(tabId);
+      btn.closest("#mobile-workspace-more")?.removeAttribute("open");
     });
+  });
+
+  const mobileWorkspaceMore = document.getElementById("mobile-workspace-more");
+  mobileWorkspaceMore?.addEventListener("click", event => {
+    const actionButton = event.target.closest("[data-mobile-workspace-action]");
+    if (!actionButton) return;
+
+    mobileWorkspaceMore.removeAttribute("open");
+    const action = actionButton.getAttribute("data-mobile-workspace-action");
+    if (action === "edit") {
+      document.getElementById("ws-edit-trip-btn")?.click();
+    } else if (action === "share") {
+      document.getElementById("ws-share-trip-btn")?.click();
+    } else if (action === "delete") {
+      document.getElementById("ws-delete-current-trip-btn")?.click();
+    }
+  });
+
+  document.addEventListener("click", event => {
+    if (mobileWorkspaceMore?.open && !mobileWorkspaceMore.contains(event.target)) {
+      mobileWorkspaceMore.removeAttribute("open");
+    }
   });
   window.VoyageMedia?.bindMediaInput?.({
     zone: tUploadZone,
@@ -1755,13 +1778,15 @@ window.refreshWorkspaceCloudPermissions = function() {
     ? window.voyageAccountCloud?.getRoleForTrip?.(cloudTripId) || null
     : null;
   const shareButton = document.getElementById("ws-share-trip-btn");
-  if (shareButton) {
-    shareButton.hidden = role !== "owner";
-    shareButton.disabled = Boolean(cloudTripId && !role);
-    shareButton.title = role === "owner"
+  const mobileShareButton = document.getElementById("mobile-ws-share-trip-btn");
+  [shareButton, mobileShareButton].forEach(button => {
+    if (!button) return;
+    button.hidden = role !== "owner";
+    button.disabled = Boolean(cloudTripId && !role);
+    button.title = role === "owner"
       ? "建立或管理這趟旅程的免登入唯讀連結"
       : "";
-  }
+  });
   document.body.dataset.activeCloudRole = role || "local";
   refreshDiaryEditPermissions();
 };

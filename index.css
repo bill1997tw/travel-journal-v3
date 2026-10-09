@@ -3953,19 +3953,100 @@ footer {
     position: sticky;
     top: 0;
     z-index: 160;
-    margin: 0;
-    padding: calc(0.85rem + env(safe-area-inset-top, 0px)) 1rem 0;
+    margin: 0 !important;
+    padding: calc(0.55rem + env(safe-area-inset-top, 0px)) 0.75rem 0.45rem;
+    justify-content: space-between;
+    flex-wrap: nowrap !important;
+    background: linear-gradient(180deg, rgba(245, 243, 236, 0.98), rgba(245, 243, 236, 0.88));
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
   }
 
   body.mobile-workspace-mode .workspace-back-bar .btn {
     background: rgba(255, 255, 255, 0.9);
     border: 1px solid rgba(255, 255, 255, 0.55);
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+    min-height: 2.5rem;
+    padding: 0.52rem 0.72rem;
+    font-size: 0.82rem;
+  }
+
+  body.mobile-workspace-mode .workspace-back-bar > [data-ws-tab="diary"] {
+    display: none !important;
+  }
+
+  body.mobile-workspace-mode .mobile-workspace-more {
+    display: block;
+    position: relative;
+    margin-left: auto;
+  }
+
+  body.mobile-workspace-mode .mobile-workspace-more summary {
+    list-style: none;
+    min-height: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.52rem 0.78rem;
+    border: 1px solid rgba(200, 92, 50, 0.18);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    font-weight: 800;
+    box-shadow: 0 8px 20px rgba(45, 38, 33, 0.1);
+    cursor: pointer;
+  }
+
+  body.mobile-workspace-mode .mobile-workspace-more summary::-webkit-details-marker {
+    display: none;
+  }
+
+  body.mobile-workspace-mode .mobile-workspace-more-menu {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    width: min(17rem, calc(100vw - 1.5rem));
+    display: grid;
+    gap: 0.3rem;
+    padding: 0.55rem;
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 18px 42px rgba(45, 38, 33, 0.2);
+  }
+
+  body.mobile-workspace-mode .mobile-workspace-more-menu button {
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.65rem 0.75rem;
+    border: 0;
+    border-radius: 11px;
+    background: transparent;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 700;
+    text-align: left;
+  }
+
+  body.mobile-workspace-mode .mobile-workspace-more-menu button:active,
+  body.mobile-workspace-mode .mobile-workspace-more-menu button.active {
+    background: var(--accent-light);
+    color: var(--accent-color);
+  }
+
+  body.mobile-workspace-mode .mobile-workspace-more-menu button.danger {
+    color: var(--danger);
+  }
+
+  body.mobile-workspace-mode .mobile-workspace-more-menu button[hidden] {
+    display: none !important;
   }
 
   body.mobile-workspace-mode .workspace-header-cover {
-    height: min(28vh, 220px);
-    min-height: 168px;
+    height: 84px;
+    min-height: 84px;
     margin-bottom: 0;
     border-radius: 0 0 28px 28px;
     border-left: none;
@@ -3979,13 +4060,17 @@ footer {
   }
 
   body.mobile-workspace-mode .ws-header-left h1 {
-    font-size: 1.32rem;
-    line-height: 1.12;
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 1.12rem;
+    line-height: 1.18;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
 
-  body.mobile-workspace-mode .ws-header-left p {
-    font-size: 0.76rem;
-    line-height: 1.35;
+  body.mobile-workspace-mode .ws-header-left p,
+  body.mobile-workspace-mode .ws-header-right {
+    display: none;
   }
 
   body.mobile-workspace-mode .workspace-layout {
@@ -3996,21 +4081,20 @@ footer {
   }
 
   body.mobile-workspace-mode .workspace-sidebar {
-    position: sticky;
-    top: calc(3.8rem + env(safe-area-inset-top, 0px));
-    z-index: 150;
-    margin: 0;
-    padding: 0.9rem 1rem 0.65rem;
-    background: linear-gradient(180deg, rgba(245, 243, 236, 0.96) 0%, rgba(245, 243, 236, 0.78) 100%);
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    display: none !important;
   }
 
   [data-theme="dark"] body.mobile-workspace-mode .workspace-sidebar {
     background: linear-gradient(180deg, rgba(9, 13, 22, 0.96) 0%, rgba(9, 13, 22, 0.78) 100%);
+  }
+
+  [data-theme="dark"] body.mobile-workspace-mode .workspace-back-bar {
+    background: linear-gradient(180deg, rgba(9, 13, 22, 0.98), rgba(9, 13, 22, 0.9));
+  }
+
+  [data-theme="dark"] body.mobile-workspace-mode .mobile-workspace-more summary,
+  [data-theme="dark"] body.mobile-workspace-mode .mobile-workspace-more-menu {
+    background: rgba(24, 28, 36, 0.98);
   }
 
   body.mobile-workspace-mode .ws-sidebar-title,
@@ -4455,6 +4539,10 @@ body.guest-readonly-active header.guest-share-hero {
 }
 /* 📱 手機端專屬懸浮快捷工具膠囊 (Mobile Floating Quick Action Dock) */
 .mobile-floating-dock {
+  display: none;
+}
+
+.mobile-workspace-more {
   display: none;
 }
 
