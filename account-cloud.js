@@ -40,6 +40,14 @@
   let autoSaveTimer = null;
   let autoSaveTripId = null;
   let autoSaveMutedUntil = 0;
+  const automaticRemoteRefreshTimers = new Map();
+  const AUTOMATIC_REMOTE_REFRESH_DELAY_MS = 250;
+  const FOREGROUND_SYNC_INTERVAL_MS = 15000;
+  const FOREGROUND_SYNC_THROTTLE_MS = 3000;
+  let foregroundSyncInterval = null;
+  let foregroundSyncPromise = null;
+  let foregroundSyncListenersStarted = false;
+  let lastForegroundSyncAt = 0;
 
   function scheduleTripSave(tripId) {
     if (!tripId) return;
@@ -61,6 +69,82 @@
       if (role !== "owner" && role !== "editor") return;
       await saveImportedTrip(targetTripId, { automatic: true });
     }, 1200);
+  }
+
+  function clearAutomaticRemoteRefreshes() {
+    for (const timer of automaticRemoteRefreshTimers.values()) {
+      window.clearTimeout(timer);
+    }
+    automaticRemoteRefreshTimers.clear();
+  }
+
+  function scheduleAutomaticRemoteRefresh(tripId, attempt = 0) {
+    if (!tripId) return;
+    const existingTimer = automaticRemoteRefreshTimers.get(tripId);
+    if (existingTimer) window.clearTimeout(existingTimer);
+
+    const timer = window.setTimeout(async () => {
+      automaticRemoteRefreshTimers.delete(tripId);
+      const notice = state.remoteUpdates[tripId];
+      if (!notice || notice.mode !== "refresh_available") return;
+
+      if (state.busy || state.savingTripIds.has(tripId)) {
+        if (attempt < 12) scheduleAutomaticRemoteRefresh(tripId, attempt + 1);
+        return;
+      }
+
+      await handleRemoteUpdateAction(tripId, { automatic: true });
+    }, AUTOMATIC_REMOTE_REFRESH_DELAY_MS + Math.min(attempt, 4) * 250);
+
+    automaticRemoteRefreshTimers.set(tripId, timer);
+  }
+
+  async function refreshCloudTripsInForeground(source = "foreground") {
+    if (
+      !state.client
+      || !state.session
+      || !navigator.onLine
+      || document.visibilityState === "hidden"
+      || state.busy
+      || state.savingTripIds.size > 0
+    ) return false;
+
+    if (foregroundSyncPromise) return foregroundSyncPromise;
+    const now = Date.now();
+    if (now - lastForegroundSyncAt < FOREGROUND_SYNC_THROTTLE_MS) return false;
+    lastForegroundSyncAt = now;
+
+    foregroundSyncPromise = loadTrips()
+      .then(() => true)
+      .catch((error) => {
+        console.warn(`Cross-device sync check failed (${source}).`, error);
+        return false;
+      })
+      .finally(() => {
+        foregroundSyncPromise = null;
+      });
+    return foregroundSyncPromise;
+  }
+
+  function requestForegroundSync(source) {
+    window.setTimeout(() => {
+      refreshCloudTripsInForeground(source);
+    }, 100);
+  }
+
+  function startForegroundSyncChecks() {
+    if (!foregroundSyncListenersStarted) {
+      foregroundSyncListenersStarted = true;
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") requestForegroundSync("visibility");
+      });
+      window.addEventListener("focus", () => requestForegroundSync("focus"));
+    }
+    if (!foregroundSyncInterval) {
+      foregroundSyncInterval = window.setInterval(() => {
+        refreshCloudTripsInForeground("interval");
+      }, FOREGROUND_SYNC_INTERVAL_MS);
+    }
   }
 
   function hasConfig() {
@@ -1087,9 +1171,12 @@
     if (previous && previous.revision >= remoteRevision) return;
     state.remoteUpdates[tripId] = { revision: remoteRevision, mode };
     renderTrips();
+    if (mode === "refresh_available") {
+      scheduleAutomaticRemoteRefresh(tripId);
+    }
     setMessage(
       mode === "refresh_available"
-        ? "雲端已有新版本；本機沒有未儲存修改，可由您決定是否重新載入。"
+        ? "偵測到另一台裝置的新版本，正在自動同步。"
         : "雲端已有新版本，但本機也有修改；請先比較版本，不會自動覆蓋。",
       mode === "compare_required"
     );
@@ -1256,7 +1343,7 @@
     }
   }
 
-  async function handleRemoteUpdateAction(tripId) {
+  async function handleRemoteUpdateAction(tripId, options = {}) {
     const importApi = getImportApi();
     const notice = state.remoteUpdates[tripId];
     const localTrip = findImportedTrip(tripId);
@@ -1272,7 +1359,8 @@
     if (currentMode === "compare_required") {
       state.remoteUpdates[tripId].mode = "compare_required";
       renderTrips();
-      await openConflictComparison(tripId, localTrip);
+      setMessage("雲端已有新版本，但本機也有修改；請先比較版本，不會自動覆蓋。", true);
+      if (!options.automatic) await openConflictComparison(tripId, localTrip);
       return;
     }
 
@@ -1287,13 +1375,18 @@
         state.queuedDrafts.find((draft) => draft.tripId === tripId) || null,
         remoteCandidate._cloud.revision
       );
+      if (latestMode === "ignore") {
+        delete state.remoteUpdates[tripId];
+        renderTrips();
+        return;
+      }
       if (latestMode !== "refresh_available") {
         state.remoteUpdates[tripId] = {
           revision: remoteCandidate._cloud.revision,
           mode: latestMode
         };
         renderTrips();
-        if (latestMode === "compare_required") {
+        if (latestMode === "compare_required" && !options.automatic) {
           await openConflictComparison(tripId, findImportedTrip(tripId));
         }
         return;
@@ -1304,9 +1397,14 @@
       );
       delete state.remoteUpdates[tripId];
       ui.undoButton.hidden = false;
+      autoSaveMutedUntil = Date.now() + 3000;
       window.voyageApp?.rehydrateAndRender?.();
       renderTrips();
-      setMessage(`已載入雲端 revision ${remoteCandidate._cloud.revision}；載入前本機版本已備份。`);
+      setMessage(
+        options.automatic
+          ? `已自動同步另一台裝置的更新（revision ${remoteCandidate._cloud.revision}）。`
+          : `已載入雲端 revision ${remoteCandidate._cloud.revision}；載入前本機版本已備份。`
+      );
     } catch (error) {
       setMessage(error.message || "無法載入雲端最新版，本機資料未變更。", true);
     } finally {
@@ -2019,6 +2117,7 @@
 
   function clearSignedOutState() {
     stopRealtimeUpdates();
+    clearAutomaticRemoteRefreshes();
     state.session = null;
     state.trips = [];
     state.archivedTrips = [];
@@ -2500,6 +2599,7 @@
       return;
     }
     startAuthUpdates();
+    startForegroundSyncChecks();
 
     try {
       const { data, error } = await client.auth.getSession();
@@ -2571,6 +2671,7 @@
 
   window.addEventListener("online", () => {
     refreshQueue();
+    requestForegroundSync("online");
     if (state.queuedDrafts.length > 0) {
       setMessage("網路已恢復；離線草稿仍保留，請確認後手動重試。");
     }

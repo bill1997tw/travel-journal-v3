@@ -8495,9 +8495,33 @@ function startLogoEdit() {
 
 window.voyageApp = {
   rehydrateAndRender() {
+    const workspaceState = activeTripId ? {
+      tripId: activeTripId,
+      tab: activeWorkspaceTab,
+      day: activeItineraryDay,
+      alternativeTab: activeAlternativeTab,
+      scrollY: window.scrollY
+    } : null;
+
     initData();
     setupTheme();
     renderAll();
+
+    if (workspaceState && trips.some((trip) => trip.id === workspaceState.tripId)) {
+      baseEnterWorkspace(workspaceState.tripId);
+      if (workspaceState.tab !== "itinerary") {
+        switchWorkspaceTab(workspaceState.tab);
+      } else {
+        selectWorkspaceItineraryDay(workspaceState.day);
+        switchAltTab(workspaceState.alternativeTab);
+      }
+      window.refreshWorkspaceCloudPermissions?.();
+      refreshResponsiveShell();
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: workspaceState.scrollY, behavior: "auto" });
+      });
+    }
+
     document.dispatchEvent(new CustomEvent("voyage:app-ready"));
   },
   getFavoriteTripTargets() {

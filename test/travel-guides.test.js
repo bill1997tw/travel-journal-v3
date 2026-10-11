@@ -64,5 +64,5 @@ test("guide release invalidates browser and offline caches", () => {
   assert.match(htmlSource, /index\.css\?v=v52/);
   assert.match(htmlSource, /account-cloud-share\.js\?v=v16/);
   assert.match(htmlSource, /media-uploader\.js\?v=v3/);
-  assert.match(htmlSource, /app\.js\?v=v50/);
+  assert.match(htmlSource, /app\.js\?v=v51/);
 });
