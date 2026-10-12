@@ -36,7 +36,7 @@ test("mobile management actions reuse existing desktop behavior and owner permis
 test("mobile shell cache versions are bumped for the compact workspace UI", () => {
   assert.match(html, /index\.css\?v=v52/);
   assert.match(html, /app\.js\?v=v51/);
-  assert.match(worker, /voyage-book-shell-v92/);
+  assert.match(worker, /voyage-book-shell-v93/);
   assert.match(worker, /index\.css\?v=v52/);
   assert.match(worker, /app\.js\?v=v51/);
 });
