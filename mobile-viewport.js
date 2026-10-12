@@ -14,6 +14,8 @@
   let savedWindowScroll = { left: 0, top: 0 };
   let savedScrollContainer = null;
   let savedContainerScrollTop = 0;
+  let lockedWindowScrollTop = 0;
+  let savedBodyStyles = null;
 
   function isMobileLayout() {
     return !global.matchMedia || global.matchMedia(MOBILE_QUERY).matches;
@@ -71,6 +73,56 @@
         keepFocusedControlVisible();
       }, delay);
     }
+  }
+
+  function getOpenDialogState() {
+    const modalOpen = Array.from(documentRef.querySelectorAll(".modal-overlay")).some((overlay) => {
+      if (overlay.classList.contains("active")) return true;
+      return global.getComputedStyle?.(overlay).display !== "none";
+    });
+    const accountOpen = Boolean(documentRef.querySelector(".account-cloud-overlay.is-open"));
+    const inlineEditorOpen = Boolean(documentRef.querySelector(".inline-time-editor:not([hidden])"));
+    return { anyOpen: modalOpen || accountOpen || inlineEditorOpen, inlineEditorOpen };
+  }
+
+  function lockBackgroundScroll() {
+    if (savedBodyStyles || !documentRef.body) return;
+    lockedWindowScrollTop = global.scrollY || global.pageYOffset || 0;
+    savedBodyStyles = {
+      position: documentRef.body.style.position,
+      top: documentRef.body.style.top,
+      left: documentRef.body.style.left,
+      right: documentRef.body.style.right,
+      width: documentRef.body.style.width,
+      overflow: documentRef.body.style.overflow
+    };
+    documentRef.body.style.position = "fixed";
+    documentRef.body.style.top = `-${lockedWindowScrollTop}px`;
+    documentRef.body.style.left = "0";
+    documentRef.body.style.right = "0";
+    documentRef.body.style.width = "100%";
+    documentRef.body.style.overflow = "hidden";
+  }
+
+  function unlockBackgroundScroll() {
+    if (!savedBodyStyles || !documentRef.body) return;
+    const previousStyles = savedBodyStyles;
+    savedBodyStyles = null;
+    Object.assign(documentRef.body.style, previousStyles);
+    global.scrollTo?.({ left: 0, top: lockedWindowScrollTop, behavior: "auto" });
+  }
+
+  function syncOpenDialogExperience() {
+    const { anyOpen, inlineEditorOpen } = getOpenDialogState();
+    documentRef.body?.classList.toggle("voyage-inline-editor-open", inlineEditorOpen);
+    if (!isMobileLayout()) {
+      documentRef.body?.classList.remove("voyage-modal-scroll-locked");
+      unlockBackgroundScroll();
+      return;
+    }
+    documentRef.body?.classList.toggle("voyage-modal-scroll-locked", anyOpen);
+    if (anyOpen) lockBackgroundScroll();
+    else unlockBackgroundScroll();
   }
 
   function rememberScrollPosition(target) {
@@ -138,12 +190,22 @@
     updateViewportMetrics();
     if (focusedControl && keyboardLooksOpen()) scheduleFocusedControlReveal();
   }, { passive: true });
+  const dialogObserver = new MutationObserver(syncOpenDialogExperience);
+  dialogObserver.observe(documentRef.body, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ["class", "style", "hidden", "aria-hidden"]
+  });
+  global.addEventListener?.("resize", syncOpenDialogExperience, { passive: true });
   global.addEventListener?.("orientationchange", scheduleViewportRestore);
   updateViewportMetrics();
+  syncOpenDialogExperience();
 
   global.VoyageMobileViewport = Object.freeze({
     restoreAfterKeyboard: scheduleViewportRestore,
     revealFocusedControl: scheduleFocusedControlReveal,
+    syncOpenDialogs: syncOpenDialogExperience,
     updateViewportMetrics
   });
 })(typeof window === "undefined" ? globalThis : window);

@@ -13,28 +13,39 @@
     min-height: var(--voyage-visual-viewport-height, 100dvh);
   }
 
-  .modal-overlay .modal-content {
-    max-height: min(
-      88vh,
-      calc(var(--voyage-visual-viewport-height, 100dvh) - env(safe-area-inset-top) - 0.75rem)
-    ) !important;
+  .modal-overlay.active,
+  .modal-overlay[style*="display: flex"],
+  .account-cloud-overlay.is-open {
+    top: var(--voyage-visual-viewport-offset-top, 0) !important;
+    bottom: auto !important;
+    height: var(--voyage-visual-viewport-height, 100dvh) !important;
+    min-height: 0 !important;
+    padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem max(0.75rem, env(safe-area-inset-bottom)) !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden;
     overscroll-behavior: contain;
+  }
+
+  .modal-overlay .modal-content,
+  .account-cloud-overlay .account-cloud-modal {
+    box-sizing: border-box;
+    width: min(100%, 40rem) !important;
+    max-width: calc(100vw - 1.5rem) !important;
+    max-height: min(
+      42rem,
+      calc(var(--voyage-visual-viewport-height, 100dvh) - max(1.5rem, env(safe-area-inset-top)) - max(1.5rem, env(safe-area-inset-bottom)))
+    ) !important;
+    margin: auto !important;
+    border-radius: 20px !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   body.voyage-mobile-keyboard-open .modal-overlay .modal-content,
   body.voyage-mobile-keyboard-open .app-entry-card {
     animation: none !important;
     transform: none !important;
-  }
-
-  body.voyage-mobile-keyboard-open .modal-overlay.active {
-    top: var(--voyage-visual-viewport-offset-top, 0) !important;
-    bottom: auto !important;
-    height: var(--voyage-visual-viewport-height, 100dvh) !important;
-    min-height: 0 !important;
-    padding: 0.5rem 0.75rem 0 !important;
-    align-items: flex-end !important;
-    overflow: hidden;
   }
 
   body.voyage-mobile-keyboard-open .modal-overlay.active .modal-content {
@@ -49,5 +60,36 @@
   body.voyage-mobile-keyboard-open .modal-content :is(input, textarea, select):focus {
     scroll-margin-top: 1rem;
     scroll-margin-bottom: 5rem;
+  }
+
+  body.voyage-modal-scroll-locked {
+    overscroll-behavior: none;
+  }
+
+  body.voyage-modal-scroll-locked :is(.mobile-floating-dock, .mobile-back-to-top, #trips-add-btn) {
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  body.voyage-inline-editor-open::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 1199;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  body.voyage-inline-editor-open .inline-time-editor:not([hidden]) {
+    top: calc(var(--voyage-visual-viewport-offset-top, 0px) + (var(--voyage-visual-viewport-height, 100dvh) / 2));
+    right: 0.75rem;
+    bottom: auto;
+    left: 0.75rem;
+    max-height: calc(var(--voyage-visual-viewport-height, 100dvh) - 1.5rem);
+    margin: 0 auto;
+    transform: translateY(-50%);
+    overscroll-behavior: contain;
   }
 }
