@@ -64,20 +64,23 @@ test("390px itinerary, action, tag and ticket layouts are contained", () => {
 test("mobile form controls avoid iOS focus zoom without disabling page zoom", () => {
   assert.match(html, /width=device-width, initial-scale=1\.0/);
   assert.doesNotMatch(html, /user-scalable\s*=\s*no|maximum-scale\s*=\s*1/i);
-  assert.match(html, /app-entry\.css\?v=v35[\s\S]*mobile-viewport\.css\?v=v1/);
+  assert.match(html, /app-entry\.css\?v=v35[\s\S]*mobile-viewport\.css\?v=v2/);
   assert.match(mobileStyles, /html body input:not\(\[type="checkbox"\]\)[\s\S]*textarea,[\s\S]*select[\s\S]*font-size: 16px !important/);
   assert.match(mobileViewport, /visualViewport/);
   assert.match(mobileViewport, /focusout/);
   assert.match(mobileViewport, /restoreScrollPosition/);
+  assert.match(mobileViewport, /keepFocusedControlVisible/);
+  assert.match(mobileViewport, /scrollIntoView\?\.\(\{ block: "center"/);
+  assert.match(mobileStyles, /body\.voyage-mobile-keyboard-open \.modal-overlay\.active\s*\{[\s\S]*height: var\(--voyage-visual-viewport-height/);
   assert.doesNotMatch(mobileViewport, /maximum-scale|user-scalable/);
 });
 
 test("service worker upgrades mutable assets and reloads a newly controlled page once", () => {
-  assert.match(worker, /voyage-book-shell-v90/);
-  assert.match(worker, /mobile-viewport\.css\?v=v1/);
-  assert.match(worker, /mobile-viewport\.js\?v=v1/);
+  assert.match(worker, /voyage-book-shell-v91/);
+  assert.match(worker, /mobile-viewport\.css\?v=v2/);
+  assert.match(worker, /mobile-viewport\.js\?v=v2/);
   assert.match(worker, /cache: "reload"/);
-  assert.match(cloudSync, /register\("\.\/sw\.js\?v=v86", \{ updateViaCache: "none" \}\)/);
+  assert.match(cloudSync, /register\("\.\/sw\.js\?v=v91", \{ updateViaCache: "none" \}\)/);
   assert.match(cloudSync, /hadServiceWorkerController/);
   assert.match(cloudSync, /controllerchange/);
 });

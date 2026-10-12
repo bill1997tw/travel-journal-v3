@@ -26,4 +26,28 @@
     animation: none !important;
     transform: none !important;
   }
+
+  body.voyage-mobile-keyboard-open .modal-overlay.active {
+    top: var(--voyage-visual-viewport-offset-top, 0) !important;
+    bottom: auto !important;
+    height: var(--voyage-visual-viewport-height, 100dvh) !important;
+    min-height: 0 !important;
+    padding: 0.5rem 0.75rem 0 !important;
+    align-items: flex-end !important;
+    overflow: hidden;
+  }
+
+  body.voyage-mobile-keyboard-open .modal-overlay.active .modal-content {
+    width: 100% !important;
+    margin: 0 auto !important;
+    max-height: calc(var(--voyage-visual-viewport-height, 100dvh) - 0.5rem) !important;
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom)) !important;
+    scroll-padding-top: 1rem;
+    scroll-padding-bottom: 5rem;
+  }
+
+  body.voyage-mobile-keyboard-open .modal-content :is(input, textarea, select):focus {
+    scroll-margin-top: 1rem;
+    scroll-margin-bottom: 5rem;
+  }
 }
