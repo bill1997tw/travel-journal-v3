@@ -14,6 +14,14 @@ test("workspace exposes one clear trip memory destination", () => {
   assert.doesNotMatch(html, /記憶書籤/);
 });
 
+test("trip memory navigation keeps useful labels visible on mobile", () => {
+  assert.match(html, /class="diary-page-intro"[\s\S]*?旅程回憶/);
+  assert.match(html, /class="diary-view-tab-copy"[\s\S]*?<strong>記憶片段<\/strong>[\s\S]*?<small>旅行中隨手記錄<\/small>/);
+  assert.match(html, /class="diary-view-tab-copy"[\s\S]*?<strong>回憶作品<\/strong>[\s\S]*?<small>整理成完整故事<\/small>/);
+  assert.match(css, /\.diary-view-tab-copy strong[\s\S]*?white-space:\s*normal/);
+  assert.match(css, /@media \(max-width: 768px\)[\s\S]*?\.diary-view-tab-copy strong/);
+});
+
 test("trip memory editor restores the agreed first-stage fields", () => {
   [
     "ws-diary-story-title",

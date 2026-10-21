@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>悠遊小本本 Voyage Book | 您的專屬旅行規劃與分帳管家</title>
   <meta name="description" content="悠遊小本本是一個為自助旅行與重機愛好者設計的精美企劃工具，包含詳細日程、景點與餐廳備案庫、行李打包清單、多人費用代墊分帳以及回憶日記。">
-  <link rel="stylesheet" href="index.css?v=v52">
+  <link rel="stylesheet" href="index.css?v=v53">
   <link rel="stylesheet" href="cloud-sync.css?v=v40">
   <link rel="stylesheet" href="app-entry.css?v=v35">
   <link rel="stylesheet" href="mobile-viewport.css?v=v4">
@@ -986,10 +986,13 @@
             <!-- E. 旅程回憶 -->
             <div class="ws-tab-panel" id="ws-panel-diary">
               <div class="panel-section-header diary-page-heading">
-                <div>
-                  <span class="diary-preview-kicker">TRIP MEMORY</span>
-                  <h2>📖 旅程回憶</h2>
-                  <p>把這趟旅行整理成一篇值得收藏的回顧，完成後也能預覽成社群圖卡。</p>
+                <div class="diary-page-intro">
+                  <span class="diary-page-icon" aria-hidden="true">📖</span>
+                  <div>
+                    <span class="diary-preview-kicker">TRIP MEMORY</span>
+                    <h2>旅程回憶</h2>
+                    <p>把沿途片刻收進小本本，再整理成一篇值得收藏的旅行故事。</p>
+                  </div>
                 </div>
                 <div class="diary-page-actions">
                   <button class="btn btn-secondary" id="ws-diary-import-cost-btn">💰 帶入帳本總花費</button>
@@ -1008,8 +1011,20 @@
               <div class="diary-publication-note" id="ws-diary-status-note" role="status" aria-live="polite"></div>
 
               <div class="diary-view-tabs" role="tablist" aria-label="旅程回憶內容">
-                <button type="button" class="diary-view-tab active" data-diary-view="moments" role="tab" aria-selected="true">🔖 記憶片段</button>
-                <button type="button" class="diary-view-tab" data-diary-view="story" role="tab" aria-selected="false">✍️ 回憶作品</button>
+                <button type="button" class="diary-view-tab active" data-diary-view="moments" role="tab" aria-selected="true">
+                  <span class="diary-view-tab-icon" aria-hidden="true">🔖</span>
+                  <span class="diary-view-tab-copy">
+                    <strong>記憶片段</strong>
+                    <small>旅行中隨手記錄</small>
+                  </span>
+                </button>
+                <button type="button" class="diary-view-tab" data-diary-view="story" role="tab" aria-selected="false">
+                  <span class="diary-view-tab-icon" aria-hidden="true">✍️</span>
+                  <span class="diary-view-tab-copy">
+                    <strong>回憶作品</strong>
+                    <small>整理成完整故事</small>
+                  </span>
+                </button>
               </div>
 
               <section class="diary-view-panel active" id="ws-diary-moments-panel" data-diary-view-panel="moments" role="tabpanel">

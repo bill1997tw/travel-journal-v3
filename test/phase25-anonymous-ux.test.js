@@ -76,11 +76,11 @@ test("mobile form controls avoid iOS focus zoom without disabling page zoom", ()
 });
 
 test("service worker upgrades mutable assets and reloads a newly controlled page once", () => {
-  assert.match(worker, /voyage-book-shell-v93/);
+  assert.match(worker, /voyage-book-shell-v94/);
   assert.match(worker, /mobile-viewport\.css\?v=v4/);
   assert.match(worker, /mobile-viewport\.js\?v=v4/);
   assert.match(worker, /cache: "reload"/);
-  assert.match(cloudSync, /register\("\.\/sw\.js\?v=v93", \{ updateViaCache: "none" \}\)/);
+  assert.match(cloudSync, /register\("\.\/sw\.js\?v=v94", \{ updateViaCache: "none" \}\)/);
   assert.match(cloudSync, /hadServiceWorkerController/);
   assert.match(cloudSync, /controllerchange/);
 });
